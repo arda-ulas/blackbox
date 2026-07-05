@@ -1,7 +1,8 @@
-// Smoke tests for the example:record / example:replay paths.
+// Smoke tests for the example:record / example:replay / example:fork paths.
 // Full cassette behaviour is covered in tests/replay.test.ts.
+// Full fork/diff behaviour is covered in tests/fork.test.ts / tests/diffTraces.test.ts.
 // These tests verify that the same logic used by the example scripts
-// produces a valid, replayable cassette file on disk.
+// produces valid cassette files on disk.
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { join } from "node:path";
@@ -17,6 +18,8 @@ import {
   validateTrace,
   replayTrace,
 } from "../src/replay/CassetteReplay.ts";
+import { forkRun } from "../src/fork/forkRun.ts";
+import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
 
 const tempDir  = join(tmpdir(), `blackbox-examples-${Date.now()}`);
@@ -71,5 +74,78 @@ describe("example:replay path", () => {
     expect(summary.stepCount).toBe(loaded.steps.length);
     expect(summary.events.some((e) => e.type === "tool_call")).toBe(true);
     expect(summary.events.some((e) => e.type === "tool_result")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// example:fork path
+//
+// The test trace (search + calendar + final_answer) has 11 steps:
+//   0  model_input   4  model_input   8  model_input
+//   1  model_output  5  model_output  9  model_output
+//   2  tool_call     6  tool_call    10  metadata
+//   3  tool_result   7  tool_result
+//
+// Fork at index 8 — the third model_input, after both tool rounds.
+// ---------------------------------------------------------------------------
+
+const FORK_INDEX = 8;
+const forkPath   = join(tempDir, "example-trace-fork.json");
+
+let childTrace: Trace;
+
+describe("example:fork path", () => {
+  beforeAll(async () => {
+    const { childTrace: ct } = await forkRun({
+      parentTrace:    recordedTrace,
+      forkIndex:      FORK_INDEX,
+      childId:        "example-test-run-fork",
+      promptMutation: "Skip the hotel — find train tickets instead.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Trains fully booked." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    childTrace = ct;
+    await saveTrace(childTrace, forkPath);
+  });
+
+  it("creates the child cassette file on disk", async () => {
+    const loaded = await loadTrace(forkPath);
+    expect(loaded.id).toBe("example-test-run-fork");
+  });
+
+  it("child trace loaded from disk passes validateTrace", async () => {
+    const loaded = await loadTrace(forkPath);
+    expect(() => validateTrace(loaded)).not.toThrow();
+  });
+
+  it("child trace has parentId set to the parent trace id", () => {
+    expect(childTrace.parentId).toBe(recordedTrace.id);
+  });
+
+  it("child trace has forkedFromStepId set", () => {
+    expect(typeof childTrace.forkedFromStepId).toBe("string");
+    expect(childTrace.forkedFromStepId).toBe(recordedTrace.steps[FORK_INDEX].id);
+  });
+
+  it("parent and child share identical hashes for all steps index < forkIndex", () => {
+    for (let i = 0; i < FORK_INDEX; i++) {
+      expect(childTrace.steps[i].hash).toBe(recordedTrace.steps[i].hash);
+    }
+  });
+
+  it("diffTraces reports first divergence exactly at forkIndex", () => {
+    const diff = diffTraces(recordedTrace, childTrace);
+    expect(diff.hasDivergence).toBe(true);
+    expect(diff.firstDivergenceIndex).toBe(FORK_INDEX);
+    expect(diff.sharedPrefixLength).toBe(FORK_INDEX);
+  });
+
+  it("formatFirstDivergence output includes 'First divergence' and the divergent index", () => {
+    const diff   = diffTraces(recordedTrace, childTrace);
+    const output = formatFirstDivergence(diff);
+    expect(output).toContain("First divergence");
+    expect(output).toContain(String(FORK_INDEX));
   });
 });
