@@ -95,4 +95,29 @@ describe("TraceRecorder", () => {
     expect(fresh.steps).toHaveLength(1);
     expect(fresh.steps[0].hash).not.toBe("tampered");
   });
+
+  it("does not leak nested payload mutations from getTrace into recorder internals", () => {
+    const recorder = new TraceRecorder("run-1");
+    recorder.append("model_input", { nested: { value: 42 } }, 1000);
+
+    const trace = recorder.getTrace();
+    // Mutate a nested property on the returned copy.
+    (trace.steps[0].payload as { nested: { value: number } }).nested.value = 999;
+
+    // A fresh getTrace must still return the original recorded value.
+    const fresh = recorder.getTrace();
+    expect((fresh.steps[0].payload as { nested: { value: number } }).nested.value).toBe(42);
+  });
+
+  it("does not allow post-append mutation of the caller payload to corrupt the stored step", () => {
+    const recorder = new TraceRecorder("run-1");
+    const payload = { value: 1 };
+    recorder.append("metadata", payload, 1000);
+
+    // Mutate the original object after it has been appended.
+    payload.value = 999;
+
+    const trace = recorder.getTrace();
+    expect((trace.steps[0].payload as { value: number }).value).toBe(1);
+  });
 });

@@ -53,13 +53,13 @@ export class TraceRecorder {
       index,
       type,
       timestamp: ts,
-      payload,
+      payload: structuredClone(payload), // isolate internal copy from caller's object
       prevHash,
       hash,
     };
 
     this.steps.push(step);
-    return { ...step };
+    return structuredClone(step);
   }
 
   /** Number of steps recorded so far. */
@@ -83,6 +83,6 @@ export class TraceRecorder {
     if (this.forkedFromStepId !== undefined) {
       trace.forkedFromStepId = this.forkedFromStepId;
     }
-    return trace;
+    return structuredClone(trace);
   }
 }
