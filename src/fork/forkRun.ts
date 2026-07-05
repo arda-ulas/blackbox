@@ -68,8 +68,8 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
   // Validate mutation targets before touching the recorder.
   if (toolResultMutations) {
     for (const key of Object.keys(toolResultMutations)) {
-      // Reject non-integer-string keys ("abc", "3.5", "-1", etc.)
-      if (!/^\d+$/.test(key)) {
+      // Reject non-canonical or non-integer-string keys ("abc", "3.5", "-1", "03", etc.)
+      if (!/^(0|[1-9]\d*)$/.test(key)) {
         throw new Error(
           `forkRun: toolResultMutations key "${key}" is not a valid non-negative integer`,
         );

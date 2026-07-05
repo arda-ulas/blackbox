@@ -450,6 +450,20 @@ describe("forkRun — malformed mutation keys", () => {
       }),
     ).rejects.toThrow(/not a valid non-negative integer/);
   });
+
+  it("rejects a leading-zero key ('03') that would silently miss the mutation target", async () => {
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: FORK_INDEX,
+        childId: "child-bad-key-leading-zero",
+        promptMutation: "Whatever.",
+        toolResultMutations: { "03": { bad: "key" } } as unknown as Record<number, JsonValue>,
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/not a valid non-negative integer/);
+  });
 });
 
 describe("forkRun — parent isolation in mutation mode", () => {
