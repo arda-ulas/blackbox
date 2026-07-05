@@ -48,7 +48,7 @@ Hand-rolled. No external dependencies. Implementation contract:
 - The next arg that does not start with `--` is the value. If there is no next arg, or the next arg starts with `--`, the flag value is `true` (boolean flag).
 - Unrecognised flags: print `Unknown flag: --<name>` to stderr and exit 1.
 - Missing required flags: print `Missing required flag: --<name>` to stderr and exit 1.
-- Unknown subcommand: print `Unknown subcommand: <name>. Valid: record, replay, fork, diff` to stderr and exit 1.
+- Unknown subcommand: print `Unknown subcommand: <name>. Valid: record, replay, fork, diff, list, inspect` to stderr and exit 1.
 - No subcommand: print usage summary and exit 0.
 
 ---
