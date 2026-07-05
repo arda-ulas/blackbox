@@ -1,6 +1,6 @@
 # Blackbox
 
-Blackbox is a time-travel debugger for AI agents: scrub any run, fork it at any step, edit the prompt or break a tool, and diff the two histories.
+Blackbox is a time-travel debugger for AI agents: record a multi-step run, replay it offline from cassette, fork it at any step with a mutated prompt, and diff the two histories.
 
 ## Status
 
@@ -34,6 +34,11 @@ Build a from-scratch recorder, cassette replay engine, fork mechanism, and termi
 - Auth
 - Sharing
 
-## First Success Signal
+## Quick Start
 
-`npm test`, `npm run example:record`, `npm run example:replay`, and `npm run example:fork` all work.
+```sh
+npm test
+npm run example:record   # records a multi-step trace to traces/example-trace.json
+npm run example:replay   # replays the trace offline from cassette
+npm run example:fork     # forks at step 8, mutates the prompt, diffs the histories
+```

@@ -1,5 +1,6 @@
 // example:fork — load a parent trace, fork at a chosen step with a mutated
-// prompt, run the child offline, save it, and print the first divergence.
+// prompt, continue locally with the fake deterministic model, save the child
+// trace, and print the first divergence.
 //
 // Run example:record first to create traces/example-trace.json, then:
 //   npm run example:fork
