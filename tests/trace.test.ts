@@ -1,0 +1,98 @@
+import { describe, it, expect } from "vitest";
+import { canonicalize, hashCanonical, hashTraceStepInput } from "../src/trace/hash.ts";
+import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
+
+describe("canonicalize", () => {
+  it("sorts object keys recursively", () => {
+    const input = { b: 1, a: { d: 2, c: 3 }, list: [{ y: 1, x: 2 }] };
+    expect(canonicalize(input)).toBe(
+      '{"a":{"c":3,"d":2},"b":1,"list":[{"x":2,"y":1}]}',
+    );
+  });
+
+  it("preserves array order", () => {
+    expect(canonicalize([3, 1, 2])).toBe("[3,1,2]");
+  });
+});
+
+describe("hashCanonical", () => {
+  it("returns the same hash for identical objects with different key insertion order", () => {
+    const a = { a: 1, b: 2, nested: { x: 1, y: 2 } };
+    const b = { nested: { y: 2, x: 1 }, b: 2, a: 1 };
+    expect(hashCanonical(a)).toBe(hashCanonical(b));
+  });
+
+  it("returns different hashes when payload values differ", () => {
+    expect(hashCanonical({ a: 1 })).not.toBe(hashCanonical({ a: 2 }));
+  });
+});
+
+describe("hashTraceStepInput", () => {
+  it("changes the hash when the same logical payload is mutated", () => {
+    const base = {
+      index: 0,
+      type: "model_input" as const,
+      timestamp: 1000,
+      prevHash: null,
+    };
+    const h1 = hashTraceStepInput({ ...base, payload: { value: 1 } });
+    const h2 = hashTraceStepInput({ ...base, payload: { value: 2 } });
+    expect(h1).not.toBe(h2);
+  });
+});
+
+describe("TraceRecorder", () => {
+  it("starts with an empty trace", () => {
+    const recorder = new TraceRecorder("run-1");
+    const trace = recorder.getTrace();
+    expect(trace.id).toBe("run-1");
+    expect(trace.steps).toEqual([]);
+  });
+
+  it("gives the first step index 0 and a null prevHash", () => {
+    const recorder = new TraceRecorder("run-1");
+    const step = recorder.append("model_input", { prompt: "hello" }, 1000);
+    expect(step.index).toBe(0);
+    expect(step.prevHash).toBeNull();
+    expect(typeof step.hash).toBe("string");
+    expect(step.hash.length).toBeGreaterThan(0);
+  });
+
+  it("chains the second step's prevHash to the first step's hash", () => {
+    const recorder = new TraceRecorder("run-1");
+    const first = recorder.append("model_input", { prompt: "hello" }, 1000);
+    const second = recorder.append("model_output", { text: "world" }, 2000);
+    expect(second.index).toBe(1);
+    expect(second.prevHash).toBe(first.hash);
+  });
+
+  it("produces a different step hash when the logical payload changes", () => {
+    const a = new TraceRecorder("run-a");
+    const b = new TraceRecorder("run-b");
+    const stepA = a.append("tool_result", { ok: true }, 1000);
+    const stepB = b.append("tool_result", { ok: false }, 1000);
+    // Same index/type/timestamp/prevHash -> only the payload differs.
+    expect(stepA.hash).not.toBe(stepB.hash);
+  });
+
+  it("does not allow external mutation of recorder internals via getTrace", () => {
+    const recorder = new TraceRecorder("run-1");
+    recorder.append("metadata", { note: "first" }, 1000);
+
+    const trace = recorder.getTrace();
+    trace.steps.push({
+      id: "tampered",
+      index: 99,
+      type: "metadata",
+      timestamp: 0,
+      payload: null,
+      prevHash: null,
+      hash: "tampered",
+    });
+    trace.steps[0].hash = "tampered";
+
+    const fresh = recorder.getTrace();
+    expect(fresh.steps).toHaveLength(1);
+    expect(fresh.steps[0].hash).not.toBe("tampered");
+  });
+});
