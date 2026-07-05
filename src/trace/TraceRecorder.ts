@@ -62,6 +62,22 @@ export class TraceRecorder {
     return structuredClone(step);
   }
 
+  /**
+   * Pre-populate the recorder with steps copied verbatim from a parent trace
+   * prefix. Must be called before any append(). The fork invariant requires
+   * that child steps at index < forkIndex are identical (same hash) to the
+   * parent's steps, which is only possible when the original step objects
+   * (including their timestamps and computed hashes) are copied as-is.
+   */
+  loadPrefix(steps: ReadonlyArray<TraceStep>): void {
+    if (this.steps.length > 0) {
+      throw new Error("TraceRecorder.loadPrefix: recorder must be empty");
+    }
+    for (const step of steps) {
+      this.steps.push(structuredClone(step));
+    }
+  }
+
   /** Number of steps recorded so far. */
   size(): number {
     return this.steps.length;
