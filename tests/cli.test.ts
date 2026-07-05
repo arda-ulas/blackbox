@@ -291,3 +291,80 @@ describe("cli default fork path", () => {
     expect(result.stdout).toContain("First divergence");
   }, 15_000);
 });
+
+// ---------------------------------------------------------------------------
+// W3-B: list command
+// ---------------------------------------------------------------------------
+
+describe("cli list", () => {
+  it("after record, lists success and error trace files", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("example-trace.json");
+    expect(result.stdout).toContain("example-error-trace.json");
+  }, 15_000);
+
+  it("shows trace id and status for valid traces", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    expect(result.stdout).toContain("example-run-001");
+    expect(result.stdout).toContain("success");
+  }, 15_000);
+
+  it("on an empty directory exits 0 with an empty-state message", async () => {
+    const emptyDir = join(tmpdir(), `blackbox-empty-${Date.now()}`);
+    await mkdir(emptyDir, { recursive: true });
+    try {
+      const result = await runCli(["list", "--dir", emptyDir]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBeTruthy();
+    } finally {
+      await rm(emptyDir, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  it("on a non-existent directory exits 0 with an empty-state message", async () => {
+    const result = await runCli(["list", "--dir", "/tmp/blackbox-no-such-dir-w3b"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBeTruthy();
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// W3-B: inspect command
+// ---------------------------------------------------------------------------
+
+describe("cli inspect", () => {
+  it("prints trace id, version, step count, and status for the success trace", async () => {
+    const result = await runCli(["inspect", "--trace", SUCCESS_PATH]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("example-run-001"); // trace id
+    expect(result.stdout).toContain("1");               // version
+    expect(result.stdout).toContain("15");              // step count
+    expect(result.stdout).toContain("success");         // status
+  }, 15_000);
+
+  it("prints a step timeline with step types", async () => {
+    const result = await runCli(["inspect", "--trace", SUCCESS_PATH]);
+    expect(result.stdout).toContain("model_input");
+    expect(result.stdout).toContain("tool_result");
+    expect(result.stdout).toContain("metadata");
+  }, 15_000);
+
+  it("exits 1 for a missing trace path", async () => {
+    const result = await runCli(["inspect", "--trace", "/tmp/blackbox-no-such-trace.json"]);
+    expect(result.exitCode).toBe(1);
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// W3-B: usage includes list and inspect
+// ---------------------------------------------------------------------------
+
+describe("cli usage", () => {
+  it("usage output includes list and inspect", async () => {
+    const result = await runCli([]); // no subcommand → printUsage()
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("list");
+    expect(result.stdout).toContain("inspect");
+  }, 15_000);
+});

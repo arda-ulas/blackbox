@@ -1,8 +1,8 @@
 // Unified Blackbox CLI entry point.
 // Usage: npm run cli -- <subcommand> [flags]
-// Subcommands: record, replay, fork, diff
+// Subcommands: record, replay, fork, diff, list, inspect
 
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "./agent/modelClient.ts";
@@ -16,7 +16,7 @@ import {
 } from "./replay/CassetteReplay.ts";
 import { forkRun } from "./fork/forkRun.ts";
 import { diffTraces, formatFirstDivergence } from "./fork/diffTraces.ts";
-import type { JsonValue } from "./trace/TraceTypes.ts";
+import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -100,10 +100,12 @@ function printUsage(): void {
   console.log(`[blackbox] Usage: npm run cli -- <command> [flags]
 
 Commands:
-  record   Run demo agent traces and save cassettes to disk
-  replay   Replay a cassette offline (no model or tool calls)
-  fork     Fork a trace with a prompt or tool-result mutation
-  diff     Load two cassettes and print the first divergence
+  record    Run demo agent traces and save cassettes to disk
+  replay    Replay a cassette offline (no model or tool calls)
+  fork      Fork a trace with a prompt or tool-result mutation
+  diff      Load two cassettes and print the first divergence
+  list      List all trace cassettes in a directory
+  inspect   Print detailed info and step timeline for a cassette
 
 Run a command with no flags to use defaults.
 `);
@@ -400,6 +402,114 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// list
+// ---------------------------------------------------------------------------
+
+const LIST_ALLOWED     = ["dir"];
+const LIST_VALUE_FLAGS = ["dir"];
+
+/** Extract a short status string from a loaded trace without calling replayTrace. */
+function extractStatus(trace: Trace): string {
+  const last = trace.steps.at(-1);
+  if (last?.type !== "metadata") return "incomplete";
+  const p = last.payload as { event?: string; status?: string; reason?: string };
+  if (p.event === "run_completed" && p.status === "success") return "success";
+  if (p.event === "run_failed") return p.reason ? `error/${p.reason}` : "error";
+  return "incomplete";
+}
+
+async function runList(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, LIST_ALLOWED);
+  checkValueFlags(flags, LIST_VALUE_FLAGS);
+
+  const dir = str(flags["dir"], "traces");
+
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    console.log(`[blackbox] No traces found — directory "${dir}" does not exist.`);
+    return;
+  }
+
+  const jsonFiles = entries.filter((f) => f.endsWith(".json")).sort();
+
+  if (jsonFiles.length === 0) {
+    console.log(`[blackbox] No trace files found in "${dir}".`);
+    return;
+  }
+
+  console.log(`[blackbox] --- list (${dir}) ---\n`);
+
+  let validCount = 0;
+  for (const file of jsonFiles) {
+    const filePath = join(dir, file);
+    try {
+      const trace  = await loadTrace(filePath);
+      const status = extractStatus(trace);
+      const parent = trace.parentId ? `  parent=${trace.parentId}` : "";
+
+      console.log(`  ${filePath}`);
+      console.log(
+        `    id=${trace.id}  v=${trace.version}  steps=${trace.steps.length}  status=${status}${parent}`,
+      );
+      validCount++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
+      const brief = msg.length > 80 ? msg.slice(0, 80) + "…" : msg;
+      console.log(`  ${filePath}`);
+      console.log(`    [warning] not a valid trace — ${brief}`);
+    }
+    console.log();
+  }
+
+  console.log(`${validCount} of ${jsonFiles.length} file(s) loaded successfully.`);
+}
+
+// ---------------------------------------------------------------------------
+// inspect
+// ---------------------------------------------------------------------------
+
+const INSPECT_ALLOWED     = ["trace"];
+const INSPECT_VALUE_FLAGS = ["trace"];
+
+async function runInspect(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, INSPECT_ALLOWED);
+  checkValueFlags(flags, INSPECT_VALUE_FLAGS);
+
+  const tracePath = str(flags["trace"], "traces/example-trace.json");
+
+  const trace   = await loadTrace(tracePath);
+  validateTrace(trace);
+  const summary = replayTrace(trace);
+
+  const label   = (s: string) => s.padEnd(20);
+  const created = new Date(trace.createdAt).toISOString();
+
+  console.log("[blackbox] --- inspect ---");
+  console.log(label("Path:"),     tracePath);
+  console.log(label("Trace ID:"), trace.id);
+  console.log(label("Version:"),  trace.version);
+  if (trace.parentId)         console.log(label("Parent ID:"),   trace.parentId);
+  if (trace.forkedFromStepId) console.log(label("Forked from:"), trace.forkedFromStepId);
+  console.log(label("Created:"),  created);
+  console.log(label("Steps:"),    trace.steps.length);
+  console.log(label("Status:"),   summary.status);
+  if (summary.result !== undefined)        console.log(label("Result:"), summary.result);
+  if (summary.failureReason !== undefined) console.log(label("Reason:"), summary.failureReason);
+  console.log();
+
+  console.log("--- steps ---");
+  for (const event of summary.events) {
+    const step      = trace.steps[event.index];
+    const shortHash = step.hash.slice(0, 8);
+    console.log(
+      `  ${String(event.index).padStart(2)}  ${event.type.padEnd(14)}  ${shortHash}  ${event.summary}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -409,14 +519,16 @@ const flags = parseArgs(rest ?? []);
 
 try {
   switch (subcommand) {
-    case "record": await runRecord(flags); break;
-    case "replay": await runReplay(flags); break;
-    case "fork":   await runFork(flags);   break;
-    case "diff":   await runDiff(flags);   break;
+    case "record":  await runRecord(flags);  break;
+    case "replay":  await runReplay(flags);  break;
+    case "fork":    await runFork(flags);    break;
+    case "diff":    await runDiff(flags);    break;
+    case "list":    await runList(flags);    break;
+    case "inspect": await runInspect(flags); break;
     default:
       if (subcommand) {
         console.error(
-          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff`,
+          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, list, inspect`,
         );
         process.exit(1);
       }
