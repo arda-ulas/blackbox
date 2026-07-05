@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { canonicalize, hashCanonical, hashTraceStepInput } from "../src/trace/hash.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
+import type { TraceStepType } from "../src/trace/TraceTypes.ts";
 
 describe("canonicalize", () => {
   it("sorts object keys recursively", () => {
@@ -31,13 +32,78 @@ describe("hashTraceStepInput", () => {
   it("changes the hash when the same logical payload is mutated", () => {
     const base = {
       index: 0,
-      type: "model_input" as const,
+      type: "model_input" as TraceStepType,
       timestamp: 1000,
       prevHash: null,
     };
     const h1 = hashTraceStepInput({ ...base, payload: { value: 1 } });
     const h2 = hashTraceStepInput({ ...base, payload: { value: 2 } });
     expect(h1).not.toBe(h2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Timestamp/hash policy
+//
+// Timestamps are included in the step hash. This is intentional: it means two
+// runs recording the same events at different wall-clock times will produce
+// different hashes. The fork implementation must therefore copy parent prefix
+// steps VERBATIM (preserving original timestamps and hashes) rather than
+// re-recording those steps with new timestamps.
+// ---------------------------------------------------------------------------
+
+describe("hashTraceStepInput — timestamp policy", () => {
+  const type: TraceStepType = "model_input";
+  const payload = { prompt: "hello" };
+  const prevHash = null;
+  const index = 0;
+
+  it("hashes identically when all inputs including timestamp are the same", () => {
+    const input = { index, type, timestamp: 1000, payload, prevHash };
+    expect(hashTraceStepInput(input)).toBe(hashTraceStepInput(input));
+  });
+
+  it("hashes differently when only the timestamp differs", () => {
+    const h1 = hashTraceStepInput({ index, type, timestamp: 1000, payload, prevHash });
+    const h2 = hashTraceStepInput({ index, type, timestamp: 1001, payload, prevHash });
+    expect(h1).not.toBe(h2);
+  });
+});
+
+describe("hashTraceStepInput — fork policy implication", () => {
+  it("re-recording a step with the same timestamp reproduces its hash", () => {
+    // Proof that verbatim copy (same timestamp) preserves hash equality.
+    // A fork implementation MUST copy parent prefix steps verbatim —
+    // not re-record them — to satisfy canonical-hash-identical prefix.
+    const recorder = new TraceRecorder("parent-run");
+    const step = recorder.append("model_input", { prompt: "hello" }, 1000);
+
+    const reproduced = hashTraceStepInput({
+      index: step.index,
+      type: step.type,
+      timestamp: step.timestamp,
+      payload: step.payload,
+      prevHash: step.prevHash,
+    });
+
+    expect(reproduced).toBe(step.hash);
+  });
+
+  it("re-recording a step at a different timestamp breaks hash equality", () => {
+    // Proof that even one-millisecond clock drift causes prefix mismatch
+    // if steps are re-recorded rather than copied verbatim.
+    const recorder = new TraceRecorder("parent-run");
+    const step = recorder.append("model_input", { prompt: "hello" }, 1000);
+
+    const drifted = hashTraceStepInput({
+      index: step.index,
+      type: step.type,
+      timestamp: step.timestamp + 1,
+      payload: step.payload,
+      prevHash: step.prevHash,
+    });
+
+    expect(drifted).not.toBe(step.hash);
   });
 });
 

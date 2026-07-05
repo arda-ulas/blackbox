@@ -66,8 +66,9 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
 
     if (modelOutput.type === "final_answer") {
       recorder.append("metadata", {
-        kind: "final_answer",
-        text: modelOutput.text,
+        event: "run_completed",
+        status: "success",
+        result: modelOutput.text,
       });
       return {
         trace: recorder.getTrace(),
@@ -86,6 +87,12 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       recorder.append("tool_result", { toolName, error: detail });
+      recorder.append("metadata", {
+        event: "run_failed",
+        status: "error",
+        reason: "unknown_tool",
+        toolName,
+      });
       throw new Error(`Agent loop aborted: ${detail}`);
     }
 
@@ -96,5 +103,11 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     messages.push({ role: "user", content: JSON.stringify(toolResult) });
   }
 
+  recorder.append("metadata", {
+    event: "run_failed",
+    status: "error",
+    reason: "max_steps_exceeded",
+    maxSteps,
+  });
   throw new Error(`Agent loop exceeded max steps (${maxSteps}).`);
 }

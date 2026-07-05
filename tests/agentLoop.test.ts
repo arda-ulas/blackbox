@@ -38,6 +38,30 @@ describe("agentLoop — final answer", () => {
     expect(types).toContain("model_input");
     expect(types).toContain("model_output");
   });
+
+  it("records a terminal success metadata step on completion", async () => {
+    const model = new FakeDeterministicModelClient([
+      { type: "final_answer", text: "The answer is 42." },
+    ]);
+    const recorder = makeRecorder();
+    await runAgentLoop({
+      model,
+      tools: defaultFixtureTools(),
+      recorder,
+      prompt: "What is the answer?",
+    });
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    expect(terminal?.type).toBe("metadata");
+    const payload = terminal?.payload as {
+      event: string;
+      status: string;
+      result: string;
+    };
+    expect(payload.event).toBe("run_completed");
+    expect(payload.status).toBe("success");
+    expect(payload.result).toBe("The answer is 42.");
+  });
 });
 
 describe("agentLoop — tool call", () => {
@@ -166,8 +190,10 @@ describe("agentLoop — error cases", () => {
     ).toMatch("nonexistent_tool");
   });
 
-  it("throws when max steps are exceeded", async () => {
-    // Provides two tool_calls so the fake client does not overrun first.
+  it("records a terminal error metadata step then throws when max steps are exceeded", async () => {
+    // Two scripted tool_calls so FakeDeterministicModelClient does not overrun before the
+    // loop exit — only the first call fires before maxSteps=1 halts the loop.
+    const recorder = makeRecorder("run-maxsteps");
     const model = new FakeDeterministicModelClient([
       { type: "tool_call", toolName: "search", toolInput: { query: "a" } },
       { type: "tool_call", toolName: "search", toolInput: { query: "b" } },
@@ -177,10 +203,17 @@ describe("agentLoop — error cases", () => {
       runAgentLoop({
         model,
         tools: defaultFixtureTools(),
-        recorder: makeRecorder(),
+        recorder,
         prompt: "loop forever",
         maxSteps: 1,
       }),
     ).rejects.toThrow("exceeded max steps");
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    expect(terminal?.type).toBe("metadata");
+    const payload = terminal?.payload as { event: string; reason: string; maxSteps: number };
+    expect(payload.event).toBe("run_failed");
+    expect(payload.reason).toBe("max_steps_exceeded");
+    expect(payload.maxSteps).toBe(1);
   });
 });
