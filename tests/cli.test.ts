@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { loadTrace, validateTrace } from "../src/replay/CassetteReplay.ts";
 
 const execFileAsync = promisify(execFile);
@@ -366,5 +366,88 @@ describe("cli usage", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("list");
     expect(result.stdout).toContain("inspect");
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// W3-B audit: list validates hash chains; createdAt in output
+// ---------------------------------------------------------------------------
+
+describe("cli list integrity", () => {
+  let tamperedPath: string;
+  let badJsonPath: string;
+
+  beforeAll(async () => {
+    // Hash-tampered trace: valid JSON structure but corrupted step hash.
+    const raw  = await import("node:fs/promises").then((m) => m.readFile(SUCCESS_PATH, "utf8"));
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const steps = data["steps"] as Array<Record<string, unknown>>;
+    steps[5]["hash"] = "0".repeat(64); // corrupt step 5's hash
+    tamperedPath = join(TEMP_DIR, "tampered-trace.json");
+    await writeFile(tamperedPath, JSON.stringify(data, null, 2), "utf8");
+
+    // Malformed JSON: not parseable at all.
+    badJsonPath = join(TEMP_DIR, "not-json.json");
+    await writeFile(badJsonPath, "{ this is not valid json }", "utf8");
+  });
+
+  it("list shows [warning] for hash-tampered trace", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("tampered-trace.json");
+    expect(result.stdout).toContain("[warning]");
+  }, 15_000);
+
+  it("list does not count hash-tampered trace as successfully loaded", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    // TEMP_DIR has: example-trace, example-error-trace, fork-out,
+    // tampered-trace, not-json → 5 JSON files, but only 3 are valid.
+    expect(result.stdout).toContain("3 of 5");
+  }, 15_000);
+
+  it("list output includes createdAt for valid traces", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    expect(result.stdout).toContain("created=");
+  }, 15_000);
+
+  it("list shows [warning] for malformed JSON file", async () => {
+    const result = await runCli(["list", "--dir", TEMP_DIR]);
+    expect(result.stdout).toContain("not-json.json");
+    expect(result.stdout).toContain("[warning]");
+  }, 15_000);
+
+  it("inspect exits 1 for a hash-tampered trace", async () => {
+    const result = await runCli(["inspect", "--trace", tamperedPath]);
+    expect(result.exitCode).toBe(1);
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// W3-B audit: list/inspect flag validation
+// ---------------------------------------------------------------------------
+
+describe("cli list/inspect flag validation", () => {
+  it("list --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["list", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+
+  it("inspect --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["inspect", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+
+  it("list --dir with no value exits 1 and prints Missing value for --dir", async () => {
+    const result = await runCli(["list", "--dir"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing value for --dir");
+  }, 15_000);
+
+  it("inspect --trace with no value exits 1 and prints Missing value for --trace", async () => {
+    const result = await runCli(["inspect", "--trace"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing value for --trace");
   }, 15_000);
 });

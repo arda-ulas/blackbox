@@ -155,6 +155,50 @@ Loads two cassettes and prints the first divergence.
 
 ---
 
+### `blackbox list`
+
+Scans a directory for `.json` trace cassettes and prints a compact summary row for each one.
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--dir` | `string` | `traces` | Directory to scan for trace files |
+
+**Behavior:**
+
+- Reads the directory with `readdir`; if the directory does not exist, prints a clear empty-state message and exits 0
+- Filters for `.json` files; if none found, prints a clear empty-state message and exits 0
+- For each `.json` file, calls `loadTrace` then `validateTrace`:
+  - If both succeed, prints a compact row: `id`, `version`, `step count`, `status`, `createdAt`, and `parentId` if present
+  - If either fails (malformed JSON, missing version, broken hash chain), prints a `[warning]` row with the error and does **not** count the file as successfully loaded
+- Prints a summary line: `N of M file(s) loaded successfully.`
+
+**Exit codes:** 0 always (list never crashes on bad files).
+
+---
+
+### `blackbox inspect`
+
+Loads a single cassette, validates it, and prints detailed metadata plus a step-by-step timeline.
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--trace` | `string` | `traces/example-trace.json` | Path to the cassette file |
+
+**Behavior:**
+
+- Loads via `loadTrace` (version-gated)
+- Validates via `validateTrace` (exits 1 on hash-chain failure)
+- Prints header: trace id, version, parentId if present, forkedFromStepId if present, createdAt (ISO), step count, status, result or failure reason
+- Prints `--- steps ---` timeline: index, type, 8-char hash prefix, and a brief payload summary (same format as `replay`)
+
+**Exit codes:** 0 on success, 1 if load or validation fails.
+
+---
+
 ## Error Handling Contract
 
 All subcommands follow this pattern:
@@ -224,6 +268,6 @@ No `"bin"` field. No `bin/` directory. No new dependencies. Global binary packag
 - Real external tool calls
 - New npm dependencies (no `commander`, `yargs`, `chalk`, `ora`, etc.)
 - Hosted backend or remote cassette storage
-- `blackbox list` and `blackbox inspect` subcommands (those are W3-B)
+- `blackbox list` and `blackbox inspect` subcommands (implemented in W3-B)
 - Terminal color output (that is W3-C)
 - `DEMO.md` (that is W3-D)

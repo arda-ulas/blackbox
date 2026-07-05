@@ -445,13 +445,15 @@ async function runList(flags: Record<string, string | boolean>): Promise<void> {
   for (const file of jsonFiles) {
     const filePath = join(dir, file);
     try {
-      const trace  = await loadTrace(filePath);
-      const status = extractStatus(trace);
-      const parent = trace.parentId ? `  parent=${trace.parentId}` : "";
+      const trace   = await loadTrace(filePath);
+      validateTrace(trace);
+      const status  = extractStatus(trace);
+      const created = new Date(trace.createdAt).toISOString().slice(0, 10);
+      const parent  = trace.parentId ? `  parent=${trace.parentId}` : "";
 
       console.log(`  ${filePath}`);
       console.log(
-        `    id=${trace.id}  v=${trace.version}  steps=${trace.steps.length}  status=${status}${parent}`,
+        `    id=${trace.id}  v=${trace.version}  steps=${trace.steps.length}  status=${status}  created=${created}${parent}`,
       );
       validCount++;
     } catch (e) {
