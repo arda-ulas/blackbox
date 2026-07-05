@@ -5,7 +5,7 @@ import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
 import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { validateTrace } from "../src/replay/CassetteReplay.ts";
-import type { Trace } from "../src/trace/TraceTypes.ts";
+import type { Trace, JsonValue } from "../src/trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
 // Shared parent trace: model_input → model_output(tool_call) → tool_call →
@@ -361,5 +361,117 @@ describe("forkRun — tool-result mutation", () => {
         tools: defaultFixtureTools(),
       }),
     ).rejects.toThrow(/outside prefix range/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W2-B audit patch: payload shape, stale-prefix guard, malformed keys,
+// parent isolation in mutation mode
+//
+// Parent trace step layout (same as above):
+//   0  model_input       (prompt: "Find hotels.")
+//   1  model_output      (tool_call: search)
+//   2  tool_call         (search)
+//   3  tool_result       (search result)
+//   4  model_input       (second call)    ← FORK_INDEX
+//   5  model_output      (final_answer)
+//   6  metadata
+// ---------------------------------------------------------------------------
+
+describe("forkRun — tool-result mutation payload shape", () => {
+  it("mutated tool_result step preserves toolName and uses injected result value", async () => {
+    const MUTATION_INDEX = 3;
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-payload-shape",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Payload shape answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+
+    const mutatedStep = childTrace.steps[MUTATION_INDEX];
+    expect(mutatedStep.type).toBe("tool_result");
+
+    const payload = mutatedStep.payload as { toolName?: string; result?: unknown };
+    // toolName must be a string (preserved from the parent step's payload).
+    expect(typeof payload.toolName).toBe("string");
+    // result must be exactly the injected value, not the whole mutation object.
+    expect(payload.result).toEqual(INJECTED_RESULT);
+  });
+});
+
+describe("forkRun — stale model_input guard", () => {
+  it("rejects mutation when a model_input follows the mutation target within the prefix", async () => {
+    // forkIndex=5 puts prefix=[0,1,2,3,4]; step 4 is model_input and comes after
+    // the mutation at step 3 — it would carry stale message history.
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: 5,
+        childId: "child-stale-model-input",
+        promptMutation: "Whatever.",
+        toolResultMutations: { 3: INJECTED_RESULT },
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/stale/);
+  });
+});
+
+describe("forkRun — malformed mutation keys", () => {
+  it("rejects a non-integer key ('abc')", async () => {
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: FORK_INDEX,
+        childId: "child-bad-key-abc",
+        promptMutation: "Whatever.",
+        toolResultMutations: { abc: { bad: "key" } } as unknown as Record<number, JsonValue>,
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/not a valid non-negative integer/);
+  });
+
+  it("rejects a float key ('3.5')", async () => {
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: FORK_INDEX,
+        childId: "child-bad-key-float",
+        promptMutation: "Whatever.",
+        toolResultMutations: { "3.5": { bad: "key" } } as unknown as Record<number, JsonValue>,
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/not a valid non-negative integer/);
+  });
+});
+
+describe("forkRun — parent isolation in mutation mode", () => {
+  it("does not mutate the parent trace when tool-result mutations are applied", async () => {
+    const originalHashes = parentTrace.steps.map((s) => s.hash);
+    const originalStepCount = parentTrace.steps.length;
+
+    await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-mutation-isolation",
+      promptMutation: "Find flights.",
+      toolResultMutations: { 3: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Isolation check." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+
+    expect(parentTrace.steps).toHaveLength(originalStepCount);
+    parentTrace.steps.forEach((s, i) => {
+      expect(s.hash).toBe(originalHashes[i]);
+    });
   });
 });

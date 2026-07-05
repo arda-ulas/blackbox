@@ -28,10 +28,14 @@ export interface ForkOptions {
   tools: FixtureTool[];
   maxSteps?: number;
   /**
-   * Optional map of parent step index → replacement payload.
-   * Each key must identify a "tool_result" step within the prefix [0, forkIndex).
-   * Mutated steps get new hashes; all subsequent prefix steps are re-chained.
-   * The agent loop continues with the reconstructed (mutated) message history.
+   * Optional map of parent step index → replacement result value.
+   * Each key must be a non-negative integer string identifying a "tool_result"
+   * step within the prefix [0, forkIndex). The original toolName is preserved;
+   * only the result value is replaced. Mutated steps get new hashes; all
+   * subsequent prefix steps are re-chained.
+   *
+   * Constraint: no model_input step may exist between the earliest mutation
+   * index and forkIndex (such a step would carry stale message history).
    */
   toolResultMutations?: Record<number, JsonValue>;
 }
@@ -64,8 +68,14 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
   // Validate mutation targets before touching the recorder.
   if (toolResultMutations) {
     for (const key of Object.keys(toolResultMutations)) {
+      // Reject non-integer-string keys ("abc", "3.5", "-1", etc.)
+      if (!/^\d+$/.test(key)) {
+        throw new Error(
+          `forkRun: toolResultMutations key "${key}" is not a valid non-negative integer`,
+        );
+      }
       const i = Number(key);
-      if (i < 0 || i >= forkIndex) {
+      if (i >= forkIndex) {
         throw new Error(
           `forkRun: toolResultMutations key ${i} is outside prefix range [0, ${forkIndex})`,
         );
@@ -95,9 +105,19 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     }
   } else {
     // Find the earliest mutation index to split the prefix.
-    const firstMutationIndex = Math.min(
-      ...Object.keys(toolResultMutations!).map(Number),
-    );
+    const firstMutationIndex = Math.min(...Object.keys(toolResultMutations!).map(Number));
+
+    // Guard: any model_input between the mutation point and forkIndex would
+    // carry the original (pre-mutation) tool result in its recorded messages,
+    // making the prefix internally inconsistent. Reject early with a clear error.
+    for (let i = firstMutationIndex + 1; i < forkIndex; i++) {
+      if (parentTrace.steps[i].type === "model_input") {
+        throw new Error(
+          `forkRun: mutation at step ${firstMutationIndex} would leave the model_input at step ${i} ` +
+            `stale — set forkIndex ≤ ${i} or remove that mutation target`,
+        );
+      }
+    }
 
     // Steps before the first mutation: verbatim (identical hashes to parent).
     const verbatimPart = prefixSteps.slice(0, firstMutationIndex);
@@ -106,10 +126,21 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     }
 
     // Steps from the first mutation onward: re-append, applying replacements.
-    // Preserving original timestamps keeps the hashes deterministic.
+    // Preserving original timestamps keeps the hashes deterministic across runs.
     for (let i = firstMutationIndex; i < forkIndex; i++) {
       const step = parentTrace.steps[i];
-      const payload = i in toolResultMutations! ? toolResultMutations![i] : step.payload;
+      let payload: JsonValue;
+      if (i in toolResultMutations!) {
+        // Preserve the original toolName; replace only the result value so the
+        // recorded payload shape stays { toolName, result } — same as the agent loop.
+        const originalPayload = step.payload as { toolName?: string };
+        payload = {
+          toolName: originalPayload.toolName ?? "unknown",
+          result: toolResultMutations![i],
+        };
+      } else {
+        payload = step.payload;
+      }
       recorder.append(step.type, payload, step.timestamp);
     }
   }
@@ -156,8 +187,9 @@ function reconstructMessages(
   }
 
   // Seed from the recorded initial messages in the first model_input payload.
+  // Role is restricted to "user" | "assistant" matching the Message interface.
   const firstPayload = firstStep.payload as {
-    messages?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    messages?: Array<{ role: "user" | "assistant"; content: string }>;
   };
   const messages: Message[] = firstPayload.messages
     ? firstPayload.messages.map((m) => ({ ...m }))
