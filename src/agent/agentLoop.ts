@@ -19,7 +19,7 @@ export interface AgentLoopOptions {
   model: ModelClient;
   tools: FixtureTool[];
   recorder: TraceRecorder;
-  /** Initial user-facing prompt. */
+  /** Initial user-facing prompt. Ignored when initialMessages is provided. */
   prompt: string;
   systemPrompt?: string;
   /**
@@ -27,6 +27,12 @@ export interface AgentLoopOptions {
    * Prevents runaway loops in tests and live use. Default: 20.
    */
   maxSteps?: number;
+  /**
+   * Pre-built message history. When provided, overrides the single-message
+   * construction from prompt. Used by forkRun for tool-result mutation so
+   * the continuing agent sees the mutated conversation history.
+   */
+  initialMessages?: Message[];
 }
 
 export interface AgentLoopResult {
@@ -44,7 +50,9 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     description: t.name,
   }));
 
-  const messages: Message[] = [{ role: "user", content: prompt }];
+  const messages: Message[] = options.initialMessages
+    ? [...options.initialMessages]
+    : [{ role: "user", content: prompt }];
   let stepCount = 0;
 
   while (stepCount < maxSteps) {

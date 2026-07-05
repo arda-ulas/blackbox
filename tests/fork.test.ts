@@ -212,3 +212,154 @@ describe("forkRun — isolation and edge cases", () => {
     ).rejects.toThrow(/forkIndex/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// W2-B: tool-result mutation
+//
+// Parent trace step layout:
+//   0  model_input       (prompt: "Find hotels.")
+//   1  model_output      (tool_call: search)
+//   2  tool_call         (search)
+//   3  tool_result       (search result)  ← mutation target
+//   4  model_input       (second call)    ← forkIndex
+//   5  model_output      (final_answer)
+//   6  metadata
+// ---------------------------------------------------------------------------
+
+// Injected replacement for the search tool_result at step 3.
+const INJECTED_RESULT = { injected: true, custom: "w2b-value" };
+
+describe("forkRun — tool-result mutation", () => {
+  it("omitting toolResultMutations preserves prefix hashes (no regression)", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-no-mutation",
+      promptMutation: "Find flights.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "No-mutation answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    // Steps 0..FORK_INDEX-1 must be hash-identical to parent.
+    for (let i = 0; i < FORK_INDEX; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+  });
+
+  it("with mutation: steps before mutation point keep parent hashes; mutated step has new hash", async () => {
+    const MUTATION_INDEX = 3; // tool_result step
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-mutation-hashes",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Mutation answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    // Steps before the mutation: identical to parent.
+    for (let i = 0; i < MUTATION_INDEX; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+    // Mutated step: different hash.
+    expect(childTrace.steps[MUTATION_INDEX].hash).not.toBe(
+      parentTrace.steps[MUTATION_INDEX].hash,
+    );
+  });
+
+  it("child's first new model_input messages include the injected tool result value", async () => {
+    const MUTATION_INDEX = 3;
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-message-check",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Message check answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+
+    // The first new step in the child is the model_input at FORK_INDEX.
+    const firstNewStep = childTrace.steps[FORK_INDEX];
+    expect(firstNewStep.type).toBe("model_input");
+
+    const payload = firstNewStep.payload as {
+      messages?: Array<{ role: string; content: string }>;
+    };
+    // The last user message must be the JSON-stringified injected result.
+    const userMessages = (payload.messages ?? []).filter((m) => m.role === "user");
+    const lastUserContent = userMessages.at(-1)?.content ?? "";
+    expect(lastUserContent).toBe(JSON.stringify(INJECTED_RESULT));
+  });
+
+  it("mutated child trace passes validateTrace", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-mutation-validate",
+      promptMutation: "Find flights.",
+      toolResultMutations: { 3: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Valid mutation." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    expect(() => validateTrace(childTrace)).not.toThrow();
+  });
+
+  it("forks at a tool_result step (forkIndex points to step 3, a tool_result)", async () => {
+    // forkIndex = 3: prefix = steps [0, 1, 2] (model_input, model_output, tool_call).
+    // The child starts fresh from step 3 with the mutated prompt.
+    const { childTrace, prefixLength } = await forkRun({
+      parentTrace,
+      forkIndex: 3,
+      childId: "child-tr-fork",
+      promptMutation: "Fork at tool_result.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Tool-result-fork answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    expect(prefixLength).toBe(3);
+    // Prefix hashes match parent.
+    for (let i = 0; i < 3; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+    expect(() => validateTrace(childTrace)).not.toThrow();
+  });
+
+  it("rejects mutation targeting a non-tool_result step", async () => {
+    // Step 2 is a tool_call, not a tool_result.
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: FORK_INDEX,
+        childId: "child-bad-type",
+        promptMutation: "Whatever.",
+        toolResultMutations: { 2: { bad: "target" } },
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/tool_result/);
+  });
+
+  it("rejects mutation targeting a step at or beyond forkIndex", async () => {
+    // Step FORK_INDEX is forkIndex itself — not in the prefix [0, FORK_INDEX).
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: FORK_INDEX,
+        childId: "child-oob-mutation",
+        promptMutation: "Whatever.",
+        toolResultMutations: { [FORK_INDEX]: { out: "of range" } },
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/outside prefix range/);
+  });
+});
