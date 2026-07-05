@@ -25,21 +25,16 @@ npm run cli -- fork --trace traces/example-trace.json --mode tool-result --fork-
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 ```
 
-**Bin/shebang decision:** Add a `bin` entry to `package.json` pointing at a thin wrapper script that invokes `tsx src/cli.ts`. Use a `#!/usr/bin/env tsx` shebang. This enables `npm link` for local dev use. Do **not** publish to npm in Week Three.
+**W3-A interface:** `npm run cli -- <subcommand>` is the **only** supported interface for Week Three. No global binary, no `bin` entry in `package.json`, no `bin/blackbox.js`, no `npm link` step required.
 
+A `#!/usr/bin/env tsx` shebang in a `bin/` wrapper is unreliable unless `tsx` is globally installed, which cannot be assumed. Packaging a proper global binary is a separate concern deferred to a later phase.
+
+**W3-A package.json change:** Add exactly one script entry:
 ```json
-"bin": {
-  "blackbox": "./bin/blackbox.js"
-}
+"cli": "tsx src/cli.ts"
 ```
 
-`bin/blackbox.js`:
-```js
-#!/usr/bin/env tsx
-import "../src/cli.ts";
-```
-
-Defer this if the shebang proves unreliable on the target platform. The `npm run cli --` form is the primary dev interface and must always work.
+No `"bin"` field. No new files in `bin/`.
 
 ---
 
@@ -133,6 +128,8 @@ Loads a parent cassette, forks at a given step with either a prompt mutation or 
 
 **Validation of `--payload-json`:** Parse with `JSON.parse`; print `Invalid JSON for --payload-json: <err>` and exit 1 on failure.
 
+**Prompt-mode model behavior:** When `--mode prompt` is used, the child run needs a scripted model response. The CLI supplies a single hardcoded `FakeDeterministicModelClient` response: `{ type: "final_answer", text: "Prompt-mode fork complete." }`. This is a placeholder for W3-A; a richer scripted response or `--response-json` flag can be added in a later phase. The default demo (no flags) always uses the tool-result path and is unaffected.
+
 **Exit codes:** 0 on success, 1 on any error (load, validation, fork, save).
 
 ---
@@ -205,23 +202,22 @@ All error messages are prefixed with `[blackbox error]`. All informational outpu
 
 ## package.json Changes
 
-Add exactly two entries:
+Add exactly one script entry:
 
 ```json
 "scripts": {
   "cli": "tsx src/cli.ts"
-},
-"bin": {
-  "blackbox": "./bin/blackbox.js"
 }
 ```
 
-Create `bin/blackbox.js` with a tsx shebang. No new dependencies added to `dependencies` or `devDependencies`.
+No `"bin"` field. No `bin/` directory. No new dependencies. Global binary packaging is out of scope for W3-A.
 
 ---
 
 ## Non-Goals for W3-A
 
+- Global binary / `npm link` / shebang wrapper (deferred to a later packaging phase)
+- `"bin"` entry in `package.json`
 - npm publish or public registry release
 - Web UI or browser interface
 - Real model API calls
