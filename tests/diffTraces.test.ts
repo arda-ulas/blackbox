@@ -194,6 +194,7 @@ describe("formatFirstDivergence", () => {
 
   it("marks parent strict prefix in formatted output", () => {
     const shortParent: Trace = {
+      version: CURRENT_TRACE_VERSION,
       id: "short-p",
       createdAt: 0,
       steps: structuredClone(toolTrace.steps.slice(0, 2)),

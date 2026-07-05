@@ -24,13 +24,15 @@ Everything stays CLI/local. No UI, no backend, no hosted anything.
 
 ### Phase W2-A: Cassette schema versioning
 
-Add a `version` field to `Trace`. On `loadTrace`, reject cassettes whose version is not understood. On `saveTrace`, write the current schema version. On `validateTrace`, check version presence.
+Add a `version` field to `Trace`. `loadTrace` is the deserialization gate and rejects cassettes whose version is absent or unsupported. `validateTrace` is unchanged — it focuses on hash-chain and canonical integrity only.
 
-Files to touch:
-- `src/trace/TraceTypes.ts` — add `version: number` to `Trace`
+**Implemented as:** `loadTrace` rejects missing or unsupported versions; `validateTrace` does not check version.
+
+Files touched:
+- `src/trace/TraceTypes.ts` — add `CURRENT_TRACE_VERSION = 1` and `version: number` to `Trace`
 - `src/trace/TraceRecorder.ts` — write `version` in `getTrace()`
-- `src/replay/CassetteReplay.ts` — read/validate `version` in `loadTrace`/`validateTrace`
-- `tests/replay.test.ts` — add version-rejection test
+- `src/replay/CassetteReplay.ts` — version gate in `loadTrace` only
+- `tests/replay.test.ts` — version round-trip, missing-version rejection, unsupported-version rejection
 
 ### Phase W2-B: Tool-result mutation
 
@@ -70,7 +72,7 @@ Files to touch:
 ## Acceptance Criteria
 
 - `npm test` still passes (no regressions)
-- `validateTrace` rejects a cassette with no `version` field or an unknown version
+- `loadTrace` rejects a cassette with no `version` field or an unknown version (`validateTrace` checks hash-chain integrity only)
 - `forkRun` accepts a `toolResultMutations` option and produces a child trace where the injected value is visible in subsequent model inputs
 - At least one test forks at a `tool_result` step
 - All three example scripts still run cleanly end-to-end
