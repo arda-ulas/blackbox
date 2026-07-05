@@ -22,6 +22,8 @@ const TRACE_PATH = new URL("../../traces/example-trace.json", import.meta.url).p
 // Three tool calls give a representative multi-step trace.
 // ---------------------------------------------------------------------------
 
+const SCENARIO = "Book a hotel for Alice this weekend.";
+
 const model = new FakeDeterministicModelClient([
   { type: "tool_call", toolName: "search",   toolInput: { query: "weekend hotels" } },
   { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-03-15" } },
@@ -31,13 +33,18 @@ const model = new FakeDeterministicModelClient([
 
 const recorder = new TraceRecorder("example-run-001", { createdAt: Date.now() });
 
+const label = (s: string) => s.padEnd(14);
+
 console.log("[blackbox] Recording agent run...\n");
+console.log(label("Scenario:"),  SCENARIO);
+console.log(label("Tools:"),     "search → calendar → booking");
+console.log();
 
 const result = await runAgentLoop({
   model,
   tools: defaultFixtureTools(),
   recorder,
-  prompt: "Book a hotel for Alice this weekend.",
+  prompt: SCENARIO,
   maxSteps: 10,
 });
 
@@ -48,7 +55,6 @@ validateTrace(result.trace);
 await mkdir(TRACES_DIR, { recursive: true });
 await saveTrace(result.trace, TRACE_PATH);
 
-const label = (s: string) => s.padEnd(14);
 console.log(label("Trace ID:"),   result.trace.id);
 console.log(label("Output:"),     TRACE_PATH);
 console.log(label("Steps:"),      result.trace.steps.length);

@@ -78,31 +78,40 @@ describe("example:replay path", () => {
 });
 
 // ---------------------------------------------------------------------------
-// example:fork path
+// example:fork path — tool-result mutation demo
 //
-// The test trace (search + calendar + final_answer) has 11 steps:
+// Test trace (search + calendar + final_answer) step layout (11 steps):
 //   0  model_input   4  model_input   8  model_input
 //   1  model_output  5  model_output  9  model_output
 //   2  tool_call     6  tool_call    10  metadata
 //   3  tool_result   7  tool_result
 //
-// Fork at index 8 — the third model_input, after both tool rounds.
+// Mutation: step 3 (tool_result: search) → inject "no hotels available"
+// Fork point: step 4 (second model_input — agent sees the mutated result)
+// First divergence: step 3 (mutated tool_result has a new hash)
 // ---------------------------------------------------------------------------
 
-const FORK_INDEX = 8;
-const forkPath   = join(tempDir, "example-trace-fork.json");
+// Step index of the mutated tool_result.
+const MUTATION_INDEX = 3;
+// Step index where the child run begins (first model_input after mutation).
+const FORK_INDEX     = 4;
+
+const SEARCH_MUTATION = { available: false, message: "No hotels available." };
+
+const forkPath = join(tempDir, "example-trace-fork.json");
 
 let childTrace: Trace;
 
 describe("example:fork path", () => {
   beforeAll(async () => {
     const { childTrace: ct } = await forkRun({
-      parentTrace:    recordedTrace,
-      forkIndex:      FORK_INDEX,
-      childId:        "example-test-run-fork",
-      promptMutation: "Skip the hotel — find train tickets instead.",
+      parentTrace:         recordedTrace,
+      forkIndex:           FORK_INDEX,
+      childId:             "example-test-run-fork",
+      promptMutation:      "(tool-result mutation — promptMutation unused)",
+      toolResultMutations: { [MUTATION_INDEX]: SEARCH_MUTATION },
       model: new FakeDeterministicModelClient([
-        { type: "final_answer", text: "Trains fully booked." },
+        { type: "final_answer", text: "No availability found." },
       ]),
       tools: defaultFixtureTools(),
     });
@@ -124,28 +133,34 @@ describe("example:fork path", () => {
     expect(childTrace.parentId).toBe(recordedTrace.id);
   });
 
-  it("child trace has forkedFromStepId set", () => {
+  it("child trace has forkedFromStepId pointing at the fork-point step", () => {
     expect(typeof childTrace.forkedFromStepId).toBe("string");
     expect(childTrace.forkedFromStepId).toBe(recordedTrace.steps[FORK_INDEX].id);
   });
 
-  it("parent and child share identical hashes for all steps index < forkIndex", () => {
-    for (let i = 0; i < FORK_INDEX; i++) {
+  it("steps before the mutation have identical hashes to parent", () => {
+    for (let i = 0; i < MUTATION_INDEX; i++) {
       expect(childTrace.steps[i].hash).toBe(recordedTrace.steps[i].hash);
     }
   });
 
-  it("diffTraces reports first divergence exactly at forkIndex", () => {
+  it("the mutated step has a different hash than the parent", () => {
+    expect(childTrace.steps[MUTATION_INDEX].hash).not.toBe(
+      recordedTrace.steps[MUTATION_INDEX].hash,
+    );
+  });
+
+  it("diffTraces reports first divergence at the mutation step", () => {
     const diff = diffTraces(recordedTrace, childTrace);
     expect(diff.hasDivergence).toBe(true);
-    expect(diff.firstDivergenceIndex).toBe(FORK_INDEX);
-    expect(diff.sharedPrefixLength).toBe(FORK_INDEX);
+    expect(diff.firstDivergenceIndex).toBe(MUTATION_INDEX);
+    expect(diff.sharedPrefixLength).toBe(MUTATION_INDEX);
   });
 
   it("formatFirstDivergence output includes 'First divergence' and the divergent index", () => {
     const diff   = diffTraces(recordedTrace, childTrace);
     const output = formatFirstDivergence(diff);
     expect(output).toContain("First divergence");
-    expect(output).toContain(String(FORK_INDEX));
+    expect(output).toContain(String(MUTATION_INDEX));
   });
 });
