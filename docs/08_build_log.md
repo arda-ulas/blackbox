@@ -138,3 +138,81 @@ In priority order — do not expand scope without explicit decision:
 3. **Cassette schema versioning**: add a `version` field to `Trace` so future format changes can be detected and rejected gracefully.
 4. **Better demo traces**: richer example runs — longer chains, error paths, max-step exceeded — to make the diff output more illustrative.
 5. **UI (deferred)**: no web UI until the above is solid and explicitly chosen.
+
+---
+
+## 2026-07-05 — Week Two Completion
+
+### Tag
+`week-two-core-hardening` → commit `42e2b4f docs: clarify fork prefix wording`
+
+### What Was Built
+
+**W2-A — Cassette schema versioning**
+- Added `CURRENT_TRACE_VERSION = 1` constant and `version: number` to `Trace`
+- `loadTrace` is the deserialization gate: rejects cassettes with no version or an unsupported version number
+- `validateTrace` unchanged — hash-chain integrity only
+- Files: `src/trace/TraceTypes.ts`, `src/trace/TraceRecorder.ts`, `src/replay/CassetteReplay.ts`, `tests/replay.test.ts`, `tests/trace.test.ts`
+
+**W2-B — Tool-result mutation**
+- Extended `forkRun` with `toolResultMutations?: Record<number, JsonValue>`
+- Verbatim prefix before earliest mutation; re-appended (re-chained) from mutation point to `forkIndex`
+- Mutated `tool_result` payload preserves original `toolName`, replaces only the `result` value
+- `reconstructMessages()` rebuilds message history with injected values, passed as `initialMessages` to agent loop
+- Guards: rejects non-canonical keys (`"abc"`, `"3.5"`, `"03"`), out-of-prefix targets, non-`tool_result` targets, stale `model_input` between mutation and fork point
+- Audited and patched twice by Codex before acceptance
+- Files: `src/fork/forkRun.ts`, `src/agent/agentLoop.ts`, `tests/fork.test.ts`
+
+**W2-C — Fork continuation semantics**
+- Defined and documented fork-point behavior for every step type (`model_input`, `model_output`, `tool_call`, `tool_result`, `metadata`)
+- Added guard rejecting fork at `metadata` steps (terminal run markers with no meaningful continuation)
+- Added tests for fork at `model_output` (step 1) and `tool_call` (step 2); both produce valid hash chains
+- Codex audit polish: added `forkedFromStepId` and `prevHash` boundary assertions to new tests
+- Files: `src/fork/forkRun.ts`, `docs/03_trace_schema.md`, `tests/fork.test.ts`
+
+**W2-D — Richer demo traces and clearer terminal output**
+- `example:record` now produces two traces: success path (`traces/example-trace.json`, search → calendar → booking) and error path (`traces/example-error-trace.json`, model hallucinates unknown tool `"flights"`)
+- `example:fork` switched from prompt mutation to tool-result mutation: injects "no hotels available" at step 3, forks at step 4, shows labeled terminal sections (original run / mutation / prefix / child run / trace diff)
+- `docs/03_trace_schema.md` Fork Policy updated to precisely state the no-mutation and mutation-mode prefix invariants
+- `README.md` updated: Status reflects Week Two completion; Week-Two Hardening section added; Quick Start corrected for tool-result mutation
+- Codex audit patch: added error-path `describe` block (5 tests) and docs fixes
+- Files: `src/examples/record.ts`, `src/examples/fork.ts`, `tests/examples.test.ts`, `README.md`, `docs/03_trace_schema.md`, `docs/09_week_two_plan.md`
+
+### Final Acceptance Criteria Status
+| Criterion | Status |
+|---|---|
+| `npm test` passes | ✓ 111/111 |
+| `example:record` creates success trace | ✓ `traces/example-trace.json`, 15 steps |
+| `example:record` creates error trace | ✓ `traces/example-error-trace.json`, 5 steps, `run_failed/unknown_tool` |
+| `example:replay` replays fully offline | ✓ structural guarantee (no model/tool params) |
+| `example:fork` creates child trace via tool-result mutation | ✓ `traces/example-trace-fork.json`, 7 steps |
+| Prefix hashes identical before first divergent step | ✓ steps 0–2 match; step 3 (mutation target) diverges |
+| Terminal output marks first divergence clearly | ✓ labeled sections; `First divergence at index 3` with hashes |
+| Cassette schema versioning guards | ✓ `loadTrace` rejects missing/unsupported version |
+| Fork at non-`model_input` steps works | ✓ `model_output` and `tool_call` fork points tested |
+| Fork at `metadata` step rejected | ✓ clear error message |
+| Codex audit verdict | ✓ Week Two accepted |
+
+### Demo Commands (in order)
+```sh
+npm test -- --run
+npm run example:record   # creates traces/example-trace.json and traces/example-error-trace.json
+npm run example:replay   # replays success trace offline from cassette
+npm run example:fork     # injects different search result, forks at step 4, diffs histories
+```
+
+### Known Limitations
+1. **Local/CLI only.** No hosted backend, no sharing, no remote cassette storage. Everything runs on the local filesystem.
+2. **Fake model and tools only.** `FakeDeterministicModelClient` and fixture tools are deterministic stubs. No real model API or external tool integration exists.
+3. **No UI.** All interaction is terminal output. No web UI, dashboard, branch graph, or timeline view.
+4. **Continuation semantics are demo-hardened, not a general SDK.** Fork and mutation behavior is well-defined and tested for the demo scenarios. Edge cases outside the tested paths (e.g., deeply nested multi-agent runs, partial-step interruptions) are not handled.
+5. **Single-agent only.** The loop, recorder, and fork logic assume one agent running one tool at a time. Multi-agent orchestration is out of scope.
+6. **Replay summarizes, does not re-execute.** `replayTrace` reads stored payloads; it does not re-run the model or tools and cannot detect whether a re-execution would differ.
+
+### Recommended Next Milestone (scoped)
+In priority order — do not expand scope without explicit decision:
+1. **Package the CLI experience**: add a single entry-point CLI command (e.g., `npx blackbox record`, `blackbox fork`) so the tool is usable without knowing the internal script paths.
+2. **Improve cassette ergonomics**: named cassette IDs, cassette listing, and a `blackbox diff <cassette-a> <cassette-b>` command that works on any two saved traces without writing a script.
+3. **Richer mutation scenarios**: multiple simultaneous tool-result mutations, mutation of `model_input` payloads (system prompt injection), and a `--dry-run` flag that validates the mutation without running the agent.
+4. **Portfolio/demo writeup**: a short published post or README demo video showing the record → fork → diff loop on a realistic agent task; useful for sharing progress and gathering feedback.
+5. **Web UI (explicitly deferred)**: no UI work until the CLI is solid and UI is explicitly chosen as the next milestone.
