@@ -103,3 +103,19 @@ A forked trace shares a canonical-hash-identical prefix with its parent up to th
 3. From the fork point onward, the child records new steps (with new timestamps and new hashes).
 
 The `prevHash` chain ensures the boundary is verifiable: the first child-only step's `prevHash` must equal the parent's step hash at index `fork_point - 1`.
+
+## Fork-Point Semantics by Step Type
+
+The fork index may point to any step in the parent trace **except a `metadata` step**. The prefix copied into the child is always `steps[0, forkIndex)`.
+
+| Fork-point step type | Prefix content | Child continuation |
+|---|---|---|
+| `model_input` | All steps before the model call | Agent loop starts from the mutated prompt — the most natural fork point |
+| `model_output` | Includes the preceding `model_input` | Agent loop starts fresh; first new child step is a new `model_input` at `forkIndex` |
+| `tool_call` | Includes the `model_input` and its `model_output` | Agent loop starts fresh with the prefix ending before tool execution |
+| `tool_result` | Includes the full tool round up to and including the result | Agent loop starts fresh; use `toolResultMutations` to inject a different result value |
+| `metadata` | **Not allowed** | `metadata` steps are terminal run markers; forking there has no meaningful continuation and is rejected |
+
+### Tool-result mutation constraint
+
+When `toolResultMutations` are provided, an additional constraint applies: no `model_input` step may exist between the earliest mutation index and `forkIndex`. Such a step would carry stale pre-mutation message history in its recorded payload, making the prefix internally inconsistent. `forkRun` rejects this case with a clear error.

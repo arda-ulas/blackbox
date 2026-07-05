@@ -489,3 +489,76 @@ describe("forkRun — parent isolation in mutation mode", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// W2-C: fork continuation semantics — non-model_input fork points
+//
+// Parent trace step layout:
+//   0  model_input       (prompt: "Find hotels.")
+//   1  model_output      (tool_call: search)      ← fork point for test 1
+//   2  tool_call         (search)                 ← fork point for test 2
+//   3  tool_result       (search result)           (already tested in W2-B)
+//   4  model_input       (second call)
+//   5  model_output      (final_answer)
+//   6  metadata          (run_completed)          ← must be rejected
+// ---------------------------------------------------------------------------
+
+describe("forkRun — non-model_input fork points (W2-C)", () => {
+  it("forks at a model_output step: prefix is verbatim, child starts with a new model_input", async () => {
+    const { childTrace, prefixLength } = await forkRun({
+      parentTrace,
+      forkIndex: 1, // model_output step
+      childId: "child-at-model-output",
+      promptMutation: "Find trains instead.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Train answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+
+    expect(prefixLength).toBe(1);
+    // Sole prefix step is hash-identical to parent.
+    expect(childTrace.steps[0].hash).toBe(parentTrace.steps[0].hash);
+    // First child-only step is a fresh model_input (not a model_output).
+    expect(childTrace.steps[1].type).toBe("model_input");
+    expect(() => validateTrace(childTrace)).not.toThrow();
+  });
+
+  it("forks at a tool_call step: two-step prefix is verbatim, child continues from model_input", async () => {
+    const { childTrace, prefixLength } = await forkRun({
+      parentTrace,
+      forkIndex: 2, // tool_call step
+      childId: "child-at-tool-call",
+      promptMutation: "Try a different approach.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Tool-call-fork answer." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+
+    expect(prefixLength).toBe(2);
+    // Prefix hashes [0,1] match parent.
+    for (let i = 0; i < 2; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+    // First child-only step is a fresh model_input.
+    expect(childTrace.steps[2].type).toBe("model_input");
+    expect(() => validateTrace(childTrace)).not.toThrow();
+  });
+
+  it("rejects forking at a metadata step (terminal run marker)", async () => {
+    const metadataIndex = parentTrace.steps.findIndex((s) => s.type === "metadata");
+    expect(metadataIndex).toBeGreaterThan(-1);
+
+    await expect(
+      forkRun({
+        parentTrace,
+        forkIndex: metadataIndex,
+        childId: "child-at-metadata",
+        promptMutation: "Whatever.",
+        model: new FakeDeterministicModelClient([]),
+        tools: defaultFixtureTools(),
+      }),
+    ).rejects.toThrow(/metadata/);
+  });
+});

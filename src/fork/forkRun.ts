@@ -65,6 +65,13 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     );
   }
 
+  if (parentTrace.steps[forkIndex].type === "metadata") {
+    throw new Error(
+      `forkRun: cannot fork at a "metadata" step (index ${forkIndex}) — ` +
+        `metadata steps are terminal run markers with no meaningful continuation`,
+    );
+  }
+
   // Validate mutation targets before touching the recorder.
   if (toolResultMutations) {
     for (const key of Object.keys(toolResultMutations)) {
