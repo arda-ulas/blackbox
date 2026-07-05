@@ -70,7 +70,16 @@ export interface TraceStepHashInput {
 // Trace
 // ---------------------------------------------------------------------------
 
+/**
+ * Cassette schema version written to every saved trace.
+ * loadTrace rejects cassettes whose version is absent or not equal to this value.
+ * Bump when the Trace shape changes in a way that makes old cassettes unreadable.
+ */
+export const CURRENT_TRACE_VERSION = 1;
+
 export interface Trace {
+  /** Schema version — must equal CURRENT_TRACE_VERSION. Set by TraceRecorder. */
+  version: number;
   id: string;
   /** Set when this trace was forked from another run. */
   parentId?: string;

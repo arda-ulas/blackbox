@@ -5,6 +5,7 @@ import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
 import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
+import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ describe("diffTraces — child longer than parent", () => {
   it("reports divergence at parent length, parentStep null, isParentStrictPrefixOfChild true", () => {
     // Parent = first 3 steps of toolTrace; child = all 7 steps.
     const shortParent: Trace = {
+      version: CURRENT_TRACE_VERSION,
       id: "short-parent",
       createdAt: 0,
       steps: structuredClone(toolTrace.steps.slice(0, 3)),
@@ -137,6 +139,7 @@ describe("diffTraces — parent longer than child", () => {
   it("reports divergence at child length, childStep null, isChildStrictPrefixOfParent true", () => {
     // Child = first 3 steps of toolTrace; parent = all 7 steps.
     const shortChild: Trace = {
+      version: CURRENT_TRACE_VERSION,
       id: "short-child",
       createdAt: 0,
       steps: structuredClone(toolTrace.steps.slice(0, 3)),
@@ -212,6 +215,7 @@ describe("diffTraces — hash equality not object identity", () => {
     // Build a synthetic trace that shares the same step objects (and therefore
     // the same hashes) as toolTrace but has a completely different id and createdAt.
     const synthetic: Trace = {
+      version: CURRENT_TRACE_VERSION,
       id: "totally-different-id",
       createdAt: 999_999,
       steps: structuredClone(toolTrace.steps),

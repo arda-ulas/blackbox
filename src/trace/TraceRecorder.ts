@@ -3,11 +3,12 @@
 // Steps can only be appended, never mutated in place. Each appended step is
 // chained to the previous one by hash, forming a verifiable prefix.
 
-import type {
-  JsonValue,
-  Trace,
-  TraceStep,
-  TraceStepType,
+import {
+  CURRENT_TRACE_VERSION,
+  type JsonValue,
+  type Trace,
+  type TraceStep,
+  type TraceStepType,
 } from "./TraceTypes.ts";
 import { hashTraceStepInput } from "./hash.ts";
 
@@ -89,6 +90,7 @@ export class TraceRecorder {
    */
   getTrace(): Trace {
     const trace: Trace = {
+      version: CURRENT_TRACE_VERSION,
       id: this.id,
       createdAt: this.createdAt,
       steps: this.steps.map((step) => ({ ...step })),

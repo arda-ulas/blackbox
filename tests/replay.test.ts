@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { rm } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import {
   saveTrace,
   loadTrace,
@@ -12,6 +12,7 @@ import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
 import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
+import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -210,5 +211,41 @@ describe("replayTrace", () => {
     const summary = replayTrace(recorder.getTrace());
     expect(summary.status).toBe("error");
     expect(summary.failureReason).toBe("max_steps_exceeded");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schema versioning
+// ---------------------------------------------------------------------------
+
+describe("cassette schema versioning", () => {
+  it("saveTrace/loadTrace round-trip preserves version", async () => {
+    const trace = await recordSimpleTrace();
+    const path = tmpPath();
+
+    expect(trace.version).toBe(CURRENT_TRACE_VERSION);
+    await saveTrace(trace, path);
+    const loaded = await loadTrace(path);
+    expect(loaded.version).toBe(CURRENT_TRACE_VERSION);
+  });
+
+  it("loadTrace rejects a cassette with no version field", async () => {
+    const trace = await recordSimpleTrace();
+    const path = tmpPath();
+
+    // Serialize without the version field to simulate a pre-versioning cassette.
+    const { version: _stripped, ...withoutVersion } = trace;
+    await writeFile(path, JSON.stringify(withoutVersion), "utf8");
+
+    await expect(loadTrace(path)).rejects.toThrow(/version/);
+  });
+
+  it("loadTrace rejects a cassette with an unsupported version number", async () => {
+    const trace = await recordSimpleTrace();
+    const path = tmpPath();
+
+    await writeFile(path, JSON.stringify({ ...trace, version: 999 }), "utf8");
+
+    await expect(loadTrace(path)).rejects.toThrow(/999/);
   });
 });

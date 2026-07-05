@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { canonicalize, hashCanonical, hashTraceStepInput } from "../src/trace/hash.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
+import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
 import type { TraceStepType } from "../src/trace/TraceTypes.ts";
 
 describe("canonicalize", () => {
@@ -113,6 +114,11 @@ describe("TraceRecorder", () => {
     const trace = recorder.getTrace();
     expect(trace.id).toBe("run-1");
     expect(trace.steps).toEqual([]);
+  });
+
+  it("getTrace includes version equal to CURRENT_TRACE_VERSION", () => {
+    const recorder = new TraceRecorder("run-version");
+    expect(recorder.getTrace().version).toBe(CURRENT_TRACE_VERSION);
   });
 
   it("gives the first step index 0 and a null prevHash", () => {

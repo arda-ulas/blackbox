@@ -5,6 +5,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import {
+  CURRENT_TRACE_VERSION,
   type Trace,
   type TraceStep,
   type TraceStepType,
@@ -21,12 +22,33 @@ export async function saveTrace(trace: Trace, filePath: string): Promise<void> {
 }
 
 /**
- * Read a trace from disk. Parses the JSON but does not validate the
- * hash-chain — call validateTrace() after loading if integrity matters.
+ * Read a trace from disk.
+ *
+ * Acts as the deserialization gate: rejects cassettes that have no version
+ * field (written by a pre-versioning build) or an unsupported version number.
+ * Does not validate the hash-chain — call validateTrace() after loading if
+ * integrity matters.
  */
 export async function loadTrace(filePath: string): Promise<Trace> {
   const raw = await readFile(filePath, "utf8");
-  return JSON.parse(raw) as Trace;
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+  if (typeof parsed["version"] !== "number") {
+    throw new Error(
+      `loadTrace: cassette at "${filePath}" has no version field — ` +
+        `it may have been written by a pre-versioning build of Blackbox. ` +
+        `Re-run example:record to regenerate it.`,
+    );
+  }
+
+  if (parsed["version"] !== CURRENT_TRACE_VERSION) {
+    throw new Error(
+      `loadTrace: cassette version ${parsed["version"]} is not supported — ` +
+        `this build of Blackbox expects schema version ${CURRENT_TRACE_VERSION}.`,
+    );
+  }
+
+  return parsed as unknown as Trace;
 }
 
 // ---------------------------------------------------------------------------
