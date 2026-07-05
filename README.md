@@ -10,7 +10,7 @@ Week Two hardening complete (W2-A through W2-D). Week-one CLI proof accepted and
 
 - **Record** — runs a scripted multi-step tool-using agent and saves an append-only, hash-chained trace to disk
 - **Replay** — replays a saved trace entirely offline; no model or tool calls are made
-- **Fork** — branches from any step with a mutated prompt or injected tool result; copies the prefix verbatim so hashes are provably identical before the fork point
+- **Fork** — branches from any step with a mutated prompt or injected tool result; prefix hashes are provably identical to the parent up to the first divergent step (the fork point for prompt forks, the mutation target step for tool-result forks)
 - **Diff** — finds the first divergence between two traces and prints it to the terminal
 
 ## Week-One Proof ✓
