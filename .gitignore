@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Generated cassette output from example scripts
+traces/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
