@@ -62,10 +62,14 @@ Replace the single `example:record` trace with at least two named demo runs:
 
 Update `example:fork` to exercise tool-result mutation if Phase W2-B is done.
 
-Files to touch:
-- `src/examples/record.ts` (possibly split into multiple scripts or add a second demo)
-- `src/examples/fork.ts` — update to use tool-result mutation
-- `tests/examples.test.ts` — cover the error-path demo
+**Implemented as:** `example:record` now produces two traces — `traces/example-trace.json` (success, search → calendar → booking) and `traces/example-error-trace.json` (model calls unknown tool "flights", captured as `run_failed / unknown_tool` in trace metadata). `example:fork` injects a different search result (W2-B tool-result mutation) at step 3 and forks at step 4. Five new tests cover the error-path demo. README and `docs/03_trace_schema.md` updated to reflect Week Two behavior.
+
+Files touched:
+- `src/examples/record.ts` — added error-path demo
+- `src/examples/fork.ts` — switched to tool-result mutation
+- `tests/examples.test.ts` — added error-path describe block (5 tests)
+- `README.md` — updated Status, added Week Two section, fixed Quick Start
+- `docs/03_trace_schema.md` — clarified Fork Policy prefix invariant for mutation mode
 
 ---
 

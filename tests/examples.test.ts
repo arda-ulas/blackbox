@@ -26,30 +26,56 @@ const tempDir  = join(tmpdir(), `blackbox-examples-${Date.now()}`);
 const tempPath = join(tempDir, "example-trace.json");
 
 let recordedTrace: Trace;
+let errorTrace: Trace;
 
 beforeAll(async () => {
-  // Mirror the same setup used by example:record.
-  const recorder = new TraceRecorder("example-test-run", { createdAt: 0 });
-  const model = new FakeDeterministicModelClient([
+  await mkdir(tempDir, { recursive: true });
+
+  // --- success trace (mirrors example:record demo 1) ---
+  const successRecorder = new TraceRecorder("example-test-run", { createdAt: 0 });
+  const successModel = new FakeDeterministicModelClient([
     { type: "tool_call", toolName: "search",   toolInput: { query: "test" } },
     { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-01-01" } },
     { type: "final_answer", text: "Done." },
   ]);
-  const result = await runAgentLoop({
-    model,
-    tools: defaultFixtureTools(),
-    recorder,
-    prompt: "Book something.",
+  const successResult = await runAgentLoop({
+    model:    successModel,
+    tools:    defaultFixtureTools(),
+    recorder: successRecorder,
+    prompt:   "Book something.",
   });
-  recordedTrace = result.trace;
-
-  await mkdir(tempDir, { recursive: true });
+  recordedTrace = successResult.trace;
   await saveTrace(recordedTrace, tempPath);
+
+  // --- error trace (mirrors example:record demo 2) ---
+  // Model calls unknown tool "flights" → agent loop throws, trace is obtained
+  // from the recorder which has captured all steps including the error metadata.
+  const errorRecorder = new TraceRecorder("example-error-test-run", { createdAt: 0 });
+  const errorModel = new FakeDeterministicModelClient([
+    { type: "tool_call", toolName: "flights", toolInput: { destination: "Tokyo" } },
+  ]);
+  try {
+    await runAgentLoop({
+      model:    errorModel,
+      tools:    defaultFixtureTools(),
+      recorder: errorRecorder,
+      prompt:   "Find a flight to Tokyo.",
+      maxSteps: 5,
+    });
+  } catch {
+    // Expected: agent loop aborts on unknown tool "flights".
+  }
+  errorTrace = errorRecorder.getTrace();
+  await saveTrace(errorTrace, join(tempDir, "example-error-trace.json"));
 });
 
 afterAll(async () => {
   await rm(tempDir, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// example:record success path
+// ---------------------------------------------------------------------------
 
 describe("example:record path", () => {
   it("creates a cassette file that can be loaded from disk", async () => {
@@ -64,10 +90,48 @@ describe("example:record path", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// example:record error path
+// ---------------------------------------------------------------------------
+
+describe("example:record error path", () => {
+  it("creates an error cassette file that can be loaded from disk", async () => {
+    const loaded = await loadTrace(join(tempDir, "example-error-trace.json"));
+    expect(loaded.id).toBe("example-error-test-run");
+  });
+
+  it("error cassette passes validateTrace", () => {
+    expect(() => validateTrace(errorTrace)).not.toThrow();
+  });
+
+  it("error trace terminal step is metadata with status: error", () => {
+    const lastStep = errorTrace.steps.at(-1);
+    expect(lastStep?.type).toBe("metadata");
+    const payload = lastStep?.payload as { event?: string; status?: string };
+    expect(payload?.event).toBe("run_failed");
+    expect(payload?.status).toBe("error");
+  });
+
+  it("error trace failure reason is deterministic: unknown_tool", () => {
+    const lastStep = errorTrace.steps.at(-1);
+    const payload = lastStep?.payload as { reason?: string };
+    expect(payload?.reason).toBe("unknown_tool");
+  });
+
+  it("error trace records which tool name caused the failure", () => {
+    const lastStep = errorTrace.steps.at(-1);
+    const payload = lastStep?.payload as { toolName?: string };
+    expect(payload?.toolName).toBe("flights");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// example:replay path
+// ---------------------------------------------------------------------------
+
 describe("example:replay path", () => {
   it("replays the cassette offline — no model or tools required", async () => {
     const loaded = await loadTrace(tempPath);
-    // replayTrace(trace: Trace): ReplaySummary — no ModelClient or FixtureTool param.
     const summary = replayTrace(loaded);
     expect(summary.status).toBe("success");
     expect(summary.result).toBe("Done.");
@@ -91,9 +155,7 @@ describe("example:replay path", () => {
 // First divergence: step 3 (mutated tool_result has a new hash)
 // ---------------------------------------------------------------------------
 
-// Step index of the mutated tool_result.
 const MUTATION_INDEX = 3;
-// Step index where the child run begins (first model_input after mutation).
 const FORK_INDEX     = 4;
 
 const SEARCH_MUTATION = { available: false, message: "No hotels available." };

@@ -97,13 +97,16 @@ Timestamps are **included in the hash**. This means:
 
 ## Fork Policy
 
-A forked trace shares a canonical-hash-identical prefix with its parent up to the fork point. This invariant is satisfied if and only if:
+A forked child trace always satisfies:
 
-1. The child trace copies the parent's actual `TraceStep` objects for all steps before the fork point (index < fork point).
-2. The child sets `parentId` to the parent's `id` and `forkedFromStepId` to the id of the step at the fork point.
-3. From the fork point onward, the child records new steps (with new timestamps and new hashes).
+1. `parentId` is set to the parent's `id`.
+2. `forkedFromStepId` is set to the id of the parent step at `forkIndex`.
+3. The first divergent step's `prevHash` equals the hash of the last shared step (verifiable via the hash chain).
 
-The `prevHash` chain ensures the boundary is verifiable: the first child-only step's `prevHash` must equal the parent's step hash at index `fork_point - 1`.
+The precise extent of the shared prefix depends on whether tool-result mutations are applied:
+
+- **No mutations** — steps at index < `forkIndex` are copied verbatim from the parent. Their hashes are canonical-hash-identical to the parent. Divergence begins at `forkIndex`.
+- **With mutations** — steps before the earliest mutation index are copied verbatim (hash-identical). Steps from the earliest mutation index up to (but not including) `forkIndex` are re-appended with the mutated payload; these steps receive new hashes even though they carry original timestamps. Divergence begins at the earliest mutation index, which is strictly less than `forkIndex`.
 
 ## Fork-Point Semantics by Step Type
 
