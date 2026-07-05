@@ -42,6 +42,33 @@ function parseArgs(args: string[]): Record<string, string | boolean> {
   return flags;
 }
 
+/** Die if any parsed flag is not in the allowed set for this subcommand. */
+function checkUnknownFlags(
+  flags: Record<string, string | boolean>,
+  allowed: string[],
+): void {
+  for (const key of Object.keys(flags)) {
+    if (!allowed.includes(key)) {
+      die(`Unknown flag: --${key}`);
+    }
+  }
+}
+
+/**
+ * Die if a value-type flag was given without a value (parsed as boolean true).
+ * A flag that was not provided at all (undefined) passes this check.
+ */
+function checkValueFlags(
+  flags: Record<string, string | boolean>,
+  valueFlags: string[],
+): void {
+  for (const key of valueFlags) {
+    if (flags[key] === true) {
+      die(`Missing value for --${key}`);
+    }
+  }
+}
+
 function str(v: string | boolean | undefined, fallback: string): string {
   return typeof v === "string" ? v : fallback;
 }
@@ -55,10 +82,7 @@ function parseIntFlag(
   if (raw === undefined || raw === true) return defaultValue;
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed < 0) {
-    console.error(
-      `[blackbox error] --${name} must be a non-negative integer; got "${raw}"`,
-    );
-    process.exit(1);
+    die(`--${name} must be a non-negative integer; got "${String(raw)}"`);
   }
   return parsed;
 }
@@ -89,7 +113,13 @@ Run a command with no flags to use defaults.
 // record
 // ---------------------------------------------------------------------------
 
+const RECORD_ALLOWED     = ["scenario", "out-dir"];
+const RECORD_VALUE_FLAGS = ["scenario", "out-dir"];
+
 async function runRecord(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, RECORD_ALLOWED);
+  checkValueFlags(flags, RECORD_VALUE_FLAGS);
+
   const scenario = str(flags["scenario"], "all");
   const outDir   = str(flags["out-dir"],  "traces");
 
@@ -176,7 +206,13 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
 // replay
 // ---------------------------------------------------------------------------
 
+const REPLAY_ALLOWED     = ["trace"];
+const REPLAY_VALUE_FLAGS = ["trace"];
+
 async function runReplay(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, REPLAY_ALLOWED);
+  checkValueFlags(flags, REPLAY_VALUE_FLAGS);
+
   const tracePath = str(flags["trace"], "traces/example-trace.json");
 
   const trace   = await loadTrace(tracePath);
@@ -206,8 +242,17 @@ async function runReplay(flags: Record<string, string | boolean>): Promise<void>
 // fork
 // ---------------------------------------------------------------------------
 
-const DEMO_FORK_INDEX     = 4;
-const DEMO_MUTATION_STEP  = 3;
+const FORK_ALLOWED = [
+  "trace", "out", "fork-index", "mode",
+  "prompt", "mutation-step", "payload-json",
+];
+const FORK_VALUE_FLAGS = [
+  "trace", "out", "mode", "prompt",
+  "fork-index", "mutation-step", "payload-json",
+];
+
+const DEMO_FORK_INDEX    = 4;
+const DEMO_MUTATION_STEP = 3;
 const DEMO_SEARCH_MUTATION: JsonValue = {
   results:   [],
   available: false,
@@ -217,6 +262,9 @@ const DEMO_FORK_ANSWER =
   "No hotels available for Alice this weekend. The area is fully booked — consider a different date.";
 
 async function runFork(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, FORK_ALLOWED);
+  checkValueFlags(flags, FORK_VALUE_FLAGS);
+
   const tracePath = str(flags["trace"], "traces/example-trace.json");
   const mode      = str(flags["mode"],  "tool-result");
 
@@ -226,17 +274,22 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
 
   const forkIndex = parseIntFlag(flags, "fork-index", DEMO_FORK_INDEX);
 
+  // Load and validate parent before any further work.
   const parentTrace = await loadTrace(tracePath);
   validateTrace(parentTrace);
 
-  const outPath = str(flags["out"], join("traces", `${parentTrace.id}-fork.json`));
+  // Default output path: replace .json suffix with -fork.json so that
+  // traces/example-trace.json → traces/example-trace-fork.json.
+  const defaultOut = tracePath.replace(/\.json$/, "-fork.json");
+  const outPath    = str(flags["out"], defaultOut);
 
   let childTrace: Awaited<ReturnType<typeof forkRun>>["childTrace"];
   let finalAnswer: string;
   let prefixLength: number;
+  let mutationStep: number | undefined;
 
   if (mode === "tool-result") {
-    const mutationStep = parseIntFlag(flags, "mutation-step", DEMO_MUTATION_STEP);
+    mutationStep = parseIntFlag(flags, "mutation-step", DEMO_MUTATION_STEP);
 
     let payload: JsonValue;
     if (typeof flags["payload-json"] === "string") {
@@ -289,16 +342,36 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   const diff      = diffTraces(parentTrace, childTrace);
   const formatted = formatFirstDivergence(diff);
 
-  const label = (s: string) => s.padEnd(14);
+  const label = (s: string) => s.padEnd(15);
 
   console.log("[blackbox] --- fork ---");
-  console.log(label("Parent:"),      tracePath);
-  console.log(label("Mode:"),        mode);
-  console.log(label("Fork index:"),  forkIndex);
-  console.log(label("Prefix len:"),  `${prefixLength} step(s)`);
-  console.log(label("Child:"),       outPath);
-  console.log(label("Result:"),      finalAnswer);
-  console.log(label("Validation:"),  "passed");
+  console.log(label("Parent:"),     tracePath);
+  console.log(label("Child:"),      outPath);
+  console.log(label("Mode:"),       mode);
+
+  if (mutationStep !== undefined) {
+    const verbatimCount = mutationStep; // steps 0..(mutationStep-1) are hash-identical to parent
+    console.log(label("Mutation step:"), mutationStep);
+    console.log(label("Fork index:"),    forkIndex);
+    if (verbatimCount > 0) {
+      console.log(
+        label("Verbatim:"),
+        `steps 0–${verbatimCount - 1}  (${verbatimCount} step(s), hashes identical to parent)`,
+      );
+    }
+    console.log(label("Mutated:"), `step ${mutationStep}  tool_result → new hash`);
+  } else {
+    console.log(label("Prompt:"),     str(flags["prompt"], ""));
+    console.log(label("Fork index:"), forkIndex);
+    console.log(
+      label("Verbatim:"),
+      `steps 0–${forkIndex - 1}  (${forkIndex} step(s), hashes identical to parent)`,
+    );
+  }
+
+  console.log(label("Prefix len:"),   `${prefixLength} step(s)`);
+  console.log(label("Child result:"), finalAnswer);
+  console.log(label("Validation:"),   "passed");
   console.log();
   console.log(formatted);
 }
@@ -307,15 +380,18 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
 // diff
 // ---------------------------------------------------------------------------
 
+const DIFF_ALLOWED     = ["parent", "child"];
+const DIFF_VALUE_FLAGS = ["parent", "child"];
+
 async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
-  const parentPath = flags["parent"];
-  const childPath  = flags["child"];
+  checkUnknownFlags(flags, DIFF_ALLOWED);
+  checkValueFlags(flags, DIFF_VALUE_FLAGS);
 
-  if (!parentPath || parentPath === true) die("Missing required flag: --parent");
-  if (!childPath  || childPath  === true) die("Missing required flag: --child");
+  if (!flags["parent"] || flags["parent"] === true) die("Missing required flag: --parent");
+  if (!flags["child"]  || flags["child"]  === true) die("Missing required flag: --child");
 
-  const parentTrace = await loadTrace(parentPath as string);
-  const childTrace  = await loadTrace(childPath  as string);
+  const parentTrace = await loadTrace(flags["parent"] as string);
+  const childTrace  = await loadTrace(flags["child"]  as string);
   validateTrace(parentTrace);
   validateTrace(childTrace);
 

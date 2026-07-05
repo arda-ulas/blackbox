@@ -47,13 +47,13 @@ async function runCli(args: string[]): Promise<CliResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Temp directory shared across all tests
+// Temp directory shared across most tests
 // ---------------------------------------------------------------------------
 
-const TEMP_DIR        = join(tmpdir(), `blackbox-cli-test-${Date.now()}`);
-const SUCCESS_PATH    = join(TEMP_DIR, "example-trace.json");
-const ERROR_PATH      = join(TEMP_DIR, "example-error-trace.json");
-const FORK_OUT_PATH   = join(TEMP_DIR, "fork-out.json");
+const TEMP_DIR      = join(tmpdir(), `blackbox-cli-test-${Date.now()}`);
+const SUCCESS_PATH  = join(TEMP_DIR, "example-trace.json");
+const ERROR_PATH    = join(TEMP_DIR, "example-error-trace.json");
+const FORK_OUT_PATH = join(TEMP_DIR, "fork-out.json");
 
 let recordResult: CliResult;
 let forkResult:   CliResult;
@@ -61,10 +61,10 @@ let forkResult:   CliResult;
 beforeAll(async () => {
   await mkdir(TEMP_DIR, { recursive: true });
 
-  // Run record (creates both traces in TEMP_DIR)
+  // Record both demo traces into TEMP_DIR.
   recordResult = await runCli(["record", "--out-dir", TEMP_DIR]);
 
-  // Run fork on the success trace (needs record to have completed first)
+  // Fork the success trace with an explicit --out path.
   if (recordResult.exitCode === 0) {
     forkResult = await runCli([
       "fork",
@@ -120,7 +120,7 @@ describe("cli record", () => {
 // ---------------------------------------------------------------------------
 
 describe("cli replay", () => {
-  it("exits 0 for the default success trace", async () => {
+  it("exits 0 for the success trace", async () => {
     const result = await runCli(["replay", "--trace", SUCCESS_PATH]);
     expect(result.exitCode).toBe(0);
   }, 15_000);
@@ -138,7 +138,7 @@ describe("cli replay", () => {
 });
 
 // ---------------------------------------------------------------------------
-// fork
+// fork (explicit --out path)
 // ---------------------------------------------------------------------------
 
 describe("cli fork", () => {
@@ -162,7 +162,7 @@ describe("cli fork", () => {
 });
 
 // ---------------------------------------------------------------------------
-// diff
+// diff (explicit paths)
 // ---------------------------------------------------------------------------
 
 describe("cli diff", () => {
@@ -186,27 +186,108 @@ describe("cli diff", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Error handling
+// Error handling — subcommand and required-flag errors
 // ---------------------------------------------------------------------------
 
 describe("cli errors", () => {
-  it("unknown subcommand exits 1", async () => {
+  it("unknown subcommand exits 1 and prints Unknown subcommand", async () => {
     const result = await runCli(["badcmd"]);
     expect(result.exitCode).toBe(1);
-  }, 15_000);
-
-  it("unknown subcommand stderr contains 'Unknown subcommand'", async () => {
-    const result = await runCli(["badcmd"]);
     expect(result.stderr).toContain("Unknown subcommand");
   }, 15_000);
 
-  it("diff with no flags exits 1", async () => {
+  it("diff with no flags exits 1 and prints Missing required flag", async () => {
     const result = await runCli(["diff"]);
     expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing required flag");
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// Flag validation — unknown flags and missing values
+// ---------------------------------------------------------------------------
+
+describe("cli flag validation", () => {
+  it("replay --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["replay", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
   }, 15_000);
 
-  it("diff with no flags stderr contains 'Missing required flag'", async () => {
-    const result = await runCli(["diff"]);
-    expect(result.stderr).toContain("Missing required flag");
+  it("record --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["record", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+
+  it("fork --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["fork", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+
+  it("diff --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["diff", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+
+  it("replay --trace with no value exits 1 and prints Missing value", async () => {
+    const result = await runCli(["replay", "--trace"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing value for --trace");
+  }, 15_000);
+
+  it("fork --payload-json with bad JSON exits 1 and prints Invalid JSON", async () => {
+    // Use an explicit --trace so we exercise JSON parsing, not file-not-found.
+    const result = await runCli([
+      "fork",
+      "--trace",        SUCCESS_PATH,
+      "--payload-json", "{bad",
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Invalid JSON");
+  }, 15_000);
+
+  it("fork --fork-index nope exits 1 and prints a clear error", async () => {
+    // parseIntFlag runs before loadTrace, so no --trace needed.
+    const result = await runCli(["fork", "--fork-index", "nope"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--fork-index");
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// Default fork path: no-flag fork writes traces/example-trace-fork.json
+// ---------------------------------------------------------------------------
+
+describe("cli default fork path", () => {
+  let defaultForkResult: CliResult;
+
+  beforeAll(async () => {
+    // Ensure the project-root traces/example-trace.json exists.
+    await runCli(["record", "--scenario", "success"]);
+    // Fork with no flags → should derive output as traces/example-trace-fork.json.
+    defaultForkResult = await runCli(["fork"]);
+  }, 60_000);
+
+  it("fork with no flags exits 0", () => {
+    expect(defaultForkResult.exitCode).toBe(0);
+  });
+
+  it("fork with no flags writes traces/example-trace-fork.json and it validates", async () => {
+    const forkPath = join(PROJECT_ROOT, "traces", "example-trace-fork.json");
+    const trace    = await loadTrace(forkPath);
+    expect(() => validateTrace(trace)).not.toThrow();
+  });
+
+  it("diff --parent traces/example-trace.json --child traces/example-trace-fork.json exits 0 and shows First divergence", async () => {
+    const result = await runCli([
+      "diff",
+      "--parent", join(PROJECT_ROOT, "traces", "example-trace.json"),
+      "--child",  join(PROJECT_ROOT, "traces", "example-trace-fork.json"),
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("First divergence");
   }, 15_000);
 });
