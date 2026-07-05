@@ -109,7 +109,7 @@ Loads a parent cassette, forks at a given step with either a prompt mutation or 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--trace` | `string` | No | `traces/example-trace.json` | Path to the parent cassette |
-| `--out` | `string` | No | `traces/<parent-id>-fork.json` | Path to write the child cassette |
+| `--out` | `string` | No | `traces/example-trace-fork.json` (parent path with `.json` → `-fork.json`) | Path to write the child cassette |
 | `--fork-index` | `number` | No | `4` | Step index where child run begins |
 | `--mode` | `prompt \| tool-result` | No | `tool-result` | Fork mutation mode |
 | `--prompt` | `string` | Only if `--mode prompt` | — | Mutated prompt string (prompt mode only) |

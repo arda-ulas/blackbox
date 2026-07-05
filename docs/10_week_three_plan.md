@@ -31,10 +31,10 @@ Replace the three separate `npm run example:*` scripts with a unified `blackbox`
 
 Users run:
 ```sh
-npx tsx src/cli.ts record
-npx tsx src/cli.ts replay traces/example-trace.json
-npx tsx src/cli.ts fork traces/example-trace.json --at 4 --inject-result 3 '{"available":false}'
-npx tsx src/cli.ts diff traces/example-trace.json traces/example-trace-fork.json
+npm run cli -- record
+npm run cli -- replay --trace traces/example-trace.json
+npm run cli -- fork --trace traces/example-trace.json --fork-index 4 --payload-json '{"available":false}'
+npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 ```
 
 Files to touch:
