@@ -8,6 +8,7 @@ Capture all non-deterministic inputs needed to replay an agent run offline witho
 
 | Field | Type | Notes |
 |---|---|---|
+| `version` | `number` | Cassette schema version — must equal `CURRENT_TRACE_VERSION`; `loadTrace` rejects absent or unsupported values |
 | `id` | `string` | Unique run identifier |
 | `parentId` | `string?` | Set when this trace was forked from another run |
 | `forkedFromStepId` | `string?` | The parent step id the fork branched from |

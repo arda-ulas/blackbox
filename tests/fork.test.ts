@@ -519,8 +519,12 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
     expect(prefixLength).toBe(1);
     // Sole prefix step is hash-identical to parent.
     expect(childTrace.steps[0].hash).toBe(parentTrace.steps[0].hash);
+    // Fork metadata points at the correct parent step.
+    expect(childTrace.forkedFromStepId).toBe(parentTrace.steps[1].id);
     // First child-only step is a fresh model_input (not a model_output).
     expect(childTrace.steps[1].type).toBe("model_input");
+    // prevHash of first new step chains to the last copied prefix step.
+    expect(childTrace.steps[1].prevHash).toBe(parentTrace.steps[0].hash);
     expect(() => validateTrace(childTrace)).not.toThrow();
   });
 
@@ -541,8 +545,12 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
     for (let i = 0; i < 2; i++) {
       expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
     }
+    // Fork metadata points at the correct parent step.
+    expect(childTrace.forkedFromStepId).toBe(parentTrace.steps[2].id);
     // First child-only step is a fresh model_input.
     expect(childTrace.steps[2].type).toBe("model_input");
+    // prevHash of first new step chains to the last copied prefix step.
+    expect(childTrace.steps[2].prevHash).toBe(parentTrace.steps[1].hash);
     expect(() => validateTrace(childTrace)).not.toThrow();
   });
 
