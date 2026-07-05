@@ -10,7 +10,8 @@
     "test": "vitest",
     "example:record": "tsx src/examples/record.ts",
     "example:replay": "tsx src/examples/replay.ts",
-    "example:fork": "tsx src/examples/fork.ts"
+    "example:fork": "tsx src/examples/fork.ts",
+    "cli": "tsx src/cli.ts"
   },
   "devDependencies": {
     "tsx": "^4.23.0",
