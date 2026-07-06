@@ -164,7 +164,9 @@ interface ToolExecutor {
 }
 ```
 
-`agentLoop` calls `toolExecutor.definitions()` before each `model.complete()` call and calls `toolExecutor.execute(name, input)` after each `tool_call` response. The fixture tool list currently used inline in `agentLoop` must be wrapped in a `ToolExecutor` implementation in W4-B.
+`agentLoop` calls `toolExecutor.definitions()` once per run to snapshot the available tool list, then passes it in every `model.complete()` call. It calls `toolExecutor.execute(name, input)` after each `tool_call` response. For the current static fixture tools, snapshotting once per run is equivalent to calling before each model call; a future dynamic executor (tools added/removed mid-run) could call `definitions()` before each `model.complete()` instead.
+
+**W4-B slice 1 implementation note:** `defaultFixtureTools()` returns a `FixtureTool[]` (raw deterministic fixture tools). `defaultToolExecutor()` wraps that array in a `FixtureToolExecutor` and returns the provider-neutral `ToolExecutor`. `agentLoop` and `forkRun` now accept `toolExecutor: ToolExecutor` and no longer import from `fixtureTools.ts` directly.
 
 ### Provider-neutral tool call shape (Blackbox internal)
 
@@ -289,16 +291,16 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 
 - Verify `ModelClient` method signature matches current code: `complete(input: ModelInput): Promise<ModelOutput>`. Do not change this signature.
 - Optionally add `inputSchema?: JsonObject` to `ToolDefinition` (additive, backward-compatible).
-- Extract `ToolExecutor` as an explicit interface:
+- Extract `ToolExecutor` as an explicit interface (now in `src/agent/modelClient.ts`):
   ```typescript
   interface ToolExecutor {
-    definitions(): ToolDefinition[];                              // called before each model.complete()
+    definitions(): ToolDefinition[];                              // snapshot tool list; passed into every model.complete()
     execute(name: string, input: JsonValue): Promise<JsonValue>;  // called after each tool_call response
   }
   ```
-- `agentLoop` accepts `ToolExecutor` as a constructor/call parameter instead of importing fixture tools directly.
-- `defaultFixtureTools()` returns a `ToolExecutor` implementation.
-- All 162 existing tests pass unchanged.
+- `agentLoop` accepts `toolExecutor: ToolExecutor` as a parameter instead of importing fixture tools directly.
+- `defaultFixtureTools()` returns a raw `FixtureTool[]`; `defaultToolExecutor()` wraps it and returns the `ToolExecutor`.
+- **Completed in W4-B slice 1.** 174 tests pass (12 new ToolExecutor tests added).
 
 **Behavior addition (model-call error recording):**
 
