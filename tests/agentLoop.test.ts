@@ -7,7 +7,7 @@ import {
 } from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
-import { validateTrace } from "../src/replay/CassetteReplay.ts";
+import { validateTrace, replayTrace } from "../src/replay/CassetteReplay.ts";
 
 function makeRecorder(id = "run-test") {
   return new TraceRecorder(id, { createdAt: 0 });
@@ -417,5 +417,121 @@ describe("agentLoop — model-call error recording", () => {
     // tool_call and tool_result steps must be absent — the executor was never reached
     expect(steps.some((s) => s.type === "tool_call")).toBe(false);
     expect(steps.some((s) => s.type === "tool_result")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W4-D2: structured transcript emission (schema v2)
+// ---------------------------------------------------------------------------
+
+describe("agentLoop — structured transcript (v2)", () => {
+  async function recordTwoToolRun() {
+    const model = new FakeDeterministicModelClient([
+      { type: "tool_call", toolName: "search", toolInput: { query: "hotels" } },
+      { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-03-15" } },
+      { type: "final_answer", text: "Done." },
+    ]);
+    const recorder = makeRecorder("run-structured");
+    await runAgentLoop({
+      model,
+      toolExecutor: defaultToolExecutor(),
+      recorder,
+      prompt: "Plan a trip.",
+    });
+    return recorder.getTrace();
+  }
+
+  it("records tool_call and model_output payloads carrying a toolCallId", async () => {
+    const trace = await recordTwoToolRun();
+
+    const toolCall = trace.steps.find((s) => s.type === "tool_call");
+    expect(toolCall?.payload).toMatchObject({
+      toolCallId: "call-0",
+      toolName: "search",
+      toolInput: { query: "hotels" },
+    });
+
+    const modelOutput = trace.steps.find(
+      (s) => s.type === "model_output" && (s.payload as { type?: string }).type === "tool_call",
+    );
+    expect((modelOutput?.payload as { toolCallId?: string }).toolCallId).toBe("call-0");
+  });
+
+  it("records a tool_result payload with the matching toolCallId", async () => {
+    const trace = await recordTwoToolRun();
+    const toolResult = trace.steps.find((s) => s.type === "tool_result");
+    expect((toolResult?.payload as { toolCallId?: string }).toolCallId).toBe("call-0");
+    expect((toolResult?.payload as { toolName?: string }).toolName).toBe("search");
+    expect((toolResult?.payload as { result?: unknown }).result).toBeDefined();
+  });
+
+  it("assigns deterministic ids call-0, call-1 to successive tool calls", async () => {
+    const trace = await recordTwoToolRun();
+    const ids = trace.steps
+      .filter((s) => s.type === "tool_call")
+      .map((s) => (s.payload as { toolCallId: string }).toolCallId);
+    expect(ids).toEqual(["call-0", "call-1"]);
+  });
+
+  it("emits structured tool_use / tool_result parts in the next model_input", async () => {
+    const trace = await recordTwoToolRun();
+    const modelInputs = trace.steps.filter((s) => s.type === "model_input");
+    // The second model_input (after the first tool round) carries structured parts.
+    const secondMessages = (
+      modelInputs[1].payload as { messages: Array<{ role: string; content: unknown }> }
+    ).messages;
+
+    const parts = secondMessages
+      .map((m) => m.content)
+      .filter((c): c is Array<{ type: string; toolCallId?: string }> => Array.isArray(c))
+      .flat();
+
+    const toolUse = parts.find((p) => p.type === "tool_use");
+    const toolResult = parts.find((p) => p.type === "tool_result");
+    expect(toolUse?.toolCallId).toBe("call-0");
+    expect(toolResult?.toolCallId).toBe("call-0");
+    // The correlation key ties the two parts together.
+    expect(toolUse?.toolCallId).toBe(toolResult?.toolCallId);
+  });
+
+  it("does not emit the legacy [tool_call:...] / JSON.stringify string encoding", async () => {
+    const trace = await recordTwoToolRun();
+    const serialized = JSON.stringify(trace);
+    expect(serialized).not.toContain("[tool_call:");
+  });
+
+  it("records toolCallId on the unknown-tool failure metadata and error result", async () => {
+    const model = new FakeDeterministicModelClient([
+      { type: "tool_call", toolName: "nonexistent_tool", toolInput: {} },
+    ]);
+    const recorder = makeRecorder("run-unknown-tool-id");
+
+    await expect(
+      runAgentLoop({ model, toolExecutor: defaultToolExecutor(), recorder, prompt: "bad tool" }),
+    ).rejects.toThrow("nonexistent_tool");
+
+    const steps = recorder.getTrace().steps;
+    const toolResult = steps.find((s) => s.type === "tool_result");
+    const terminal = steps.at(-1);
+    expect((toolResult?.payload as { toolCallId?: string }).toolCallId).toBe("call-0");
+    expect((terminal?.payload as { toolCallId?: string }).toolCallId).toBe("call-0");
+    expect((terminal?.payload as { reason?: string }).reason).toBe("unknown_tool");
+  });
+
+  it("produces a v2 trace that passes validateTrace and replays offline", async () => {
+    const trace = await recordTwoToolRun();
+    expect(trace.version).toBe(2);
+    expect(() => validateTrace(trace)).not.toThrow();
+    // replayTrace takes only a Trace — structurally offline, no model/tool calls.
+    const summary = replayTrace(trace);
+    expect(summary.status).toBe("success");
+  });
+
+  it("stores no provider-native fields in trace payloads", async () => {
+    const trace = await recordTwoToolRun();
+    const serialized = JSON.stringify(trace);
+    for (const forbidden of ["tool_use_id", "stop_reason", '"usage"', "message_id"]) {
+      expect(serialized).not.toContain(forbidden);
+    }
   });
 });

@@ -16,6 +16,7 @@ import {
   ModelCallError,
 } from "./modelClient.ts";
 import { type TraceRecorder } from "../trace/TraceRecorder.ts";
+import { toolCallIdForIndex } from "./toolCallId.ts";
 
 export interface AgentLoopOptions {
   model: ModelClient;
@@ -54,6 +55,11 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     : [{ role: "user", content: prompt }];
   let stepCount = 0;
 
+  // Run-local counter for deterministic, provider-neutral tool-call ids
+  // (call-0, call-1, ...). W4-D2 starts a fresh run at 0; seeding a continued
+  // run from existing structured messages is W4-D3's concern.
+  let toolCallCount = 0;
+
   while (stepCount < maxSteps) {
     // Build and record model input before calling the model.
     const modelInput: ModelInput = {
@@ -85,9 +91,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     }
     stepCount += 1;
 
-    recorder.append("model_output", modelOutput as unknown as JsonValue);
-
     if (modelOutput.type === "final_answer") {
+      recorder.append("model_output", modelOutput as unknown as JsonValue);
       recorder.append("metadata", {
         event: "run_completed",
         status: "success",
@@ -100,30 +105,45 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       };
     }
 
-    // Tool call path.
+    // Tool call path. Assign a deterministic, provider-neutral correlation id
+    // that ties the recorded call, its result, and the structured transcript
+    // parts together — without any provider-native id.
     const { toolName, toolInput } = modelOutput;
-    recorder.append("tool_call", { toolName, toolInput });
+    const toolCallId = toolCallIdForIndex(toolCallCount);
+    toolCallCount += 1;
+
+    recorder.append("model_output", { type: "tool_call", toolCallId, toolName, toolInput });
+    recorder.append("tool_call", { toolCallId, toolName, toolInput });
 
     let toolResult: JsonValue;
     try {
       toolResult = await toolExecutor.execute(toolName, toolInput);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      recorder.append("tool_result", { toolName, error: detail });
+      recorder.append("tool_result", { toolCallId, toolName, error: detail });
       recorder.append("metadata", {
         event: "run_failed",
         status: "error",
         reason: "unknown_tool",
         toolName,
+        toolCallId,
       });
       throw new Error(`Agent loop aborted: ${detail}`);
     }
 
-    recorder.append("tool_result", { toolName, result: toolResult });
+    recorder.append("tool_result", { toolCallId, toolName, result: toolResult });
 
-    // Feed the result back as the next round of messages.
-    messages.push({ role: "assistant", content: `[tool_call:${toolName}]` });
-    messages.push({ role: "user", content: JSON.stringify(toolResult) });
+    // Feed the result back as structured, provider-neutral transcript parts.
+    // The tool_use and tool_result parts share toolCallId so a fresh adapter can
+    // reconstruct correlation from the cassette alone (no adapter memory).
+    messages.push({
+      role: "assistant",
+      content: [{ type: "tool_use", toolCallId, toolName, toolInput }],
+    });
+    messages.push({
+      role: "user",
+      content: [{ type: "tool_result", toolCallId, toolName, result: toolResult }],
+    });
   }
 
   recorder.append("metadata", {

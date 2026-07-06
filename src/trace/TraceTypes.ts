@@ -74,8 +74,14 @@ export interface TraceStepHashInput {
  * Cassette schema version written to every saved trace.
  * loadTrace rejects cassettes whose version is absent or not equal to this value.
  * Bump when the Trace shape changes in a way that makes old cassettes unreadable.
+ *
+ * v2 (W4-D2): tool rounds are recorded as structured, provider-neutral
+ * transcript parts (MessagePart) carrying a deterministic `toolCallId`, and the
+ * tool_call/tool_result step payloads carry that id. v1 cassettes used the
+ * legacy `[tool_call:<name>]` / `JSON.stringify(result)` string encoding and are
+ * no longer loadable; re-record them with `npm run cli -- record`.
  */
-export const CURRENT_TRACE_VERSION = 1;
+export const CURRENT_TRACE_VERSION = 2;
 
 export interface Trace {
   /** Schema version — must equal CURRENT_TRACE_VERSION. Set by TraceRecorder. */

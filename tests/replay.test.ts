@@ -268,4 +268,14 @@ describe("cassette schema versioning", () => {
 
     await expect(loadTrace(path)).rejects.toThrow(/999/);
   });
+
+  it("loadTrace rejects a legacy v1 cassette with a clear re-record message", async () => {
+    const trace = await recordSimpleTrace();
+    const path = tmpPath();
+
+    // Simulate a legacy v1 cassette (structured-transcript migration bumped to v2).
+    await writeFile(path, JSON.stringify({ ...trace, version: 1 }), "utf8");
+
+    await expect(loadTrace(path)).rejects.toThrow(/re-record/i);
+  });
 });

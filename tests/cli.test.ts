@@ -351,7 +351,7 @@ describe("cli inspect", () => {
     const result = await runCli(["inspect", "--trace", SUCCESS_PATH]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("example-run-001"); // trace id
-    expect(result.stdout).toContain("1");               // version
+    expect(result.stdout).toContain("Version:");        // version label (schema v2)
     expect(result.stdout).toContain("15");              // step count
     expect(result.stdout).toContain("success");         // status
   }, 15_000);

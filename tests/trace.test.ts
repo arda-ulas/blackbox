@@ -121,6 +121,10 @@ describe("TraceRecorder", () => {
     expect(recorder.getTrace().version).toBe(CURRENT_TRACE_VERSION);
   });
 
+  it("CURRENT_TRACE_VERSION is 2 (structured transcript schema)", () => {
+    expect(CURRENT_TRACE_VERSION).toBe(2);
+  });
+
   it("gives the first step index 0 and a null prevHash", () => {
     const recorder = new TraceRecorder("run-1");
     const step = recorder.append("model_input", { prompt: "hello" }, 1000);

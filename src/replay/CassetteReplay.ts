@@ -44,7 +44,8 @@ export async function loadTrace(filePath: string): Promise<Trace> {
   if (parsed["version"] !== CURRENT_TRACE_VERSION) {
     throw new Error(
       `loadTrace: cassette version ${parsed["version"]} is not supported — ` +
-        `this build of Blackbox expects schema version ${CURRENT_TRACE_VERSION}.`,
+        `this build of Blackbox expects schema version ${CURRENT_TRACE_VERSION}. ` +
+        `Older cassettes (e.g. v1) are not migrated; re-record with \`npm run cli -- record\`.`,
     );
   }
 
