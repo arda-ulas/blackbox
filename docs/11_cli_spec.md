@@ -172,7 +172,7 @@ Scans a directory for `.json` trace cassettes and prints a compact summary row f
 - For each `.json` file, calls `loadTrace` then `validateTrace`:
   - If both succeed, prints a compact row: `id`, `version`, `step count`, `status`, `createdAt`, and `parentId` if present
   - If either fails (malformed JSON, missing version, broken hash chain), prints a `[warning]` row with the error and does **not** count the file as successfully loaded
-- Prints a summary line: `N of M file(s) loaded successfully.`
+- Prints a summary line: `[blackbox] N of M trace(s) valid, W warning(s).`
 
 **Exit codes:** 0 always (list never crashes on bad files).
 

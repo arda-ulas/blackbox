@@ -155,6 +155,10 @@ describe("cli fork", () => {
     expect(forkResult.stdout).toContain("First divergence");
   });
 
+  it("stdout contains 'Summary:' human-readable divergence line", () => {
+    expect(forkResult.stdout).toContain("Summary:");
+  });
+
   it("child trace has a parentId referencing the parent", async () => {
     const trace = await loadTrace(FORK_OUT_PATH);
     expect(trace.parentId).toBe("example-run-001");

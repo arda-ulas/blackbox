@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
+import type { TraceDiff } from "../src/fork/diffTraces.ts";
 import { forkRun } from "../src/fork/forkRun.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
@@ -268,6 +269,28 @@ describe("formatFirstDivergence — human summary", () => {
     const diff   = diffTraces(toolTrace, shortChild);
     const output = formatFirstDivergence(diff);
     expect(output).toContain("child ended before parent at index 2");
+  });
+
+  it("different step types produce '<parentType> vs <childType> at index N'", () => {
+    const syntheticDiff: TraceDiff = {
+      parentTraceId: "p",
+      childTraceId:  "c",
+      sharedPrefixLength: 3,
+      hasDivergence: true,
+      firstDivergenceIndex: 3,
+      parentStep: {
+        id: "p:3", index: 3, type: "tool_result",
+        timestamp: 1000, payload: {}, prevHash: null, hash: "aaaa0000",
+      },
+      childStep: {
+        id: "c:3", index: 3, type: "model_input",
+        timestamp: 2000, payload: {}, prevHash: null, hash: "bbbb0000",
+      },
+      isParentStrictPrefixOfChild: false,
+      isChildStrictPrefixOfParent: false,
+    };
+    const output = formatFirstDivergence(syntheticDiff);
+    expect(output).toContain("tool_result vs model_input at index 3");
   });
 });
 
