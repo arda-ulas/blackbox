@@ -9,9 +9,33 @@ import type { JsonObject, JsonValue } from "../trace/TraceTypes.ts";
 // I/O types
 // ---------------------------------------------------------------------------
 
+/**
+ * A single structured part of a message's content (W4-D structured transcript).
+ *
+ * Provider-neutral by design: `toolCallId` is a Blackbox-generated correlation
+ * key (see toolCallId.ts), never a provider-native id such as Anthropic's
+ * `tool_use_id`. This lets tool-call correlation live in cassette data rather
+ * than adapter memory.
+ *
+ * NOTE (W4-D1): these types are defined but not yet emitted. The agent loop,
+ * fork reconstruction, and adapters still produce/consume the legacy string
+ * encoding until W4-D2 atomically switches to structured payloads and bumps
+ * the trace schema version.
+ */
+export type MessagePart =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; toolCallId: string; toolName: string; toolInput: JsonValue }
+  | { type: "tool_result"; toolCallId: string; toolName: string; result: JsonValue }
+  | { type: "tool_result"; toolCallId: string; toolName: string; error: string };
+
 export interface Message {
   role: "user" | "assistant";
-  content: string;
+  /**
+   * Plain-string text shorthand, or a structured list of parts. String content
+   * remains fully supported (all current call sites use it); structured parts
+   * are introduced for tool rounds starting in W4-D2.
+   */
+  content: string | MessagePart[];
 }
 
 export interface ToolDefinition {
