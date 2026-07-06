@@ -36,6 +36,13 @@ export interface AgentLoopOptions {
    * the continuing agent sees the mutated conversation history.
    */
   initialMessages?: Message[];
+  /**
+   * Starting value for the run-local tool-call counter (default 0). Used by
+   * forkRun to seed a continued run past the tool-call ids already present in
+   * the copied prefix, so new tool calls get fresh ids (call-N, call-N+1, …)
+   * instead of colliding with existing call-0/call-1/… ids in the child trace.
+   */
+  initialToolCallIndex?: number;
 }
 
 export interface AgentLoopResult {
@@ -56,9 +63,16 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   let stepCount = 0;
 
   // Run-local counter for deterministic, provider-neutral tool-call ids
-  // (call-0, call-1, ...). W4-D2 starts a fresh run at 0; seeding a continued
-  // run from existing structured messages is W4-D3's concern.
-  let toolCallCount = 0;
+  // (call-0, call-1, ...). A fresh run starts at 0; forkRun seeds a continued
+  // run via initialToolCallIndex so new tool calls do not reuse the ids already
+  // baked into the copied prefix.
+  const seedIndex = options.initialToolCallIndex ?? 0;
+  if (!Number.isInteger(seedIndex) || seedIndex < 0) {
+    throw new Error(
+      `runAgentLoop: initialToolCallIndex must be a non-negative integer; got ${String(seedIndex)}`,
+    );
+  }
+  let toolCallCount = seedIndex;
 
   while (stepCount < maxSteps) {
     // Build and record model input before calling the model.

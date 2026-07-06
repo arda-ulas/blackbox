@@ -5,6 +5,7 @@ import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { validateTrace } from "../src/replay/CassetteReplay.ts";
+import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
 import type { Trace, JsonValue } from "../src/trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -270,7 +271,7 @@ describe("forkRun — tool-result mutation", () => {
     );
   });
 
-  it("child's first new model_input messages include the injected tool result value", async () => {
+  it("child's first new model_input messages carry the injected result as a structured tool_result part", async () => {
     const MUTATION_INDEX = 3;
     const { childTrace } = await forkRun({
       parentTrace,
@@ -289,12 +290,23 @@ describe("forkRun — tool-result mutation", () => {
     expect(firstNewStep.type).toBe("model_input");
 
     const payload = firstNewStep.payload as {
-      messages?: Array<{ role: string; content: string }>;
+      messages?: Array<{ role: string; content: unknown }>;
     };
-    // The last user message must be the JSON-stringified injected result.
+    // The last user message content is a structured MessagePart[] whose
+    // tool_result part carries the injected value verbatim — no JSON.stringify.
     const userMessages = (payload.messages ?? []).filter((m) => m.role === "user");
-    const lastUserContent = userMessages.at(-1)?.content ?? "";
-    expect(lastUserContent).toBe(JSON.stringify(INJECTED_RESULT));
+    const lastContent = userMessages.at(-1)?.content;
+    expect(Array.isArray(lastContent)).toBe(true);
+    const parts = lastContent as Array<{
+      type: string;
+      toolCallId?: string;
+      toolName?: string;
+      result?: unknown;
+    }>;
+    const toolResultPart = parts.find((p) => p.type === "tool_result");
+    expect(toolResultPart).toBeDefined();
+    expect(toolResultPart?.result).toEqual(INJECTED_RESULT);
+    expect(typeof toolResultPart?.toolCallId).toBe("string");
   });
 
   it("mutated child trace passes validateTrace", async () => {
@@ -568,5 +580,211 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
         toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/metadata/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W4-D3: structured fork reconstruction + toolCallId preservation
+//
+// Parent trace step layout (from beforeAll — single search tool call):
+//   0  model_input       (prompt: "Find hotels.")
+//   1  model_output      (tool_call: search, toolCallId call-0)
+//   2  tool_call         (search, call-0)
+//   3  tool_result       (search result, call-0)  ← mutation target
+//   4  model_input       (second call)             ← FORK_INDEX
+//   5  model_output      (final_answer)
+//   6  metadata
+// ---------------------------------------------------------------------------
+
+describe("forkRun — W4-D3 structured reconstruction", () => {
+  const MUTATION_INDEX = 3;
+
+  it("mutated tool_result step preserves the original toolCallId (and toolName)", async () => {
+    const parentToolResult = parentTrace.steps[MUTATION_INDEX].payload as {
+      toolCallId?: string;
+      toolName?: string;
+    };
+    expect(parentToolResult.toolCallId).toBe("call-0");
+
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-preserve-id",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Preserve-id answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const childPayload = childTrace.steps[MUTATION_INDEX].payload as {
+      toolCallId?: string;
+      toolName?: string;
+      result?: unknown;
+    };
+    expect(childPayload.toolCallId).toBe(parentToolResult.toolCallId);
+    expect(childPayload.toolName).toBe(parentToolResult.toolName);
+    expect(childPayload.result).toEqual(INJECTED_RESULT);
+  });
+
+  it("reconstructed continued model_input carries structured tool_use / tool_result parts with matching ids", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-structured",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Structured answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const modelInput = childTrace.steps[FORK_INDEX];
+    expect(modelInput.type).toBe("model_input");
+    const messages = (modelInput.payload as {
+      messages?: Array<{ role: string; content: unknown }>;
+    }).messages ?? [];
+
+    // Collect all structured parts across message contents.
+    const parts = messages
+      .map((m) => m.content)
+      .filter((c): c is Array<{ type: string; toolCallId?: string }> => Array.isArray(c))
+      .flat();
+
+    const toolUse = parts.find((p) => p.type === "tool_use");
+    const toolResult = parts.find((p) => p.type === "tool_result");
+    expect(toolUse).toBeDefined();
+    expect(toolResult).toBeDefined();
+    // Correlation holds across the reconstructed pair.
+    expect(toolUse?.toolCallId).toBe("call-0");
+    expect(toolResult?.toolCallId).toBe("call-0");
+    expect(toolUse?.toolCallId).toBe(toolResult?.toolCallId);
+  });
+
+  it("fork reconstruction emits no legacy [tool_call:...] / JSON.stringify string transcript", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-no-legacy",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "No-legacy answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const serialized = JSON.stringify(childTrace);
+    expect(serialized).not.toContain("[tool_call:");
+    // The injected result must appear as a structured object, never as an
+    // escaped JSON-in-a-string blob.
+    expect(serialized).not.toContain(JSON.stringify(JSON.stringify(INJECTED_RESULT)));
+  });
+
+  it("seeds continued tool-call ids past the prefix — a new child tool call becomes call-1, not call-0", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-seed-id",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-03-15" } },
+        { type: "final_answer", text: "Seeded answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const toolCallIds = childTrace.steps
+      .filter((s) => s.type === "tool_call")
+      .map((s) => (s.payload as { toolCallId: string }).toolCallId);
+
+    // Prefix contributed call-0; the continued run's new call is call-1.
+    expect(toolCallIds).toContain("call-0");
+    expect(toolCallIds).toContain("call-1");
+    // No duplicate call-* ids anywhere in the child trace.
+    expect(new Set(toolCallIds).size).toBe(toolCallIds.length);
+  });
+
+  it("multi-call correlation is consistent across model_output / tool_call / tool_result in the continued child", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-correlation",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-03-15" } },
+        { type: "final_answer", text: "Correlation answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    // Every tool round (model_output tool_call, tool_call, tool_result) sharing
+    // an id must agree on that id, and every generated id must be well-formed.
+    const idFor = (type: string) =>
+      childTrace.steps
+        .filter((s) => s.type === type)
+        .map((s) => (s.payload as { toolCallId?: string }).toolCallId);
+
+    const callIds = idFor("tool_call");
+    const resultIds = idFor("tool_result");
+    const outputToolCallIds = childTrace.steps
+      .filter((s) => s.type === "model_output")
+      .map((s) => s.payload as { type?: string; toolCallId?: string })
+      .filter((p) => p.type === "tool_call")
+      .map((p) => p.toolCallId);
+
+    // Same set of ids appears in each correlated stream, in order.
+    expect(callIds).toEqual(outputToolCallIds);
+    expect(resultIds).toEqual(callIds);
+    for (const id of callIds) {
+      expect(id).toMatch(/^call-\d+$/);
+    }
+  });
+
+  it("continued child trace validates and keeps prefix hash identity before the mutated step", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-validate",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "tool_call", toolName: "calendar", toolInput: { date: "2024-03-15" } },
+        { type: "final_answer", text: "Validate answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    expect(() => validateTrace(childTrace)).not.toThrow();
+    for (let i = 0; i < MUTATION_INDEX; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+  });
+
+  it("first divergence still points at the mutated tool_result step", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-d3-divergence",
+      promptMutation: "Find flights.",
+      toolResultMutations: { [MUTATION_INDEX]: INJECTED_RESULT },
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Divergence answer." },
+      ]),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const diff = diffTraces(parentTrace, childTrace);
+    expect(diff.hasDivergence).toBe(true);
+    expect(diff.firstDivergenceIndex).toBe(MUTATION_INDEX);
+    expect(diff.sharedPrefixLength).toBe(MUTATION_INDEX);
+
+    const output = formatFirstDivergence(diff);
+    expect(output).toContain("First divergence");
+    expect(output).toContain(String(MUTATION_INDEX));
   });
 });

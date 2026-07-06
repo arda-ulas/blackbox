@@ -4,7 +4,12 @@
 // first mutation (or before forkIndex when no mutations are requested).
 
 import { type JsonValue, type Trace, type TraceStep } from "../trace/TraceTypes.ts";
-import { type Message, type ModelClient, type ToolExecutor } from "../agent/modelClient.ts";
+import {
+  type Message,
+  type MessagePart,
+  type ModelClient,
+  type ToolExecutor,
+} from "../agent/modelClient.ts";
 import { TraceRecorder } from "../trace/TraceRecorder.ts";
 import { runAgentLoop } from "../agent/agentLoop.ts";
 
@@ -137,13 +142,20 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
       const step = parentTrace.steps[i];
       let payload: JsonValue;
       if (i in toolResultMutations!) {
-        // Preserve the original toolName; replace only the result value so the
-        // recorded payload shape stays { toolName, result } — same as the agent loop.
-        const originalPayload = step.payload as { toolName?: string };
-        payload = {
+        // Preserve the original toolCallId and toolName; replace only the result
+        // value so the recorded payload shape stays
+        // { toolCallId, toolName, result } — same as the agent loop's v2
+        // tool_result step. Dropping toolCallId here would break call ↔ result
+        // correlation in the mutated child (the W4-D2 → W4-D3 handoff artifact).
+        const originalPayload = step.payload as { toolCallId?: string; toolName?: string };
+        const mutated: JsonValue = {
           toolName: originalPayload.toolName ?? "unknown",
           result: toolResultMutations![i],
         };
+        if (originalPayload.toolCallId !== undefined) {
+          (mutated as { toolCallId?: string }).toolCallId = originalPayload.toolCallId;
+        }
+        payload = mutated;
       } else {
         payload = step.payload;
       }
@@ -152,10 +164,17 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
   }
 
   // When mutations are active, reconstruct the message history so the
-  // continuing agent loop sees the injected tool result values.
+  // continuing agent loop sees the injected tool result values, rebuilt as
+  // structured v2 MessagePart[] tool_use/tool_result rounds.
   const initialMessages: Message[] | undefined = hasMutations
     ? reconstructMessages(prefixSteps, toolResultMutations!)
     : undefined;
+
+  // Seed the continued run past the tool-call ids already baked into the copied
+  // prefix so new calls get fresh ids (call-N…) rather than colliding with the
+  // existing call-0/call-1/… — regardless of mutation mode, since the prefix
+  // steps live in the child trace either way.
+  const initialToolCallIndex = nextToolCallIndex(prefixSteps);
 
   const result = await runAgentLoop({
     model,
@@ -164,6 +183,7 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     prompt: promptMutation,
     maxSteps: maxSteps ?? 20,
     initialMessages,
+    initialToolCallIndex,
   });
 
   return {
@@ -201,29 +221,88 @@ function reconstructMessages(
     ? firstPayload.messages.map((m) => ({ ...m }))
     : [];
 
-  let pendingToolName: string | null = null;
+  // Carry the tool_use details forward from the model_output(tool_call) step so
+  // the reconstructed assistant turn keeps the original toolInput alongside the
+  // toolCallId/toolName the tool_result step also records.
+  let pending: { toolCallId: string; toolName: string; toolInput: JsonValue } | null = null;
 
   for (let i = 1; i < prefixSteps.length; i++) {
     const step = prefixSteps[i];
 
     if (step.type === "model_output") {
-      const out = step.payload as { type?: string; toolName?: string };
+      const out = step.payload as {
+        type?: string;
+        toolCallId?: string;
+        toolName?: string;
+        toolInput?: JsonValue;
+      };
       if (out.type === "tool_call") {
-        pendingToolName = out.toolName ?? null;
+        pending = {
+          toolCallId: out.toolCallId ?? "",
+          toolName: out.toolName ?? "unknown",
+          toolInput: out.toolInput ?? null,
+        };
       }
     } else if (step.type === "tool_result") {
-      const raw = step.payload as { toolName?: string; result?: JsonValue };
-      const toolName = raw.toolName ?? pendingToolName ?? "unknown";
-      // Use the injected value if this step is a mutation target.
-      const result =
-        step.index in toolResultMutations ? toolResultMutations[step.index] : raw.result;
-      messages.push({ role: "assistant", content: `[tool_call:${toolName}]` });
-      messages.push({ role: "user", content: JSON.stringify(result) });
-      pendingToolName = null;
+      const raw = step.payload as {
+        toolCallId?: string;
+        toolName?: string;
+        result?: JsonValue;
+        error?: string;
+      };
+      // Prefer the ids recorded on the tool_result step; fall back to the
+      // pending tool_use if an older/partial payload omitted them.
+      const toolCallId = raw.toolCallId ?? pending?.toolCallId ?? "";
+      const toolName = raw.toolName ?? pending?.toolName ?? "unknown";
+      const toolInput = pending?.toolInput ?? null;
+
+      // Assistant turn: the structured tool_use that requested this result.
+      const toolUse: MessagePart = { type: "tool_use", toolCallId, toolName, toolInput };
+      messages.push({ role: "assistant", content: [toolUse] });
+
+      // User turn: the structured tool_result. A mutation always injects a
+      // result value; otherwise preserve the original result or error shape.
+      let toolResult: MessagePart;
+      if (step.index in toolResultMutations) {
+        toolResult = {
+          type: "tool_result",
+          toolCallId,
+          toolName,
+          result: toolResultMutations[step.index],
+        };
+      } else if (raw.error !== undefined) {
+        toolResult = { type: "tool_result", toolCallId, toolName, error: raw.error };
+      } else {
+        toolResult = { type: "tool_result", toolCallId, toolName, result: raw.result ?? null };
+      }
+      messages.push({ role: "user", content: [toolResult] });
+
+      pending = null;
     }
     // model_input and tool_call steps carry no new message content here —
     // the history is rebuilt incrementally from model_output/tool_result pairs.
   }
 
   return messages;
+}
+
+/**
+ * Derive the next run-local tool-call index from a copied prefix. Scans every
+ * step payload for a `toolCallId` of the form `call-<n>` and returns the highest
+ * n seen + 1 (0 when the prefix contains no tool calls). This seeds a continued
+ * run so its new tool-call ids do not collide with the prefix's existing ids.
+ */
+function nextToolCallIndex(prefixSteps: ReadonlyArray<TraceStep>): number {
+  let max = -1;
+  for (const step of prefixSteps) {
+    const id = (step.payload as { toolCallId?: unknown }).toolCallId;
+    if (typeof id === "string") {
+      const m = /^call-(\d+)$/.exec(id);
+      if (m) {
+        const n = Number(m[1]);
+        if (n > max) max = n;
+      }
+    }
+  }
+  return max + 1;
 }
