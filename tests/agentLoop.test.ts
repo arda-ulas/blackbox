@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 
 function makeRecorder(id = "run-test") {
@@ -15,7 +15,7 @@ describe("agentLoop — final answer", () => {
     ]);
     const result = await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder: makeRecorder(),
       prompt: "Summarise something.",
     });
@@ -30,7 +30,7 @@ describe("agentLoop — final answer", () => {
     const recorder = makeRecorder();
     await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder,
       prompt: "Go.",
     });
@@ -46,7 +46,7 @@ describe("agentLoop — final answer", () => {
     const recorder = makeRecorder();
     await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder,
       prompt: "What is the answer?",
     });
@@ -73,7 +73,7 @@ describe("agentLoop — tool call", () => {
     const recorder = makeRecorder();
     await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder,
       prompt: "Find hotels.",
     });
@@ -90,7 +90,7 @@ describe("agentLoop — tool call", () => {
     const recorder = makeRecorder();
     await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder,
       prompt: "Find flights.",
     });
@@ -117,7 +117,7 @@ describe("agentLoop — tool call", () => {
     const recorder = makeRecorder();
     await runAgentLoop({
       model,
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder,
       prompt: "Check calendar.",
     });
@@ -133,6 +133,25 @@ describe("agentLoop — tool call", () => {
   });
 });
 
+describe("agentLoop — tool definitions in model input", () => {
+  it("passes tool definitions from ToolExecutor into the model_input step payload", async () => {
+    const model = new FakeDeterministicModelClient([
+      { type: "final_answer", text: "Done." },
+    ]);
+    const recorder = makeRecorder();
+    await runAgentLoop({
+      model,
+      toolExecutor: defaultToolExecutor(),
+      recorder,
+      prompt: "Go.",
+    });
+    const firstInput = recorder.getTrace().steps.find((s) => s.type === "model_input");
+    const tools = (firstInput?.payload as { tools?: unknown[] }).tools;
+    expect(Array.isArray(tools)).toBe(true);
+    expect((tools as unknown[]).length).toBeGreaterThan(0);
+  });
+});
+
 describe("agentLoop — determinism", () => {
   it("produces identical step type sequences for the same script on repeated runs", async () => {
     const script = () =>
@@ -144,7 +163,7 @@ describe("agentLoop — determinism", () => {
     const runA = new TraceRecorder("run-a", { createdAt: 1000 });
     const runB = new TraceRecorder("run-b", { createdAt: 1000 });
 
-    const opts = { tools: defaultFixtureTools(), prompt: "search for test", maxSteps: 10 };
+    const opts = { toolExecutor: defaultToolExecutor(), prompt: "search for test", maxSteps: 10 };
 
     await runAgentLoop({ ...opts, model: script(), recorder: runA });
     await runAgentLoop({ ...opts, model: script(), recorder: runB });
@@ -174,7 +193,7 @@ describe("agentLoop — error cases", () => {
     await expect(
       runAgentLoop({
         model,
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
         recorder,
         prompt: "use a bad tool",
       }),
@@ -202,7 +221,7 @@ describe("agentLoop — error cases", () => {
     await expect(
       runAgentLoop({
         model,
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
         recorder,
         prompt: "loop forever",
         maxSteps: 1,

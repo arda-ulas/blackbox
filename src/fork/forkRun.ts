@@ -4,8 +4,7 @@
 // first mutation (or before forkIndex when no mutations are requested).
 
 import { type JsonValue, type Trace, type TraceStep } from "../trace/TraceTypes.ts";
-import { type Message, type ModelClient } from "../agent/modelClient.ts";
-import { type FixtureTool } from "../agent/fixtureTools.ts";
+import { type Message, type ModelClient, type ToolExecutor } from "../agent/modelClient.ts";
 import { TraceRecorder } from "../trace/TraceRecorder.ts";
 import { runAgentLoop } from "../agent/agentLoop.ts";
 
@@ -25,7 +24,7 @@ export interface ForkOptions {
    */
   promptMutation: string;
   model: ModelClient;
-  tools: FixtureTool[];
+  toolExecutor: ToolExecutor;
   maxSteps?: number;
   /**
    * Optional map of parent step index → replacement result value.
@@ -54,7 +53,7 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     childId,
     promptMutation,
     model,
-    tools,
+    toolExecutor,
     maxSteps,
     toolResultMutations,
   } = options;
@@ -160,7 +159,7 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
 
   const result = await runAgentLoop({
     model,
-    tools,
+    toolExecutor,
     recorder,
     prompt: promptMutation,
     maxSteps: maxSteps ?? 20,

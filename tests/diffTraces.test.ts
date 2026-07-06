@@ -4,7 +4,7 @@ import type { TraceDiff } from "../src/fork/diffTraces.ts";
 import { forkRun } from "../src/fork/forkRun.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
@@ -23,7 +23,7 @@ beforeAll(async () => {
       { type: "tool_call", toolName: "search", toolInput: { query: "hotels" } },
       { type: "final_answer", text: "Parent answer." },
     ]),
-    tools: defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder,
     prompt: "Find hotels.",
   });
@@ -72,7 +72,7 @@ describe("diffTraces — forked child", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     const diff = diffTraces(toolTrace, childTrace);
@@ -92,7 +92,7 @@ describe("diffTraces — forked child", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     const diff = diffTraces(toolTrace, childTrace);
@@ -172,7 +172,7 @@ describe("formatFirstDivergence", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Formatted." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     const diff = diffTraces(toolTrace, childTrace);
@@ -222,7 +222,7 @@ describe("formatFirstDivergence — human summary", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Summary test." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     const diff   = diffTraces(toolTrace, childTrace);
     const output = formatFirstDivergence(diff);
@@ -239,7 +239,7 @@ describe("formatFirstDivergence — human summary", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Same type." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     const diff   = diffTraces(toolTrace, childTrace);
     const output = formatFirstDivergence(diff);
@@ -324,7 +324,7 @@ describe("diffTraces — hash equality not object identity", () => {
       return (
         await runAgentLoop({
           model: new FakeDeterministicModelClient([{ type: "final_answer", text: "Same." }]),
-          tools: defaultFixtureTools(),
+          toolExecutor: defaultToolExecutor(),
           recorder: rec,
           prompt: "Same prompt.",
         })

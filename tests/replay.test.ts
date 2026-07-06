@@ -10,7 +10,7 @@ import {
 } from "../src/replay/CassetteReplay.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
@@ -39,7 +39,7 @@ async function recordSimpleTrace(): Promise<Trace> {
     model: new FakeDeterministicModelClient([
       { type: "final_answer", text: "Simple answer." },
     ]),
-    tools: defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder,
     prompt: "Simple question.",
   });
@@ -53,7 +53,7 @@ async function recordToolTrace(): Promise<Trace> {
       { type: "tool_call", toolName: "search", toolInput: { query: "test query" } },
       { type: "final_answer", text: "Found something." },
     ]),
-    tools: defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder,
     prompt: "Search for something.",
   });
@@ -205,7 +205,7 @@ describe("replayTrace", () => {
     ]);
     // Expect the loop to throw, then inspect the partial trace.
     await expect(
-      runAgentLoop({ model, tools: defaultFixtureTools(), recorder, prompt: "loop", maxSteps: 1 }),
+      runAgentLoop({ model, toolExecutor: defaultToolExecutor(), recorder, prompt: "loop", maxSteps: 1 }),
     ).rejects.toThrow();
 
     const summary = replayTrace(recorder.getTrace());

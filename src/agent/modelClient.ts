@@ -19,6 +19,14 @@ export interface ToolDefinition {
   description: string;
 }
 
+/** Provider-neutral tool execution boundary. Decouples agentLoop from fixture-tool internals. */
+export interface ToolExecutor {
+  /** Returns JSON-safe tool metadata for inclusion in model input. */
+  definitions(): ToolDefinition[];
+  /** Executes the named tool with the given input. Throws if the tool is unknown. */
+  execute(name: string, input: JsonValue): Promise<JsonValue>;
+}
+
 export interface ModelInput {
   systemPrompt?: string;
   messages: Message[];

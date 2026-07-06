@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { forkRun } from "../src/fork/forkRun.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { validateTrace } from "../src/replay/CassetteReplay.ts";
 import type { Trace, JsonValue } from "../src/trace/TraceTypes.ts";
@@ -23,7 +23,7 @@ beforeAll(async () => {
       { type: "tool_call", toolName: "search", toolInput: { query: "hotels" } },
       { type: "final_answer", text: "Parent answer." },
     ]),
-    tools: defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder,
     prompt: "Find hotels.",
   });
@@ -42,7 +42,7 @@ describe("forkRun — fork metadata", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(childTrace.parentId).toBe("parent-run");
   });
@@ -56,7 +56,7 @@ describe("forkRun — fork metadata", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(childTrace.forkedFromStepId).toBe(parentTrace.steps[FORK_INDEX].id);
   });
@@ -72,7 +72,7 @@ describe("forkRun — prefix copy invariant", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(prefixLength).toBe(FORK_INDEX);
     for (let i = 0; i < FORK_INDEX; i++) {
@@ -96,7 +96,7 @@ describe("forkRun — prefix copy invariant", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     for (let i = 0; i < FORK_INDEX; i++) {
       expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
@@ -112,7 +112,7 @@ describe("forkRun — prefix copy invariant", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(childTrace.steps[FORK_INDEX].hash).not.toBe(parentTrace.steps[FORK_INDEX].hash);
   });
@@ -128,7 +128,7 @@ describe("forkRun — chain integrity", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(() => validateTrace(childTrace)).not.toThrow();
   });
@@ -142,7 +142,7 @@ describe("forkRun — chain integrity", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     const lastPrefixHash = parentTrace.steps[FORK_INDEX - 1].hash;
     expect(childTrace.steps[FORK_INDEX].prevHash).toBe(lastPrefixHash);
@@ -162,7 +162,7 @@ describe("forkRun — isolation and edge cases", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Child answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     expect(parentTrace.steps).toHaveLength(originalStepCount);
@@ -180,7 +180,7 @@ describe("forkRun — isolation and edge cases", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Zero-fork answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(prefixLength).toBe(0);
     expect(childTrace.parentId).toBe("parent-run");
@@ -196,7 +196,7 @@ describe("forkRun — isolation and edge cases", () => {
         childId: "child-oob",
         promptMutation: "Whatever.",
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/forkIndex/);
 
@@ -207,7 +207,7 @@ describe("forkRun — isolation and edge cases", () => {
         childId: "child-neg",
         promptMutation: "Whatever.",
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/forkIndex/);
   });
@@ -239,7 +239,7 @@ describe("forkRun — tool-result mutation", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "No-mutation answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     // Steps 0..FORK_INDEX-1 must be hash-identical to parent.
     for (let i = 0; i < FORK_INDEX; i++) {
@@ -258,7 +258,7 @@ describe("forkRun — tool-result mutation", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Mutation answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     // Steps before the mutation: identical to parent.
     for (let i = 0; i < MUTATION_INDEX; i++) {
@@ -281,7 +281,7 @@ describe("forkRun — tool-result mutation", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Message check answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     // The first new step in the child is the model_input at FORK_INDEX.
@@ -307,7 +307,7 @@ describe("forkRun — tool-result mutation", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Valid mutation." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(() => validateTrace(childTrace)).not.toThrow();
   });
@@ -323,7 +323,7 @@ describe("forkRun — tool-result mutation", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Tool-result-fork answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     expect(prefixLength).toBe(3);
     // Prefix hashes match parent.
@@ -343,7 +343,7 @@ describe("forkRun — tool-result mutation", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { 2: { bad: "target" } },
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/tool_result/);
   });
@@ -358,7 +358,7 @@ describe("forkRun — tool-result mutation", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { [FORK_INDEX]: { out: "of range" } },
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/outside prefix range/);
   });
@@ -390,7 +390,7 @@ describe("forkRun — tool-result mutation payload shape", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Payload shape answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     const mutatedStep = childTrace.steps[MUTATION_INDEX];
@@ -416,7 +416,7 @@ describe("forkRun — stale model_input guard", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { 3: INJECTED_RESULT },
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/stale/);
   });
@@ -432,7 +432,7 @@ describe("forkRun — malformed mutation keys", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { abc: { bad: "key" } } as unknown as Record<number, JsonValue>,
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/not a valid non-negative integer/);
   });
@@ -446,7 +446,7 @@ describe("forkRun — malformed mutation keys", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { "3.5": { bad: "key" } } as unknown as Record<number, JsonValue>,
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/not a valid non-negative integer/);
   });
@@ -460,7 +460,7 @@ describe("forkRun — malformed mutation keys", () => {
         promptMutation: "Whatever.",
         toolResultMutations: { "03": { bad: "key" } } as unknown as Record<number, JsonValue>,
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/not a valid non-negative integer/);
   });
@@ -480,7 +480,7 @@ describe("forkRun — parent isolation in mutation mode", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Isolation check." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     expect(parentTrace.steps).toHaveLength(originalStepCount);
@@ -513,7 +513,7 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Train answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     expect(prefixLength).toBe(1);
@@ -537,7 +537,7 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Tool-call-fork answer." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
 
     expect(prefixLength).toBe(2);
@@ -565,7 +565,7 @@ describe("forkRun — non-model_input fork points (W2-C)", () => {
         childId: "child-at-metadata",
         promptMutation: "Whatever.",
         model: new FakeDeterministicModelClient([]),
-        tools: defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
       }),
     ).rejects.toThrow(/metadata/);
   });

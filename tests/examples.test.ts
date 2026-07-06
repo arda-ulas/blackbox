@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { rm, mkdir } from "node:fs/promises";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools } from "../src/agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import {
   saveTrace,
@@ -40,7 +40,7 @@ beforeAll(async () => {
   ]);
   const successResult = await runAgentLoop({
     model:    successModel,
-    tools:    defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder: successRecorder,
     prompt:   "Book something.",
   });
@@ -57,7 +57,7 @@ beforeAll(async () => {
   try {
     await runAgentLoop({
       model:    errorModel,
-      tools:    defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder: errorRecorder,
       prompt:   "Find a flight to Tokyo.",
       maxSteps: 5,
@@ -175,7 +175,7 @@ describe("example:fork path", () => {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "No availability found." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     childTrace = ct;
     await saveTrace(childTrace, forkPath);

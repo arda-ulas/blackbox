@@ -4,6 +4,7 @@
 // Same input always produces the same output — essential for cassette replay.
 
 import type { JsonValue, JsonObject } from "../trace/TraceTypes.ts";
+import type { ToolDefinition, ToolExecutor } from "./modelClient.ts";
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -78,6 +79,33 @@ const bookingTool: FixtureTool = {
 /** Returns the full default set of fixture tools. */
 export function defaultFixtureTools(): FixtureTool[] {
   return [searchTool, calendarTool, bookingTool];
+}
+
+class FixtureToolExecutor implements ToolExecutor {
+  private readonly tools: FixtureTool[];
+
+  constructor(tools: FixtureTool[]) {
+    this.tools = tools;
+  }
+
+  definitions(): ToolDefinition[] {
+    // description mirrors name — matches the legacy agentLoop behaviour.
+    return this.tools.map((t) => ({ name: t.name, description: t.name }));
+  }
+
+  async execute(name: string, input: JsonValue): Promise<JsonValue> {
+    return executeTool(this.tools, name, input);
+  }
+}
+
+/** Returns a ToolExecutor wrapping the full default set of fixture tools. */
+export function defaultToolExecutor(): ToolExecutor {
+  return new FixtureToolExecutor(defaultFixtureTools());
+}
+
+/** Wraps an arbitrary FixtureTool[] in a ToolExecutor. */
+export function createToolExecutor(tools: FixtureTool[]): ToolExecutor {
+  return new FixtureToolExecutor(tools);
 }
 
 /**

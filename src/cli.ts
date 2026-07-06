@@ -6,7 +6,7 @@ import { mkdir, readdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "./agent/modelClient.ts";
-import { defaultFixtureTools } from "./agent/fixtureTools.ts";
+import { defaultToolExecutor } from "./agent/fixtureTools.ts";
 import { runAgentLoop } from "./agent/agentLoop.ts";
 import {
   saveTrace,
@@ -147,7 +147,7 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
 
     const successResult = await runAgentLoop({
       model:    successModel,
-      tools:    defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
       recorder: successRecorder,
       prompt:   successScenario,
       maxSteps: 10,
@@ -177,7 +177,7 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
     try {
       await runAgentLoop({
         model:    errorModel,
-        tools:    defaultFixtureTools(),
+        toolExecutor: defaultToolExecutor(),
         recorder: errorRecorder,
         prompt:   errorScenario,
         maxSteps: 5,
@@ -317,7 +317,7 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: DEMO_FORK_ANSWER },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     childTrace   = result.childTrace;
     finalAnswer  = result.finalAnswer;
@@ -334,7 +334,7 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
       model: new FakeDeterministicModelClient([
         { type: "final_answer", text: "Prompt-mode fork complete." },
       ]),
-      tools: defaultFixtureTools(),
+      toolExecutor: defaultToolExecutor(),
     });
     childTrace   = result.childTrace;
     finalAnswer  = result.finalAnswer;

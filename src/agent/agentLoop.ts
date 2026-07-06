@@ -10,14 +10,13 @@ import {
   type ModelClient,
   type ModelInput,
   type Message,
-  type ToolDefinition,
+  type ToolExecutor,
 } from "./modelClient.ts";
-import { type FixtureTool, executeTool } from "./fixtureTools.ts";
 import { type TraceRecorder } from "../trace/TraceRecorder.ts";
 
 export interface AgentLoopOptions {
   model: ModelClient;
-  tools: FixtureTool[];
+  toolExecutor: ToolExecutor;
   recorder: TraceRecorder;
   /** Initial user-facing prompt. Ignored when initialMessages is provided. */
   prompt: string;
@@ -43,12 +42,9 @@ export interface AgentLoopResult {
 }
 
 export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoopResult> {
-  const { model, tools, recorder, prompt, systemPrompt, maxSteps = 20 } = options;
+  const { model, toolExecutor, recorder, prompt, systemPrompt, maxSteps = 20 } = options;
 
-  const toolDefs: ToolDefinition[] = tools.map((t) => ({
-    name: t.name,
-    description: t.name,
-  }));
+  const toolDefs = toolExecutor.definitions();
 
   const messages: Message[] = options.initialMessages
     ? [...options.initialMessages]
@@ -91,7 +87,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
 
     let toolResult: JsonValue;
     try {
-      toolResult = await executeTool(tools, toolName, toolInput);
+      toolResult = await toolExecutor.execute(toolName, toolInput);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       recorder.append("tool_result", { toolName, error: detail });

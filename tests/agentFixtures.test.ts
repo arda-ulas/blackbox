@@ -3,7 +3,13 @@ import {
   FakeDeterministicModelClient,
 } from "../src/agent/modelClient.ts";
 import type { ModelInput, ModelOutput } from "../src/agent/modelClient.ts";
-import { defaultFixtureTools, executeTool } from "../src/agent/fixtureTools.ts";
+import {
+  defaultFixtureTools,
+  executeTool,
+  defaultToolExecutor,
+  createToolExecutor,
+} from "../src/agent/fixtureTools.ts";
+import type { ToolExecutor } from "../src/agent/modelClient.ts";
 
 // ---------------------------------------------------------------------------
 // FakeDeterministicModelClient
@@ -154,5 +160,87 @@ describe("fixture tools — error handling", () => {
     const before = JSON.stringify(input);
     await executeTool(tools, "search", input);
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ToolExecutor interface
+// ---------------------------------------------------------------------------
+
+describe("ToolExecutor — definitions()", () => {
+  it("returns one definition per fixture tool", () => {
+    const executor: ToolExecutor = defaultToolExecutor();
+    const defs = executor.definitions();
+    expect(defs.length).toBe(3); // search, calendar, booking
+  });
+
+  it("every definition has a non-empty name and description", () => {
+    const defs = defaultToolExecutor().definitions();
+    for (const def of defs) {
+      expect(typeof def.name).toBe("string");
+      expect(def.name.length).toBeGreaterThan(0);
+      expect(typeof def.description).toBe("string");
+      expect(def.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("definitions are JSON-safe (serialise and round-trip without loss)", () => {
+    const defs = defaultToolExecutor().definitions();
+    expect(JSON.parse(JSON.stringify(defs))).toEqual(defs);
+  });
+
+  it("definitions() is deterministic across multiple calls", () => {
+    const executor = defaultToolExecutor();
+    expect(executor.definitions()).toEqual(executor.definitions());
+  });
+
+  it("definition names match the known fixture tool names", () => {
+    const names = defaultToolExecutor().definitions().map((d) => d.name);
+    expect(names).toContain("search");
+    expect(names).toContain("calendar");
+    expect(names).toContain("booking");
+  });
+
+  it("createToolExecutor wraps an arbitrary FixtureTool[] and exposes its definitions", () => {
+    const single = [{ name: "ping", execute: async () => ({ pong: true }) }];
+    const executor = createToolExecutor(single);
+    const defs = executor.definitions();
+    expect(defs).toHaveLength(1);
+    expect(defs[0].name).toBe("ping");
+  });
+});
+
+describe("ToolExecutor — execute()", () => {
+  it("executes 'search' deterministically via the executor", async () => {
+    const executor = defaultToolExecutor();
+    const a = await executor.execute("search", { query: "hotels" });
+    const b = await executor.execute("search", { query: "hotels" });
+    expect(a).toEqual(b);
+  });
+
+  it("executes 'calendar' deterministically via the executor", async () => {
+    const executor = defaultToolExecutor();
+    const result = await executor.execute("calendar", { date: "2024-06-01" });
+    expect((result as { date: string }).date).toBe("2024-06-01");
+  });
+
+  it("executes 'booking' deterministically via the executor", async () => {
+    const executor = defaultToolExecutor();
+    const a = await executor.execute("booking", { date: "2024-06-01", time: "09:00", name: "A" });
+    const b = await executor.execute("booking", { date: "2024-06-01", time: "09:00", name: "A" });
+    expect(a).toEqual(b);
+  });
+
+  it("throws clearly for an unknown tool name", async () => {
+    const executor = defaultToolExecutor();
+    await expect(executor.execute("nonexistent", {})).rejects.toThrow(
+      'Unknown fixture tool: "nonexistent"',
+    );
+  });
+
+  it("result is JSON-safe (serialises and round-trips without loss)", async () => {
+    const executor = defaultToolExecutor();
+    const result = await executor.execute("search", { query: "test" });
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 });
