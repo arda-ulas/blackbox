@@ -42,20 +42,28 @@ Deliverable: a short design doc section in `docs/` (new file or extension of `do
 Files to touch:
 - `docs/13_adapter_contract.md` (new)
 
-### Phase W4-B: Provider-neutral adapter boundary in code
+### Phase W4-B: Provider-neutral adapter boundary + model-call error hardening
 
-Make the adapter seam explicit in `agentLoop.ts` and related code:
-- `ModelClient` interface is already defined in `src/agent/modelClient.ts`; verify it is complete and matches the design doc
-- Extract tool execution into an explicit `ToolExecutor` interface or type that `agentLoop` accepts as a parameter (currently hardcoded to the fixture tool list)
-- Ensure `FakeDeterministicModelClient` and fixture tools continue to implement these interfaces unchanged
-- Ensure `replayTrace` takes neither interface as a parameter (already the case; verify it stays true)
-- No behavior changes; all existing tests must pass without modification
+Make the adapter seam explicit and harden the agent loop against model-call failures. The fake deterministic adapter remains the default; no real SDK is introduced in W4-B.
+
+**Refactor (non-error path unchanged):**
+- `ModelClient` interface stays `complete(input: ModelInput): Promise<ModelOutput>` — method signature does not change
+- Extract `ToolExecutor` interface with `definitions()` and `execute()` methods; `agentLoop` accepts it as a parameter instead of importing fixture tools directly
+- `defaultFixtureTools()` returns a `ToolExecutor` implementation
+- All existing tests pass unchanged
+
+**Behavior addition (model-call error recording):**
+- Wrap `model.complete(input)` in a try/catch inside `agentLoop`
+- On error, append a terminal `metadata` step with `event: "run_failed"`, `reason: "model_error"`, `errorKind`, and a plain string `message` before re-throwing
+- Test with a fake throwing `ModelClient` (no real SDK needed)
+- New tests prove the terminal metadata step is present on model-call failure
+- `replayTrace` takes neither `ModelClient` nor `ToolExecutor` as a parameter (verify this remains true)
 
 Files to touch:
-- `src/agent/modelClient.ts` — verify/finalize `ModelClient` interface
-- `src/agent/agentLoop.ts` — extract `ToolExecutor` type; accept it as a parameter rather than importing fixture tools directly
+- `src/agent/modelClient.ts` — verify/finalize `ModelClient` and `ToolDefinition`; add `ToolExecutor` interface
+- `src/agent/agentLoop.ts` — accept `ToolExecutor` as parameter; add model-call error try/catch
 - `src/agent/fixtureTools.ts` — implement `ToolExecutor`
-- `tests/agentLoop.test.ts` — verify no regressions
+- `tests/agentLoop.test.ts` — verify no regressions; add model-call error test(s)
 
 ### Phase W4-C: Optional real model adapter spike
 

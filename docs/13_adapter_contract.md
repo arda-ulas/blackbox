@@ -33,54 +33,72 @@ Real providers must never be called during:
 
 ### Provider-neutral `ModelClient` contract
 
-The existing `ModelClient` interface in `src/agent/modelClient.ts` already defines the Blackbox-side contract. The adapter seam is that interface: any real provider must be wrapped in a class that satisfies `ModelClient`. The single method is `complete(messages, tools)`. No changes to `ModelClient` are required to support a real provider; only the implementation changes.
+The existing `ModelClient` interface in `src/agent/modelClient.ts` already defines the Blackbox-side contract. The single method is:
 
-**Minimum input `ModelClient.complete()` receives:**
-
-```
-messages: TranscriptMessage[]   // full conversation history up to this call
-tools: ToolDefinition[]         // available tools with name, description, and schema
+```typescript
+complete(input: ModelInput): Promise<ModelOutput>
 ```
 
-**Provider-neutral transcript message shape (`TranscriptMessage`):**
+Any real provider adapter must be a class that implements `ModelClient`. The method signature must not change; the adapter seam is the implementation, not the interface shape. `ModelInput` is a single JSON-safe input object; if W4-B needs to extend it, new optional fields are added to `ModelInput` rather than adding positional arguments.
 
-All message content must be JSON-safe. No SDK-native object, class instance, or non-serializable value may appear.
+**Current `ModelInput` shape (already in `src/agent/modelClient.ts`):**
 
-```
-// Initial user prompt or tool-result carrier
-{ role: "user";      content: string }
-
-// Model produced a final answer
-{ role: "assistant"; content: { type: "final_answer"; text: string } }
-
-// Model requested a tool call
-{ role: "assistant"; content: { type: "tool_call"; toolName: string; toolInput: JsonObject } }
-
-// Tool result returned to the model (always a user-role message)
-{ role: "user";      content: { type: "tool_result"; toolName: string; result: JsonValue; error?: string } }
+```typescript
+interface ModelInput {
+  systemPrompt?: string;
+  messages:      Message[];      // conversation history
+  tools?:        ToolDefinition[]; // available tools
+}
 ```
 
-This shape is compatible with the current `agentLoop.ts` message construction and extensible for real providers. Provider-specific fields (e.g., Anthropic `tool_use_id`) must be added by the real adapter layer only — they must not appear in `TraceStep.payload` or in the provider-neutral transcript type.
+**Current `Message` shape:**
 
-**Minimum output `ModelClient.complete()` returns (`ModelOutput`):**
-
-One of:
-
+```typescript
+interface Message {
+  role:    "user" | "assistant";
+  content: string;               // JSON-encoded for tool calls/results
+}
 ```
-{ type: "final_answer", text: string }
-```
-The model has produced a concluding response. The agent loop terminates.
 
-```
-{ type: "tool_call", toolName: string, toolInput: Record<string, unknown> }
-```
-The model has requested a tool invocation. The agent loop executes the tool and continues.
+The current `Message.content` is always a `string`. For the fake adapter this is sufficient; scripted responses do not inspect message content. For a real adapter, this content encoding must be well-defined. **W4-B should document (not yet change)** the intended content encoding for each message role/turn so W4-C can implement it without ambiguity.
 
-The existing `ModelOutput` union type covers both cases. No new variants are needed for the first adapter spike. Provider-specific stop reasons (content filter, max tokens, stop sequence) must be caught inside the adapter and surfaced as thrown errors to the agent loop, not as new `ModelOutput` variants.
+**Provider-neutral content encoding guidance (for W4-B documentation):**
+
+To remain compatible with both the fake adapter and a real provider, message content must be JSON-safe and consistently encoded. The intended logical structure for each turn:
+
+| Turn | Role | Content |
+|---|---|---|
+| Initial prompt | `user` | plain string |
+| Model final answer | `assistant` | plain string |
+| Model tool call request | `assistant` | JSON string of `{ toolName, toolInput }` |
+| Tool result | `user` | JSON string of `{ toolName, result, error? }` |
+
+This encoding is already used by the current `agentLoop.ts`. A real adapter must parse these JSON strings when constructing provider-native API calls. Provider-specific fields (e.g., Anthropic `tool_use_id`) must be added inside the real adapter layer only — they must not leak into `ModelInput`, `Message`, or `TraceStep.payload`.
+
+**Current `ToolDefinition` shape (already in `src/agent/modelClient.ts`):**
+
+```typescript
+interface ToolDefinition {
+  name:        string;
+  description: string;
+}
+```
+
+W4-B may add `inputSchema?: JsonObject` to `ToolDefinition` for provider schema conversion. This is additive and backward-compatible.
+
+**`ModelOutput` (already in `src/agent/modelClient.ts`):**
+
+```typescript
+type ModelOutput =
+  | { type: "tool_call";    toolName: string; toolInput: JsonValue }
+  | { type: "final_answer"; text: string };
+```
+
+No new variants are needed for the first adapter spike. Provider-specific stop reasons (content filter, max tokens, stop sequence) must be caught inside the adapter and surfaced as thrown errors to `agentLoop`, not as new `ModelOutput` variants.
 
 **How this maps to the fake adapter:**
 
-`FakeDeterministicModelClient` plays back a scripted `ModelOutput[]` array in order. It satisfies `ModelClient.complete()`. Any real provider adapter is a drop-in replacement — the agent loop never distinguishes between a fake and a real adapter. This is the entire point of the interface.
+`FakeDeterministicModelClient` plays back a scripted `ModelOutput[]` array in order. It already satisfies `ModelClient`. Any real provider adapter is a drop-in replacement — `agentLoop` never distinguishes between fake and real. This is the entire point of the interface.
 
 ---
 
@@ -88,9 +106,9 @@ The existing `ModelOutput` union type covers both cases. No new variants are nee
 
 These invariants must hold regardless of which adapter is in use.
 
-1. **Recording** — `agentLoop` calls the adapter via `ModelClient.complete()`. The response is a `ModelOutput`. The output, along with the corresponding model input, is recorded in `TraceStep` entries by the `TraceRecorder`. The hash chain is computed over the recorded payloads, not over any provider-native object.
+1. **Recording** — `agentLoop` calls `model.complete(input)` where `input` is a `ModelInput`. The response is a `ModelOutput`. The output, along with the corresponding model input, is recorded in `TraceStep` entries by the `TraceRecorder`. The hash chain is computed over the recorded payloads, not over any provider-native object.
 
-   **Important:** the current `agentLoop` implementation does not wrap `model.complete()` in a try/catch and does not record a terminal `metadata` step on model-call failure. If the adapter throws, the run aborts with no trace of the error in the cassette. **W4-B must add model-call error recording** before a real adapter is introduced. See Failure Modes and the W4-B scope below.
+   **Important:** the current `agentLoop` implementation does not wrap `model.complete(input)` in a try/catch and does not record a terminal `metadata` step on model-call failure. If the adapter throws, the run aborts with no trace of the error in the cassette. **W4-B must add model-call error recording** before a real adapter is introduced. See Failure Modes and the W4-B scope below.
 
 2. **Replay** — `replayTrace(trace: Trace)` takes no `ModelClient` parameter. It cannot call a provider by construction. It reads `TraceStep.payload` entries and reconstructs a `ReplaySummary`. This invariant must not change.
 
@@ -207,44 +225,70 @@ The `block.id` / `providerCallId` is **not** stored in the payload. It is only n
 
 Each failure mode must be representable in the trace without adding new step types or breaking the existing schema. The `metadata` step with `event: "run_failed"` is the existing mechanism.
 
-**Pre-condition:** the failure modes below that require a terminal `metadata` step on model-call error depend on `agentLoop` wrapping `model.complete()` in a try/catch. **This does not exist yet.** It is a required deliverable of W4-B. Without it, model-call errors abort the run without writing any terminal step, leaving the cassette in an incomplete state. All adapter error-handling below assumes W4-B has been completed first.
+**Pre-condition:** the failure modes below that require a terminal `metadata` step on model-call error depend on `agentLoop` wrapping `model.complete(input)` in a try/catch. **This does not exist yet.** It is a required deliverable of W4-B. Without it, model-call errors abort the run without writing any terminal step, leaving the cassette in an incomplete state. All adapter error-handling below assumes W4-B has been completed first.
 
-| Failure | Where caught | Representation in trace |
+**Stable terminal metadata shape for model-call failures (W4-B deliverable):**
+
+All model-call errors — regardless of provider — collapse into the same outer `reason: "model_error"` field on the terminal `metadata` step. Provider-specific error detail goes into a nested `errorKind` field. This keeps the schema stable even if the set of provider errors grows.
+
+```json
+{
+  "event":     "run_failed",
+  "status":    "error",
+  "reason":    "model_error",
+  "errorKind": "provider_auth_error | provider_timeout | provider_refusal | provider_malformed_response | unknown",
+  "message":   "<human-readable description, no raw SDK error objects>"
+}
+```
+
+The raw SDK error object, stack trace, and any provider-native error code must not appear in `TraceStep.payload`. Extract only the `errorKind` and a plain string message inside the adapter before re-throwing to `agentLoop`.
+
+| Failure | Where caught | `errorKind` value |
 |---|---|---|
-| Missing API key | Adapter constructor or proof script preamble | Throw before first call; no trace steps recorded; process exits with a clear error message |
-| Provider authentication error (401/403) | Inside adapter `complete()` | Re-throw to `agentLoop`; `agentLoop` catch (W4-B) appends terminal `metadata`: `event: "run_failed"`, `reason: "provider_auth_error"` |
-| Provider timeout | Inside adapter `complete()` | Re-throw to `agentLoop`; terminal `metadata`: `reason: "provider_timeout"` |
-| Provider refusal (safety filter, content policy) | Inside adapter `complete()` | Treat unrecognized stop reason as error; re-throw; terminal `metadata`: `reason: "provider_refusal"` |
-| Malformed tool call (missing name or input) | Inside adapter `complete()` | Re-throw to `agentLoop`; terminal `metadata`: `reason: "malformed_tool_call"` |
-| Unsupported stop reason | Inside adapter `complete()` | Re-throw with raw stop reason in message; terminal `metadata`: `reason: "unsupported_stop_reason"` |
-| Tool execution error | Inside `ToolExecutor.execute()` | Existing mechanism: recorded in `tool_result` payload; run may continue if model can recover |
+| Missing API key | Adapter constructor or proof script preamble | Not recorded — throw before any call; process exits with a clear message |
+| Provider authentication error (401/403) | Inside adapter `complete()` | `"provider_auth_error"` |
+| Provider timeout | Inside adapter `complete()` | `"provider_timeout"` |
+| Provider refusal (safety filter, content policy) | Inside adapter `complete()` | `"provider_refusal"` |
+| Malformed / unrecognized response | Inside adapter `complete()` | `"provider_malformed_response"` |
+| Unsupported stop reason | Inside adapter `complete()` | `"provider_malformed_response"` |
+| Unexpected / uncategorized error | `agentLoop` catch (fallback) | `"unknown"` |
+| Tool execution error | Inside `ToolExecutor.execute()` | Not a model error — existing mechanism: recorded in `tool_result` payload; run may continue |
 
-Do not add new `TraceStepType` values for error cases. The `metadata` terminal step with a `reason` field is sufficient for the W4-C spike. Richer error representation is a future decision.
+Do not add new `TraceStepType` values for error cases. The `metadata` terminal step with `reason: "model_error"` and `errorKind` is sufficient for the W4-C spike. Richer error representation is a future decision.
+
+**W4-B must test model-call error recording using `FakeDeterministicModelClient` configured to throw.** No real SDK is required to test this path.
 
 ---
 
 ## Proposed W4-B / W4-C / W4-D / W4-E Sequence
 
-### W4-B: Provider-neutral adapter boundary (code refactor, no new adapters)
+### W4-B: Provider-neutral adapter boundary + model-call error hardening
 
-- Verify `ModelClient` interface is complete and matches this contract; ensure the method signature is `complete(messages: TranscriptMessage[], tools: ToolDefinition[]): Promise<ModelOutput>`
-- Extract `ToolDefinition` as an explicit JSON-safe type:
-  ```
-  { name: string; description: string; inputSchema: JsonObject }
-  ```
-- Extract `ToolExecutor` as an explicit interface with two responsibilities:
-  ```
+W4-B is a refactor plus a targeted behavior addition. The non-error path is unchanged; the new behavior is model-call error recording.
+
+**Refactor (no behavior change to the non-error path):**
+
+- Verify `ModelClient` method signature matches current code: `complete(input: ModelInput): Promise<ModelOutput>`. Do not change this signature.
+- Optionally add `inputSchema?: JsonObject` to `ToolDefinition` (additive, backward-compatible).
+- Extract `ToolExecutor` as an explicit interface:
+  ```typescript
   interface ToolExecutor {
-    definitions(): ToolDefinition[];                              // for passing to model each call
-    execute(name: string, input: JsonValue): Promise<JsonValue>;  // for running tools
+    definitions(): ToolDefinition[];                              // called before each model.complete()
+    execute(name: string, input: JsonValue): Promise<JsonValue>;  // called after each tool_call response
   }
   ```
-  This separation is important: `definitions()` is called before each `model.complete()` call so the model knows what tools are available; `execute()` is called after each `tool_call` response.
-- `agentLoop` accepts `ToolExecutor` as a parameter instead of importing fixture tools directly
-- `defaultFixtureTools()` returns a `ToolExecutor` implementation
-- Add model-call error recording: wrap `model.complete()` in a try/catch; on error, append a terminal `metadata` step with `event: "run_failed"` and `reason: "model_error"` before re-throwing; this is fake-testable with a `FakeDeterministicModelClient` that throws
-- No behavior change for the non-error path; all 162 existing tests pass unchanged
-- Codex audit after W4-B before proceeding
+- `agentLoop` accepts `ToolExecutor` as a constructor/call parameter instead of importing fixture tools directly.
+- `defaultFixtureTools()` returns a `ToolExecutor` implementation.
+- All 162 existing tests pass unchanged.
+
+**Behavior addition (model-call error recording):**
+
+- Wrap `model.complete(input)` in a try/catch inside `agentLoop`.
+- On error, classify the error as `errorKind` (see Failure Modes section), append a terminal `metadata` step with the stable payload shape defined above, then re-throw so callers know the run failed.
+- **Test with a fake throwing `ModelClient`**, not a real SDK. `FakeDeterministicModelClient` that throws on call N is sufficient.
+- New tests must prove the terminal `metadata` step is present after a model-call error.
+
+**Codex audit after W4-B before proceeding to W4-C.**
 
 ### W4-C: Optional Anthropic adapter behind env flag
 
