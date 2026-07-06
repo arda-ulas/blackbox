@@ -29,6 +29,21 @@ Real providers must never be called during:
 
 ---
 
+## Structured Transcript Migration — Status (W4-D, implemented)
+
+**Path B (structured transcript) is implemented for the fake/local v2 core.** The transcript encoding no longer blocks reconstruction:
+
+- `agentLoop` emits structured `MessagePart[]` tool rounds; `Message.content` is `string | MessagePart[]`; every tool round carries a deterministic, provider-neutral `toolCallId` in the transcript and in the `tool_call`/`tool_result` step payloads (schema v2 — see `docs/03_trace_schema.md`).
+- `forkRun` reconstructs structured `MessagePart[]` histories, preserves `toolCallId` through tool-result mutation, and seeds continued-run ids so `call-0` is never reused.
+- `AnthropicModelClient.translateMessages` consumes structured parts (`text` → text block; `tool_use` → tool_use block with `id = toolCallId`; `tool_result` → tool_result block with `tool_use_id = toolCallId`, `is_error: true` on the error variant). **Verified with a mocked client only.**
+- A **fresh** adapter instance translates a cassette-derived multi-turn structured history into a self-consistent request **with no `#pendingToolCalls` state**. The legacy `[tool_call:<name>]` / pending path is retained only as a **narrow fallback for pre-v2 plain-string content**; the structured path never consults it.
+
+**Still deferred to W4-E (NOT proven here):** that a live Anthropic API **accepts a synthetic Blackbox `toolCallId` as a provider `tool_use.id`**, and any real-provider tool-use / fork-continuation run. W4-D proves neutral reconstruction against a mocked client only; live acceptance must be established with Context7 + installed types + a live proof before it is claimed.
+
+The historical encoding tables below are retained for context; the "legacy" shape is now superseded by the structured `MessagePart[]` model above.
+
+---
+
 ## Adapter Boundary
 
 ### Provider-neutral `ModelClient` contract

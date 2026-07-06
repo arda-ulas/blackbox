@@ -333,3 +333,48 @@ In priority order — do not expand scope without explicit decision:
 | `npm run example:real-proof` without key | ✓ exits 1, no trace written |
 | No CLI adapter flag wiring | ✓ proof-script only |
 | Codex audit verdict | ✓ W4-C ready to close, no critical issues |
+
+---
+
+## 2026-07-06 — Week Four W4-D Completion (structured transcript migration)
+
+### What Was Built
+
+**W4-D1 — Structured transcript types + `toolCallId` helper** (`ff7f44d`)
+- Added the `MessagePart` union to `src/agent/modelClient.ts` and widened `Message.content` to `string | MessagePart[]`; `ModelOutput` unchanged.
+- Added a deterministic, provider-neutral `toolCallId` helper (`call-0`, `call-1`, …; pure function of run-local index). Types/helper only — no schema bump, no behavior change.
+
+**W4-D2 — Atomic schema v2 writer** (`0269e24`)
+- Bumped `CURRENT_TRACE_VERSION` to 2; `loadTrace` rejects v1 cassettes with a re-record message (no migration shim).
+- `agentLoop` emits structured `tool_use`/`tool_result` `MessagePart[]` rounds; `toolCallId` added to `model_output`/`tool_call`/`tool_result` payloads. Replay stayed offline.
+
+**W4-D3 — Structured fork reconstruction + id preservation/seeding** (`a6ab058`)
+- `forkRun` reconstructs structured `MessagePart[]` histories; mutated `tool_result` preserves `toolCallId`/`toolName`, replacing only `result`.
+- `runAgentLoop` gained `initialToolCallIndex`; continued runs seed the next id past the prefix so `call-0` is never reused. Stale `model_input` guard unchanged; `hash.ts` untouched.
+
+**W4-D4 — Anthropic adapter mocked structured translation** (`41f0db7`)
+- `translateMessages` consumes `MessagePart[]`: `text`→text block; `tool_use`→tool_use block (`id = toolCallId`); `tool_result`→tool_result block (`tool_use_id = toolCallId`, `is_error: true` on error variant).
+- A fresh adapter translates cassette-derived structured history with **no** `#pendingToolCalls` state; legacy `[tool_call:]`/pending kept only as a narrow pre-v2 string fallback. Mocked-client tests only.
+
+**W4-D5 — Docs / status closeout** (this entry)
+- Updated `docs/03_trace_schema.md` (v2 + `MessagePart` model + structured fork reconstruction), `docs/13_adapter_contract.md` (Path B implemented status + W4-E deferral), `docs/15_week_four_d_plan.md` (slice status/verdict), `README.md`, `DEMO.md`, `AGENTS.md`.
+- Tightened one adapter comment to avoid overclaiming (removes adapter-memory dependency for mocked translation; live acceptance deferred to W4-E). No runtime behavior change.
+
+### Guardrails Held
+- No live provider calls; no live/key-gated tests added; `npm test -- --run` passes with 253 tests and zero real calls.
+- No CLI Anthropic wiring — `FakeDeterministicModelClient` remains the default everywhere.
+- Replay remains structurally offline; `hash.ts` and trace schema algorithm unchanged (version constant is 2).
+- No provider-native ids/usage/message-ids/content-arrays in any payload.
+
+### Deferred (NOT proven in W4-D)
+- That a live Anthropic API **accepts a synthetic Blackbox `toolCallId` as a provider `tool_use.id`**, and any real-provider tool-use / fork-continuation run. Deferred to **W4-E** (Context7 + installed types + a live proof). W4-D proves neutral reconstruction against a mocked client only.
+
+### Final Acceptance Criteria Status
+| Criterion | Status |
+|---|---|
+| `npm test -- --run` passes | ✓ 253/253, zero live calls |
+| `npm run cli -- record` / `replay` / `fork` / `diff` | ✓ v2 structured payloads; fake model/tools default |
+| `npm run example:real-proof` without key | ✓ exits safely, no trace written |
+| No CLI adapter flag wiring | ✓ proof-script only |
+| Real-provider tool-use / fork acceptance | ✗ not claimed — deferred to W4-E |
+| Codex closeout audit | pending (this closeout awaiting audit before tagging) |

@@ -2,7 +2,7 @@
 
 Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at any step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff**.
 
-This walkthrough covers the Week Three local CLI demo. Everything runs entirely on your machine with no external API calls.
+This walkthrough covers the local CLI demo. Everything runs entirely on your machine with no external API calls. Traces are recorded in **schema v2** — tool rounds carry a deterministic, provider-neutral `toolCallId` (see [docs/03_trace_schema.md](docs/03_trace_schema.md)).
 
 ---
 
@@ -10,7 +10,7 @@ This walkthrough covers the Week Three local CLI demo. Everything runs entirely 
 
 ```sh
 npm install
-npm test -- --run     # 162 tests; all should pass
+npm test -- --run     # 253 tests; all should pass
 ```
 
 ---
@@ -77,10 +77,10 @@ npm run cli -- list
 [blackbox] --- list (traces) ---
 
   traces/example-error-trace.json
-    id=example-error-run  v=1  steps=5  status=error/unknown_tool  created=YYYY-MM-DD
+    id=example-error-run  v=2  steps=5  status=error/unknown_tool  created=YYYY-MM-DD
 
   traces/example-trace.json
-    id=example-run-001  v=1  steps=15  status=success  created=YYYY-MM-DD
+    id=example-run-001  v=2  steps=15  status=success  created=YYYY-MM-DD
 
 [blackbox] 2 of 2 trace(s) valid, 0 warning(s).
 ```
@@ -107,7 +107,7 @@ npm run cli -- inspect
 --- trace ---
 Path:                traces/example-trace.json
 Trace ID:            example-run-001
-Version:             1
+Version:             2
 Created:             <ISO timestamp>
 Steps:               15
 
@@ -218,14 +218,14 @@ Shared prefix:  3 step(s)
 
 Summary:        tool_result differs at index 3
 First divergence at index 3
-  parent  tool_result     <hash>  {"toolName":"search","result":{"results":[{"title":"Fixtu...
+  parent  tool_result     <hash>  {"toolCallId":"call-0","toolName":"search","result":{"res...
   child   tool_result     <hash>  {"toolName":"search","result":{"results":[],"available":f...
 ```
 
 **Key proof points:**
 
 - **Verbatim prefix:** steps 0–2 are copied byte-for-byte from the parent. Their hashes are SHA-256 identical to the corresponding parent steps. The mutation re-chains starting at step 3, so the child hash chain is valid and self-consistent.
-- **Tool-result mutation:** the injected payload (`results: [], available: false`) replaces only the `result` field of the `tool_result` step. The `toolName` is preserved. The agent's subsequent reasoning (steps 4 onward) flows from the new result.
+- **Tool-result mutation:** the injected payload (`results: [], available: false`) replaces only the `result` field of the `tool_result` step. The `toolName` and the `toolCallId` (`call-0`) are preserved, so call ↔ result correlation survives the mutation. The agent's subsequent reasoning (steps 4 onward) flows from the new result.
 - **Child continues cleanly:** `Validation: passed` confirms the child's full hash chain is intact from prefix through the newly generated steps.
 - **Diff is immediate:** the fork command runs `diffTraces` and prints the first divergence inline — no separate diff command needed.
 
@@ -255,7 +255,7 @@ Shared prefix:  3 step(s)
 
 Summary:        tool_result differs at index 3
 First divergence at index 3
-  parent  tool_result     <hash>  {"toolName":"search","result":{"results":[{"title":"Fixtu...
+  parent  tool_result     <hash>  {"toolCallId":"call-0","toolName":"search","result":{"res...
   child   tool_result     <hash>  {"toolName":"search","result":{"results":[],"available":f...
 ```
 

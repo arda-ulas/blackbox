@@ -7,7 +7,8 @@
 // tool_result block whose `tool_use_id` is that same toolCallId. Correlation
 // therefore lives entirely in the cassette data — a FRESH adapter instance can
 // translate a saved multi-turn history with no prior in-memory state. This
-// resolves the earlier fork-continuation limitation for structured cassettes.
+// removes the adapter-memory dependency for mocked structured translation;
+// live provider acceptance of synthetic ids is deferred to W4-E.
 //
 // NOTE: The synthetic `call-N` ids are self-consistent within the request we
 // build (tool_use.id === matching tool_result.tool_use_id). These mocked tests do
