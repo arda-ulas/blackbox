@@ -2,7 +2,7 @@
 
 Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at any step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff**.
 
-This walkthrough covers the week-one/week-two local CLI proof. Everything runs entirely on your machine with no external API calls.
+This walkthrough covers the Week Three local CLI demo. Everything runs entirely on your machine with no external API calls.
 
 ---
 

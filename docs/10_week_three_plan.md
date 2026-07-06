@@ -87,13 +87,14 @@ Files to touch:
 
 ## Acceptance Criteria
 
-- `blackbox record` creates `traces/example-trace.json` (same as current `npm run example:record`)
-- `blackbox replay <path>` replays any saved trace offline
-- `blackbox fork <path> --at <index>` forks a trace at a given step with a mutated prompt
-- `blackbox diff <path-a> <path-b>` loads and diffs any two traces
-- `blackbox list` lists all traces in the `traces/` directory
-- `npm test` still passes (no regressions)
-- All existing example scripts still work
+- `npm run cli -- record` creates `traces/example-trace.json` and `traces/example-error-trace.json`
+- `npm run cli -- replay --trace <path>` replays any saved trace offline
+- `npm run cli -- fork --trace <path> --fork-index <n>` forks a trace at a given step with a mutated tool result or prompt
+- `npm run cli -- diff --parent <path> --child <path>` loads and diffs any two traces
+- `npm run cli -- list --dir <dir>` lists all traces in a directory
+- `npm run cli -- inspect --trace <path>` prints metadata and step timeline for a cassette
+- `npm test -- --run` passes (no regressions)
+- All existing `example:*` scripts still work
 - `DEMO.md` exists and is accurate
 
 ---

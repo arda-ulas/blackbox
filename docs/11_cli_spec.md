@@ -124,7 +124,7 @@ Loads a parent cassette, forks at a given step with either a prompt mutation or 
 - Calls `forkRun` with the resolved options
 - Validates child cassette after forking
 - Saves child cassette to `--out`
-- Prints the labeled terminal sections (original run / mutation / prefix / child run / trace diff) matching current `example:fork` output format
+- Prints labeled terminal sections: `--- parent ---` (path, id, step count), `--- mutation ---` (mode, mutation step, verbatim range, prefix length), `--- child ---` (path, id, step count, result, validation), and `--- trace diff ---` (shared prefix, human summary, first divergence details)
 
 **Validation of `--payload-json`:** Parse with `JSON.parse`; print `Invalid JSON for --payload-json: <err>` and exit 1 on failure.
 
