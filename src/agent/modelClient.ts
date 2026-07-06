@@ -39,6 +39,33 @@ export type ModelOutput =
   | { type: "final_answer"; text: string };
 
 // ---------------------------------------------------------------------------
+// Model-call error classification
+// ---------------------------------------------------------------------------
+
+/** Semantic classification of a model-call failure. Used in the terminal metadata step. */
+export type ModelErrorKind =
+  | "provider_auth_error"
+  | "provider_timeout"
+  | "provider_refusal"
+  | "provider_malformed_response"
+  | "unknown";
+
+/**
+ * Throw from a ModelClient.complete() implementation to signal a classified failure.
+ * agentLoop catches this and records a terminal metadata step with the given errorKind
+ * before re-throwing so callers know the run failed.
+ */
+export class ModelCallError extends Error {
+  readonly errorKind: ModelErrorKind;
+
+  constructor(message: string, errorKind: ModelErrorKind = "unknown") {
+    super(message);
+    this.name = "ModelCallError";
+    this.errorKind = errorKind;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Interface
 // ---------------------------------------------------------------------------
 

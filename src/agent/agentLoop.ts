@@ -9,8 +9,11 @@ import { type JsonValue, type Trace } from "../trace/TraceTypes.ts";
 import {
   type ModelClient,
   type ModelInput,
+  type ModelOutput,
   type Message,
   type ToolExecutor,
+  type ModelErrorKind,
+  ModelCallError,
 } from "./modelClient.ts";
 import { type TraceRecorder } from "../trace/TraceRecorder.ts";
 
@@ -63,7 +66,23 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
 
     recorder.append("model_input", modelInput as unknown as JsonValue);
 
-    const modelOutput = await model.complete(modelInput);
+    let modelOutput: ModelOutput;
+    try {
+      modelOutput = await model.complete(modelInput);
+    } catch (err) {
+      const errorKind: ModelErrorKind =
+        err instanceof ModelCallError ? err.errorKind : "unknown";
+      const message =
+        err instanceof Error ? err.message : "model call failed with an unknown error";
+      recorder.append("metadata", {
+        event: "run_failed",
+        status: "error",
+        reason: "model_error",
+        errorKind,
+        message,
+      });
+      throw err;
+    }
     stepCount += 1;
 
     recorder.append("model_output", modelOutput as unknown as JsonValue);

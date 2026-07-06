@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
-import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
+import {
+  FakeDeterministicModelClient,
+  ModelCallError,
+  type ModelClient,
+} from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 
@@ -234,5 +238,180 @@ describe("agentLoop — error cases", () => {
     expect(payload.event).toBe("run_failed");
     expect(payload.reason).toBe("max_steps_exceeded");
     expect(payload.maxSteps).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W4-B slice 2: model-call error metadata recording
+// ---------------------------------------------------------------------------
+
+describe("agentLoop — model-call error recording", () => {
+  it("records a terminal metadata step when model.complete() throws", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new Error("network timeout");
+      },
+    };
+    const recorder = makeRecorder("run-model-error");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    expect(terminal?.type).toBe("metadata");
+  });
+
+  it("terminal metadata has event, status, reason, errorKind, and message fields", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new Error("connection refused");
+      },
+    };
+    const recorder = makeRecorder("run-payload-shape");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    const payload = terminal?.payload as Record<string, unknown>;
+    expect(payload.event).toBe("run_failed");
+    expect(payload.status).toBe("error");
+    expect(payload.reason).toBe("model_error");
+    expect(typeof payload.errorKind).toBe("string");
+    expect(typeof payload.message).toBe("string");
+  });
+
+  it("plain Error thrown by model maps to errorKind 'unknown'", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new Error("something unexpected");
+      },
+    };
+    const recorder = makeRecorder("run-unknown-kind");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    const payload = terminal?.payload as { errorKind: string };
+    expect(payload.errorKind).toBe("unknown");
+  });
+
+  it("ModelCallError with classified kind propagates errorKind into the metadata step", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new ModelCallError("401 Unauthorized", "provider_auth_error");
+      },
+    };
+    const recorder = makeRecorder("run-auth-error");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    const payload = terminal?.payload as { errorKind: string; message: string };
+    expect(payload.errorKind).toBe("provider_auth_error");
+    expect(payload.message).toBe("401 Unauthorized");
+  });
+
+  it("non-Error thrown value is sanitized to a safe generic message", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "just a raw string, not an Error object";
+      },
+    };
+    const recorder = makeRecorder("run-non-error-throw");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toBeDefined();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    const payload = terminal?.payload as { message: string; errorKind: string };
+    // message must be a safe string, not the raw thrown value
+    expect(typeof payload.message).toBe("string");
+    expect(payload.message.length).toBeGreaterThan(0);
+    expect(payload.errorKind).toBe("unknown");
+  });
+
+  it("raw error object is not stored in the trace payload — only a string message", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        const err = new Error("classified error") as Error & { secretData: string };
+        err.secretData = "DO_NOT_STORE_THIS";
+        throw err;
+      },
+    };
+    const recorder = makeRecorder("run-no-raw-object");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const terminal = recorder.getTrace().steps.at(-1);
+    const payloadStr = JSON.stringify(terminal?.payload);
+    // Raw Error fields (secretData) must not appear in the serialised payload
+    expect(payloadStr).not.toContain("DO_NOT_STORE_THIS");
+    // message must be a plain string in the payload
+    const payload = terminal?.payload as { message: string };
+    expect(typeof payload.message).toBe("string");
+  });
+
+  it("no tool execution occurs after a model-call failure", async () => {
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new Error("model down");
+      },
+    };
+    const recorder = makeRecorder("run-no-tool-after-failure");
+
+    await expect(
+      runAgentLoop({
+        model: throwingModel,
+        toolExecutor: defaultToolExecutor(),
+        recorder,
+        prompt: "do something",
+      }),
+    ).rejects.toThrow();
+
+    const steps = recorder.getTrace().steps;
+    // tool_call and tool_result steps must be absent — the executor was never reached
+    expect(steps.some((s) => s.type === "tool_call")).toBe(false);
+    expect(steps.some((s) => s.type === "tool_result")).toBe(false);
   });
 });
