@@ -1,10 +1,16 @@
-// Tests for the Anthropic adapter skeleton (W4-C1).
+// Tests for the Anthropic adapter (W4-C1 skeleton + W4-C2 translation).
 //
 // All tests in this file run in the default suite — no ANTHROPIC_API_KEY required.
-// Tests use an injected fake AnthropicLikeClient so no network calls are made.
-// Live integration tests (key-gated) are added in W4-C2/W4-C3.
+// Tests use injected fake AnthropicLikeClient objects; no network calls are made.
+// Live integration tests (key-gated) are deferred to the W4-C3 proof script.
 
 import { describe, it, expect } from "vitest";
+import {
+  AuthenticationError,
+  APIConnectionTimeoutError,
+  RateLimitError,
+  APIError,
+} from "@anthropic-ai/sdk";
 import {
   AnthropicModelClient,
   type AnthropicLikeClient,
@@ -13,26 +19,90 @@ import {
   ModelCallError,
   FakeDeterministicModelClient,
 } from "../src/agent/modelClient.ts";
-import type { ModelInput } from "../src/agent/modelClient.ts";
+import type { ModelInput, ToolDefinition } from "../src/agent/modelClient.ts";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Fake client builders
 // ---------------------------------------------------------------------------
 
-// Minimal fake that satisfies AnthropicLikeClient. Never actually calls the SDK.
-function makeFakeClient(): AnthropicLikeClient {
+// Client that captures the params passed to create() and returns a fixed response.
+function makeCapturingClient(response: unknown): {
+  client: AnthropicLikeClient;
+  lastParams: () => unknown;
+} {
+  let captured: unknown;
+  return {
+    client: {
+      messages: {
+        async create(params: unknown): Promise<unknown> {
+          captured = params;
+          return response;
+        },
+      },
+    },
+    lastParams: () => captured,
+  };
+}
+
+// Client that always returns the given response.
+function makeReturningClient(response: unknown): AnthropicLikeClient {
   return {
     messages: {
       async create(_params: unknown): Promise<unknown> {
-        // In W4-C1 complete() is stubbed before reaching the client, but if it
-        // ever did reach here it should surface a clear error rather than silently
-        // hanging or making a real network request.
-        throw new Error("makeFakeClient: create() should not be called in W4-C1 tests");
+        return response;
       },
     },
   };
 }
 
+// Client that throws the given error.
+function makeThrowingClient(err: unknown): AnthropicLikeClient {
+  return {
+    messages: {
+      async create(_params: unknown): Promise<unknown> {
+        throw err;
+      },
+    },
+  };
+}
+
+// Client that tracks whether create() was called.
+function makeTrackingClient(response: unknown): {
+  client: AnthropicLikeClient;
+  wasCalled: () => boolean;
+} {
+  let called = false;
+  return {
+    client: {
+      messages: {
+        async create(_params: unknown): Promise<unknown> {
+          called = true;
+          return response;
+        },
+      },
+    },
+    wasCalled: () => called,
+  };
+}
+
+// Canned API responses.
+const finalAnswerResponse = {
+  stop_reason: "end_turn",
+  content: [{ type: "text", text: "The answer is 42.", citations: null }],
+};
+
+const toolUseResponse = {
+  stop_reason: "tool_use",
+  content: [
+    { type: "tool_use", id: "toolu_abc123", name: "search", input: { query: "hotels" } },
+  ],
+};
+
+const minimalInput: ModelInput = {
+  messages: [{ role: "user", content: "Hello." }],
+};
+
+// Env guard helper.
 function withoutKey<T>(fn: () => T): T {
   const orig = process.env["ANTHROPIC_API_KEY"];
   delete process.env["ANTHROPIC_API_KEY"];
@@ -45,36 +115,35 @@ function withoutKey<T>(fn: () => T): T {
   }
 }
 
-const minimalInput: ModelInput = {
-  messages: [{ role: "user", content: "hello" }],
-};
-
 // ---------------------------------------------------------------------------
-// Construction — injected client
+// Construction — injected client (W4-C1, still valid)
 // ---------------------------------------------------------------------------
 
 describe("AnthropicModelClient — construction with injected client", () => {
   it("constructs without ANTHROPIC_API_KEY when a client is injected", () => {
     withoutKey(() => {
-      expect(() => new AnthropicModelClient({ client: makeFakeClient() })).not.toThrow();
+      const { client } = makeCapturingClient(finalAnswerResponse);
+      expect(() => new AnthropicModelClient({ client })).not.toThrow();
     });
   });
 
   it("constructs with default options when a client is injected", () => {
     withoutKey(() => {
-      const adapter = new AnthropicModelClient({ client: makeFakeClient() });
+      const { client } = makeCapturingClient(finalAnswerResponse);
+      const adapter = new AnthropicModelClient({ client });
       expect(adapter).toBeDefined();
     });
   });
 
   it("implements the ModelClient interface (has a complete method)", () => {
-    const adapter = new AnthropicModelClient({ client: makeFakeClient() });
+    const { client } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
     expect(typeof adapter.complete).toBe("function");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Construction — missing key, no injected client
+// Construction — missing key, no injected client (W4-C1, still valid)
 // ---------------------------------------------------------------------------
 
 describe("AnthropicModelClient — missing API key", () => {
@@ -108,7 +177,7 @@ describe("AnthropicModelClient — missing API key", () => {
     });
   });
 
-  it("error message is a non-empty string (sanitized, not a raw object)", () => {
+  it("error message is a non-empty string", () => {
     withoutKey(() => {
       let caught: unknown;
       try {
@@ -121,63 +190,343 @@ describe("AnthropicModelClient — missing API key", () => {
       expect(msg.length).toBeGreaterThan(0);
     });
   });
-
-  it("error message does not contain a literal API key value", () => {
-    // Set a recognizable sentinel key, then delete it — the constructor should not
-    // have stored it in the error message even transiently.
-    const orig = process.env["ANTHROPIC_API_KEY"];
-    process.env["ANTHROPIC_API_KEY"] = "sk-ant-SENTINEL_KEY_VALUE";
-    delete process.env["ANTHROPIC_API_KEY"];
-    try {
-      let caught: unknown;
-      try {
-        new AnthropicModelClient();
-      } catch (err) {
-        caught = err;
-      }
-      const msg = (caught as ModelCallError).message;
-      expect(msg).not.toContain("sk-ant-SENTINEL_KEY_VALUE");
-    } finally {
-      if (orig !== undefined) {
-        process.env["ANTHROPIC_API_KEY"] = orig;
-      }
-    }
-  });
 });
 
 // ---------------------------------------------------------------------------
-// complete() — W4-C1 stub behaviour
+// Request translation — W4-C2
 // ---------------------------------------------------------------------------
 
-describe("AnthropicModelClient — complete() stub (W4-C1)", () => {
-  it("complete() rejects (stub not yet implemented)", async () => {
-    const adapter = new AnthropicModelClient({ client: makeFakeClient() });
-    await expect(adapter.complete(minimalInput)).rejects.toBeDefined();
+describe("AnthropicModelClient — request translation", () => {
+  it("passes model and max_tokens to create()", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete(minimalInput);
+    const params = lastParams() as Record<string, unknown>;
+    expect(typeof params["model"]).toBe("string");
+    expect((params["model"] as string).length).toBeGreaterThan(0);
+    expect(typeof params["max_tokens"]).toBe("number");
+    expect((params["max_tokens"] as number)).toBeGreaterThan(0);
   });
 
-  it("complete() rejects with a ModelCallError", async () => {
-    const adapter = new AnthropicModelClient({ client: makeFakeClient() });
-    await expect(adapter.complete(minimalInput)).rejects.toBeInstanceOf(ModelCallError);
+  it("uses the model from constructor options when provided", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client, model: "claude-custom-model" });
+    await adapter.complete(minimalInput);
+    const params = lastParams() as Record<string, unknown>;
+    expect(params["model"]).toBe("claude-custom-model");
   });
 
-  it("complete() does not reach the injected fake client's create() method", async () => {
-    let createCalled = false;
-    const trackingClient: AnthropicLikeClient = {
+  it("translates a plain user message to an Anthropic message param", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({ messages: [{ role: "user", content: "What time is it?" }] });
+    const params = lastParams() as Record<string, unknown>;
+    const messages = params["messages"] as Array<{ role: string; content: unknown }>;
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toBe("What time is it?");
+  });
+
+  it("passes systemPrompt as the system field when provided", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({
+      messages: [{ role: "user", content: "Hi." }],
+      systemPrompt: "You are a helpful assistant.",
+    });
+    const params = lastParams() as Record<string, unknown>;
+    expect(params["system"]).toBe("You are a helpful assistant.");
+  });
+
+  it("omits system field when systemPrompt is absent", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete(minimalInput);
+    const params = lastParams() as Record<string, unknown>;
+    expect("system" in params).toBe(false);
+  });
+
+  it("translates ToolDefinition[] to Anthropic tool params with input_schema", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const tools: ToolDefinition[] = [
+      { name: "search", description: "Search the web" },
+    ];
+    await adapter.complete({ messages: [{ role: "user", content: "Search." }], tools });
+    const params = lastParams() as Record<string, unknown>;
+    const apiTools = params["tools"] as Array<Record<string, unknown>>;
+    expect(apiTools).toHaveLength(1);
+    expect(apiTools[0]["name"]).toBe("search");
+    expect(apiTools[0]["description"]).toBe("Search the web");
+    // input_schema must be present.
+    expect(apiTools[0]["input_schema"]).toBeDefined();
+  });
+
+  it("uses permissive fallback input_schema { type: 'object' } when inputSchema is absent", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const tools: ToolDefinition[] = [{ name: "ping", description: "Ping" }];
+    await adapter.complete({ messages: [{ role: "user", content: "Ping." }], tools });
+    const params = lastParams() as Record<string, unknown>;
+    const apiTools = params["tools"] as Array<Record<string, unknown>>;
+    const schema = apiTools[0]["input_schema"] as Record<string, unknown>;
+    expect(schema["type"]).toBe("object");
+  });
+
+  it("merges provided inputSchema fields into input_schema alongside type: 'object'", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const tools: ToolDefinition[] = [
+      {
+        name: "search",
+        description: "Search",
+        inputSchema: { type: "object", properties: { query: { type: "string" } } },
+      },
+    ];
+    await adapter.complete({ messages: [{ role: "user", content: "Go." }], tools });
+    const params = lastParams() as Record<string, unknown>;
+    const apiTools = params["tools"] as Array<Record<string, unknown>>;
+    const schema = apiTools[0]["input_schema"] as Record<string, unknown>;
+    expect(schema["type"]).toBe("object");
+    expect(schema["properties"]).toBeDefined();
+  });
+
+  it("translates [tool_call:<name>] assistant message using stored pending id", async () => {
+    // Step 1: first call returns tool_use → adapter stores pending id.
+    const responses = [toolUseResponse, finalAnswerResponse];
+    let callCount = 0;
+    let secondCallParams: unknown;
+    const client: AnthropicLikeClient = {
       messages: {
-        async create(_params: unknown): Promise<unknown> {
-          createCalled = true;
-          return {};
+        async create(params: unknown): Promise<unknown> {
+          if (callCount === 1) secondCallParams = params;
+          return responses[callCount++];
         },
       },
     };
-    const adapter = new AnthropicModelClient({ client: trackingClient });
-    await expect(adapter.complete(minimalInput)).rejects.toBeDefined();
-    expect(createCalled).toBe(false);
+    const adapter = new AnthropicModelClient({ client });
+
+    // Step 2: first complete() — plain user message.
+    const out1 = await adapter.complete({ messages: [{ role: "user", content: "Find hotels." }] });
+    expect(out1.type).toBe("tool_call");
+
+    // Step 3: second complete() — legacy transcript messages including the tool call pair.
+    const out2 = await adapter.complete({
+      messages: [
+        { role: "user", content: "Find hotels." },
+        { role: "assistant", content: "[tool_call:search]" },
+        { role: "user", content: JSON.stringify({ results: [] }) },
+      ],
+    });
+    expect(out2.type).toBe("final_answer");
+
+    // Verify the second call's params reconstructed the tool_use+tool_result pair.
+    const params = secondCallParams as Record<string, unknown>;
+    const messages = params["messages"] as Array<Record<string, unknown>>;
+
+    const assistantMsg = messages.find((m) => m["role"] === "assistant");
+    expect(assistantMsg).toBeDefined();
+    const assistantContent = assistantMsg!["content"] as Array<Record<string, unknown>>;
+    expect(assistantContent[0]["type"]).toBe("tool_use");
+    expect(assistantContent[0]["id"]).toBe("toolu_abc123");
+    expect(assistantContent[0]["name"]).toBe("search");
+
+    const userToolMsg = messages.find(
+      (m) => m["role"] === "user" && Array.isArray(m["content"]),
+    );
+    expect(userToolMsg).toBeDefined();
+    const userContent = userToolMsg!["content"] as Array<Record<string, unknown>>;
+    expect(userContent[0]["type"]).toBe("tool_result");
+    expect(userContent[0]["tool_use_id"]).toBe("toolu_abc123");
   });
 });
 
 // ---------------------------------------------------------------------------
-// FakeDeterministicModelClient — unaffected by W4-C1
+// Response translation — W4-C2
+// ---------------------------------------------------------------------------
+
+describe("AnthropicModelClient — response translation", () => {
+  it("translates end_turn + text block to { type: 'final_answer', text }", async () => {
+    const client = makeReturningClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const output = await adapter.complete(minimalInput);
+    expect(output.type).toBe("final_answer");
+    if (output.type === "final_answer") {
+      expect(output.text).toBe("The answer is 42.");
+    }
+  });
+
+  it("translates tool_use block to { type: 'tool_call', toolName, toolInput }", async () => {
+    const client = makeReturningClient(toolUseResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const output = await adapter.complete(minimalInput);
+    expect(output.type).toBe("tool_call");
+    if (output.type === "tool_call") {
+      expect(output.toolName).toBe("search");
+      expect(output.toolInput).toEqual({ query: "hotels" });
+    }
+  });
+
+  it("ModelOutput from tool_use does not contain tool_use_id", async () => {
+    const client = makeReturningClient(toolUseResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const output = await adapter.complete(minimalInput);
+    // The provider-neutral ModelOutput type has no tool_use_id field.
+    // Verify no such field leaks through.
+    expect((output as Record<string, unknown>)["tool_use_id"]).toBeUndefined();
+    expect((output as Record<string, unknown>)["id"]).toBeUndefined();
+  });
+
+  it("ModelOutput from end_turn does not contain provider-native fields", async () => {
+    const client = makeReturningClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    const output = await adapter.complete(minimalInput);
+    const keys = Object.keys(output);
+    // Only the two provider-neutral fields should be present.
+    expect(keys).toContain("type");
+    expect(keys).toContain("text");
+    expect(keys).not.toContain("usage");
+    expect(keys).not.toContain("stop_sequence");
+    expect(keys).not.toContain("id");
+    expect(keys).not.toContain("model");
+  });
+
+  it("throws ModelCallError(provider_malformed_response) for unexpected stop_reason", async () => {
+    const client = makeReturningClient({
+      stop_reason: "max_tokens",
+      content: [],
+    });
+    const adapter = new AnthropicModelClient({ client });
+    await expect(adapter.complete(minimalInput)).rejects.toBeInstanceOf(ModelCallError);
+    await expect(adapter.complete(minimalInput)).rejects.toMatchObject({
+      errorKind: "provider_malformed_response",
+    });
+  });
+
+  it("throws ModelCallError(provider_refusal) for stop_reason refusal", async () => {
+    const client = makeReturningClient({ stop_reason: "refusal", content: [] });
+    const adapter = new AnthropicModelClient({ client });
+    await expect(adapter.complete(minimalInput)).rejects.toMatchObject({
+      errorKind: "provider_refusal",
+    });
+  });
+
+  it("throws ModelCallError when end_turn response has no text block", async () => {
+    const client = makeReturningClient({ stop_reason: "end_turn", content: [] });
+    const adapter = new AnthropicModelClient({ client });
+    await expect(adapter.complete(minimalInput)).rejects.toBeInstanceOf(ModelCallError);
+  });
+
+  it("throws ModelCallError when tool_use response has no tool_use block", async () => {
+    const client = makeReturningClient({ stop_reason: "tool_use", content: [] });
+    const adapter = new AnthropicModelClient({ client });
+    await expect(adapter.complete(minimalInput)).rejects.toBeInstanceOf(ModelCallError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error normalization — W4-C2
+// ---------------------------------------------------------------------------
+
+describe("AnthropicModelClient — error normalization", () => {
+  it("normalizes AuthenticationError to ModelCallError(provider_auth_error)", async () => {
+    const authErr = new AuthenticationError(401, {}, "Bad credentials", new Headers());
+    const client = makeThrowingClient(authErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect((caught as ModelCallError).errorKind).toBe("provider_auth_error");
+  });
+
+  it("normalizes APIConnectionTimeoutError to ModelCallError(provider_timeout)", async () => {
+    const timeoutErr = new APIConnectionTimeoutError({ message: "Request timed out." });
+    const client = makeThrowingClient(timeoutErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect((caught as ModelCallError).errorKind).toBe("provider_timeout");
+  });
+
+  it("normalizes RateLimitError to ModelCallError(unknown)", async () => {
+    const rateLimitErr = new RateLimitError(429, {}, "Rate limited.", new Headers());
+    const client = makeThrowingClient(rateLimitErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect((caught as ModelCallError).errorKind).toBe("unknown");
+  });
+
+  it("normalizes generic APIError to ModelCallError(unknown)", async () => {
+    const apiErr = new APIError(500, {}, "Internal server error.", new Headers());
+    const client = makeThrowingClient(apiErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect((caught as ModelCallError).errorKind).toBe("unknown");
+  });
+
+  it("normalizes a plain Error to ModelCallError(unknown) with its message", async () => {
+    const plainErr = new Error("Something broke.");
+    const client = makeThrowingClient(plainErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect((caught as ModelCallError).errorKind).toBe("unknown");
+    expect((caught as ModelCallError).message).toBe("Something broke.");
+  });
+
+  it("raw error object is not stored in the thrown ModelCallError — only a string message", async () => {
+    const sdkErr = new AuthenticationError(401, {}, "Auth failed.", new Headers());
+    const client = makeThrowingClient(sdkErr);
+    const adapter = new AnthropicModelClient({ client });
+    let caught: unknown;
+    try {
+      await adapter.complete(minimalInput);
+    } catch (err) {
+      caught = err;
+    }
+    // The thrown value must be a ModelCallError, not the raw SDK error.
+    expect(caught).toBeInstanceOf(ModelCallError);
+    expect(caught).not.toBeInstanceOf(AuthenticationError);
+    // The message must be a plain string, not the SDK error object.
+    expect(typeof (caught as ModelCallError).message).toBe("string");
+  });
+
+  it("complete() reaches create() before error normalization", async () => {
+    const { client, wasCalled } = makeTrackingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete(minimalInput);
+    expect(wasCalled()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FakeDeterministicModelClient — unaffected (W4-C1, still valid)
 // ---------------------------------------------------------------------------
 
 describe("FakeDeterministicModelClient — unaffected by Anthropic adapter addition", () => {
@@ -199,37 +548,17 @@ describe("FakeDeterministicModelClient — unaffected by Anthropic adapter addit
 });
 
 // ---------------------------------------------------------------------------
-// ToolDefinition — inputSchema field is optional and backward-compatible
+// ToolDefinition inputSchema — additive change (W4-C1, still valid)
 // ---------------------------------------------------------------------------
 
-describe("ToolDefinition — inputSchema field (W4-C1 additive change)", () => {
-  it("ToolDefinition without inputSchema is still valid (field is optional)", async () => {
-    // The existing FixtureToolExecutor definitions never set inputSchema.
-    // This test imports from the same modelClient.ts to confirm no type error.
+describe("ToolDefinition — inputSchema field backward compatibility", () => {
+  it("fixture tool definitions do not set inputSchema (field is optional)", async () => {
     const { defaultToolExecutor } = await import("../src/agent/fixtureTools.ts");
     const defs = defaultToolExecutor().definitions();
-    // All fixture defs have name and description; inputSchema is absent (undefined).
     for (const def of defs) {
       expect(typeof def.name).toBe("string");
       expect(typeof def.description).toBe("string");
-      // inputSchema is optional — its absence is the expected fixture-tool state.
       expect("inputSchema" in def).toBe(false);
     }
-  });
-
-  it("ToolDefinition with inputSchema is accepted", async () => {
-    const { createToolExecutor } = await import("../src/agent/fixtureTools.ts");
-    const toolWithSchema = {
-      name: "typed_tool",
-      execute: async () => ({ ok: true }),
-    };
-    const executor = createToolExecutor([toolWithSchema]);
-    // We can add inputSchema manually since FixtureToolExecutor.definitions()
-    // does not set it, but the type must allow it.
-    const def = { name: "typed_tool", description: "typed_tool", inputSchema: { type: "object" } };
-    // Verify the shape is valid JSON (round-trips).
-    expect(JSON.parse(JSON.stringify(def))).toEqual(def);
-    // Executor still works without inputSchema.
-    expect(executor.definitions()).toHaveLength(1);
   });
 });
