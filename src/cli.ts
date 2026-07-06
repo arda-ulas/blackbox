@@ -133,6 +133,8 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
 
   const label = (s: string) => s.padEnd(14);
 
+  console.log("[blackbox] record — generating demo traces\n");
+
   if (scenario === "success" || scenario === "all") {
     const successScenario = "Book a hotel for Alice this weekend.";
     const successRecorder = new TraceRecorder("example-run-001", { createdAt: Date.now() });
@@ -230,11 +232,13 @@ async function runReplay(flags: Record<string, string | boolean>): Promise<void>
   console.log(label("Validation:"), "passed");
   console.log();
 
+  console.log("--- events ---");
   for (const event of summary.events) {
     console.log(`  ${String(event.index).padStart(2)}  ${event.type.padEnd(14)}  ${event.summary}`);
   }
 
   console.log();
+  console.log("--- summary ---");
   console.log(label("Status:"), summary.status);
   if (summary.result !== undefined)        console.log(label("Result:"),  summary.result);
   if (summary.failureReason !== undefined) console.log(label("Reason:"),  summary.failureReason);
@@ -346,11 +350,16 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
 
   const label = (s: string) => s.padEnd(15);
 
-  console.log("[blackbox] --- fork ---");
-  console.log(label("Parent:"),     tracePath);
-  console.log(label("Child:"),      outPath);
-  console.log(label("Mode:"),       mode);
+  console.log("[blackbox] --- fork ---\n");
 
+  console.log("--- parent ---");
+  console.log(label("Path:"),     tracePath);
+  console.log(label("Trace ID:"), parentTrace.id);
+  console.log(label("Steps:"),    parentTrace.steps.length);
+  console.log();
+
+  console.log("--- mutation ---");
+  console.log(label("Mode:"), mode);
   if (mutationStep !== undefined) {
     const verbatimCount = mutationStep; // steps 0..(mutationStep-1) are hash-identical to parent
     console.log(label("Mutation step:"), mutationStep);
@@ -370,11 +379,17 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
       `steps 0–${forkIndex - 1}  (${forkIndex} step(s), hashes identical to parent)`,
     );
   }
-
-  console.log(label("Prefix len:"),   `${prefixLength} step(s)`);
-  console.log(label("Child result:"), finalAnswer);
-  console.log(label("Validation:"),   "passed");
+  console.log(label("Prefix len:"), `${prefixLength} step(s)`);
   console.log();
+
+  console.log("--- child ---");
+  console.log(label("Path:"),       outPath);
+  console.log(label("Trace ID:"),   childTrace.id);
+  console.log(label("Steps:"),      childTrace.steps.length);
+  console.log(label("Result:"),     finalAnswer);
+  console.log(label("Validation:"), "passed");
+  console.log();
+
   console.log(formatted);
 }
 
@@ -397,7 +412,14 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
   validateTrace(parentTrace);
   validateTrace(childTrace);
 
+  const parentPath = flags["parent"] as string;
+  const childPath  = flags["child"]  as string;
   const diff = diffTraces(parentTrace, childTrace);
+
+  console.log("[blackbox] --- diff ---");
+  console.log(`Parent:  ${parentPath}`);
+  console.log(`Child:   ${childPath}`);
+  console.log();
   console.log(formatFirstDivergence(diff));
 }
 
@@ -465,7 +487,8 @@ async function runList(flags: Record<string, string | boolean>): Promise<void> {
     console.log();
   }
 
-  console.log(`${validCount} of ${jsonFiles.length} file(s) loaded successfully.`);
+  const warningCount = jsonFiles.length - validCount;
+  console.log(`[blackbox] ${validCount} of ${jsonFiles.length} trace(s) valid, ${warningCount} warning(s).`);
 }
 
 // ---------------------------------------------------------------------------
@@ -488,7 +511,9 @@ async function runInspect(flags: Record<string, string | boolean>): Promise<void
   const label   = (s: string) => s.padEnd(20);
   const created = new Date(trace.createdAt).toISOString();
 
-  console.log("[blackbox] --- inspect ---");
+  console.log("[blackbox] --- inspect ---\n");
+
+  console.log("--- trace ---");
   console.log(label("Path:"),     tracePath);
   console.log(label("Trace ID:"), trace.id);
   console.log(label("Version:"),  trace.version);
@@ -496,12 +521,15 @@ async function runInspect(flags: Record<string, string | boolean>): Promise<void
   if (trace.forkedFromStepId) console.log(label("Forked from:"), trace.forkedFromStepId);
   console.log(label("Created:"),  created);
   console.log(label("Steps:"),    trace.steps.length);
-  console.log(label("Status:"),   summary.status);
+  console.log();
+
+  console.log("--- status ---");
+  console.log(label("Status:"), summary.status);
   if (summary.result !== undefined)        console.log(label("Result:"), summary.result);
   if (summary.failureReason !== undefined) console.log(label("Reason:"), summary.failureReason);
   console.log();
 
-  console.log("--- steps ---");
+  console.log("[blackbox] --- steps ---");
   for (const event of summary.events) {
     const step      = trace.steps[event.index];
     const shortHash = step.hash.slice(0, 8);
