@@ -11,7 +11,8 @@
     "example:record": "tsx src/examples/record.ts",
     "example:replay": "tsx src/examples/replay.ts",
     "example:fork": "tsx src/examples/fork.ts",
-    "cli": "tsx src/cli.ts"
+    "cli": "tsx src/cli.ts",
+    "example:real-proof": "tsx src/examples/realRunProof.ts"
   },
   "devDependencies": {
     "tsx": "^4.23.0",
