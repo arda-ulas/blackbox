@@ -103,7 +103,7 @@ interface ToolDefinition {
 }
 ```
 
-W4-B may add `inputSchema?: JsonObject` to `ToolDefinition` for provider schema conversion. This is additive and backward-compatible.
+`inputSchema?: JsonObject` was added to `ToolDefinition` in W4-C1 for provider schema conversion (additive, backward-compatible). The Anthropic adapter uses `{ type: "object", ...(def.inputSchema ?? {}) }` as the `input_schema` fallback when `inputSchema` is absent.
 
 **`ModelOutput` (already in `src/agent/modelClient.ts`):**
 
@@ -246,7 +246,7 @@ The `block.id` / `providerCallId` is **not** stored in the payload. It is only n
 
 Each failure mode must be representable in the trace without adding new step types or breaking the existing schema. The `metadata` step with `event: "run_failed"` is the existing mechanism.
 
-**Status: completed in W4-B slice 2.** `agentLoop` wraps `model.complete(input)` in a try/catch. On error it appends the terminal `metadata` step shown below, then re-throws. 181 tests pass, including 7 dedicated model-error tests.
+**Status: completed in W4-B slice 2.** `agentLoop` wraps `model.complete(input)` in a try/catch. On error it appends the terminal `metadata` step shown below, then re-throws. 181 tests passed at W4-B slice 2 acceptance; 216 tests pass after W4-C1 and W4-C2.
 
 **Stable terminal metadata shape for model-call failures (W4-B deliverable):**
 
@@ -290,7 +290,7 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 **Refactor (no behavior change to the non-error path):**
 
 - Verify `ModelClient` method signature matches current code: `complete(input: ModelInput): Promise<ModelOutput>`. Do not change this signature.
-- Optionally add `inputSchema?: JsonObject` to `ToolDefinition` (additive, backward-compatible).
+- Added `inputSchema?: JsonObject` to `ToolDefinition` in W4-C1 (additive, backward-compatible).
 - Extract `ToolExecutor` as an explicit interface (now in `src/agent/modelClient.ts`):
   ```typescript
   interface ToolExecutor {
@@ -314,7 +314,7 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 ### W4-C: Optional Anthropic adapter behind env flag
 
 - Add `src/agent/anthropicModelClient.ts` implementing `ModelClient`
-- Non-streaming (`messages.create()` with `stream: false`)
+- Non-streaming (`messages.create()` — omit `stream`; SDK non-streaming overload is the default)
 - Reads `ANTHROPIC_API_KEY` from `process.env`; throws if absent
 - Translates Anthropic response to `ModelOutput`
 - `providerCallId` retained in memory only; not stored in trace
@@ -329,8 +329,8 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 - Records one real multi-step run (one tool call, then final answer — keep it short)
 - Saves to `traces/real-run-proof.json`
 - Replays the saved trace offline; asserts zero provider calls
-- Forks from the cassette with a tool-result mutation; replays child offline
-- Runs `diffTraces` on parent and child; prints first divergence
+- Runs `diffTraces` on two separately recorded traces; prints first divergence
+- Note: fork continuation via the Anthropic adapter is deferred until structured transcript migration (see Path B notes above); W4-C3 proves record → offline replay only
 - Validates all traces with `validateTrace`
 - Prints `PASS` or `FAIL` with details; exits with appropriate code
 - Not in `npm test`; run manually
