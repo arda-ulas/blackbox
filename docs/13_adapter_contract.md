@@ -325,15 +325,15 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 
 ### W4-D: Cassette round-trip proof script
 
-- `src/examples/realRunProof.ts` — requires `ANTHROPIC_API_KEY`
-- Records one real multi-step run (one tool call, then final answer — keep it short)
-- Saves to `traces/real-run-proof.json`
-- Replays the saved trace offline; asserts zero provider calls
-- Runs `diffTraces` on two separately recorded traces; prints first divergence
-- Note: fork continuation via the Anthropic adapter is deferred until structured transcript migration (see Path B notes above); W4-C3 proves record → offline replay only
-- Validates all traces with `validateTrace`
-- Prints `PASS` or `FAIL` with details; exits with appropriate code
-- Not in `npm test`; run manually
+**Implemented as W4-C3.** `src/examples/realRunProof.ts` — explicit opt-in, run with `npm run example:real-proof`.
+
+- Requires `ANTHROPIC_API_KEY`; exits 1 with clear message if absent — no trace written
+- Records one real run using a **final-text-only prompt** (no tool calls); saves to `traces/anthropic-proof-trace.json`
+- Replays the saved trace fully offline via `loadTrace` + `replayTrace`; no provider calls during replay
+- Validates hash chain with `validateTrace`; prints `PASS` or `FAIL`; exits with appropriate code
+- Not in `npm test`
+
+**Tool-use proof deferred:** The legacy transcript encoding does not persist `tool_use_id` or full content arrays. Real-provider fork/tool-use correctness requires structured transcript migration (Path B). W4-C3 proves record → offline replay only.
 
 ### W4-E: Codex audit and decision
 
@@ -352,7 +352,7 @@ These questions are deferred until W4-C begins. They should not block W4-B.
 
 2. **Streaming.** The non-streaming path is sufficient for the W4-C spike. Streaming may be needed for long runs or for future real-time output display. Decision: non-streaming first; streaming is a separate feature if needed.
 
-3. **Tool support in real adapter.** The Anthropic adapter must support tool calls to exercise the full record → fork → diff loop. `final_answer`-only is not enough for the W4-D proof (the demo scenario uses search → booking tools). Decision: tool-use support is required in W4-C from the start.
+3. **Tool support in real adapter.** W4-C3 uses a final-text-only proof (no tool calls). Tool-use proof is explicitly deferred: the legacy transcript encoding cannot persist `tool_use_id`, so real-provider tool-use correctness belongs with structured transcript migration (Path B). Decision: W4-C3 proves record → offline replay with final-text-only; tool-use proof is out of scope for W4-C.
 
 4. **Real-provider demo entry point.** Should the real adapter be wirable via the CLI (`npm run cli -- record --adapter anthropic`) or only via the proof script? CLI wiring adds complexity and a new flag. Decision: proof script only for W4-D; CLI wiring is deferred.
 

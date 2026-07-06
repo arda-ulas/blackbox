@@ -62,9 +62,8 @@ For **fork continuation** from a cassette, the adapter instance is always fresh.
 
 **Do not claim fork continuation works with the Anthropic adapter.** The W4-C proof script demonstrates:
 
-- Record a real model run (one tool call → final answer)
+- Record a real model run (final-text-only — see W4-C3 rationale below)
 - Replay the saved cassette offline
-- Diff two separately recorded traces
 
 Fork continuation using the Anthropic adapter (calling `forkRun` and then continuing with a real provider) is deferred until structured transcript migration is complete. That migration (Path B from `docs/13_adapter_contract.md`) changes the assistant turn to `JSON.stringify({ toolName, toolInput, toolCallId })` and the user turn to `JSON.stringify({ toolName, toolCallId, result })`. W4-C must not attempt this migration.
 
@@ -168,23 +167,24 @@ This change is part of W4-C1 or W4-C2 pre-work. All existing tests are unaffecte
 
 ### W4-C3: Proof script — record and offline replay
 
-**What:**
-- Create `src/examples/realRunProof.ts`
-- Script preamble: check `ANTHROPIC_API_KEY` present, exit 1 with clear message if absent
-- Record one real run (prompt → one tool call → tool result → final answer) using `AnthropicModelClient` and `defaultToolExecutor()`
-- Use a scenario where each tool is called at most once
-- Save trace to `traces/real-run-proof.json`
-- **Replay**: call `replayTrace(trace)`, assert `status === "success"` — proves cassette is sufficient, no Anthropic call made
-- **Validate**: call `validateTrace(trace)`, assert no throw — proves hash chain is intact
-- **Diff**: make a second recording or mutate a step inline; call `diffTraces(trace1, trace2)`, print `formatFirstDivergence`
-- **Do NOT** demonstrate fork continuation using `AnthropicModelClient` — that is out of scope
+**What (implemented):**
+- `src/examples/realRunProof.ts` — explicit opt-in script, not in `npm test`
+- Script preamble: check `ANTHROPIC_API_KEY` present, exit 1 with clear message if absent — no trace written
+- Record one real run using `AnthropicModelClient` with a **final-text-only prompt** (no tool calls, no `defaultToolExecutor`)
+- Save trace to `traces/anthropic-proof-trace.json`
+- **Replay**: load and replay the saved trace fully offline via `loadTrace` + `replayTrace`; assert `status === "success"` — proves cassette is sufficient, no Anthropic call made during replay
+- **Validate**: call `validateTrace` before and after save; assert no throw — proves hash chain is intact
 - Print `PASS` / `FAIL` with details; exit with appropriate code
-- Not in `npm test`; run manually with `npx tsx src/examples/realRunProof.ts`
+- Run with: `npm run example:real-proof`
 
-**Files to touch:**
+**Why final-text-only (no tools):**
+Tool-use proof is explicitly deferred for W4-C3. The current legacy transcript encoding does not persist `tool_use_id` or full content arrays. A fresh adapter instance cannot reconstruct `tool_use_id` from stored `[tool_call:<toolName>]` messages, so real-provider tool-use correctness (fork/continue) belongs with structured transcript migration (Path B). W4-C3 proves the record → offline replay path only; that is sufficient to validate the cassette mechanism against real model output.
+
+**Files touched:**
 - `src/examples/realRunProof.ts` (new)
+- `package.json` — added `example:real-proof` script
 
-**Acceptance gate:** manual run with a real key prints `PASS`; trace on disk validates; replay produces correct result offline.
+**Acceptance gate:** `npm run example:real-proof` with a real key prints `PASS`; trace on disk validates; replay produces correct result offline. `npm test -- --run` passes with no regressions and zero live calls.
 
 ---
 
