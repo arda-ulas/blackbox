@@ -286,7 +286,7 @@ First divergence at index 3
 
 ## Current Limitations
 
-- **Fake model and tools only.** `FakeDeterministicModelClient` plays back scripted responses. No real LLM API is wired up. Integrating a real model client requires implementing the `ModelClient` interface.
+- **Fake model and tools only (default CLI).** The default CLI demo shown above is fully deterministic: `FakeDeterministicModelClient` plays back scripted responses and fixture tools run in-memory. No real LLM API is called by any CLI command or by `npm test`. An optional Anthropic proof script exists — `npm run example:real-proof` — which records one real final-text-only run and replays it offline; it is opt-in (requires `ANTHROPIC_API_KEY`), is **not** CLI adapter wiring, and is **not** part of the default test suite.
 - **Local CLI only.** Everything runs on the local filesystem. No hosted backend, no remote cassette storage, no sharing links.
 - **No UI.** All interaction is terminal output. There is no web dashboard, branch graph, or timeline view.
 - **Single-agent only.** The loop, recorder, and fork logic assume one agent running one tool at a time. Multi-agent orchestration is out of scope.

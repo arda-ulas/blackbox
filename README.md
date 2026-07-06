@@ -4,7 +4,9 @@ Blackbox is a time-travel debugger for AI agents: record a multi-step run, repla
 
 ## Status
 
-Week Three CLI packaging complete (W3-A through W3-D). Week-two hardening and week-one CLI proof accepted and tagged.
+Week Four Anthropic adapter spike complete and tagged (`week-four-anthropic-adapter-spike`). Week Four adapter boundary (`week-four-adapter-boundary`), Week Three CLI packaging, Week-two hardening, and Week-one CLI proof are all accepted and tagged.
+
+The Anthropic adapter is **opt-in, proof-script only** (`npm run example:real-proof`) — it is not wired into the CLI. The default CLI and all tests remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls). Real-provider tool-use and fork/continue are deferred until a structured transcript migration.
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 

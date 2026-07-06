@@ -83,17 +83,20 @@ Files to touch:
 
 ### Phase W4-D: Cassette round-trip proof with real adapter
 
-Wire the real adapter into a one-off proof script (not an example script; a dedicated spike script):
-- Script records one real multi-step run using `AnthropicModelClient` and fixture tools, saves the trace to `traces/real-run-proof.json`
+**Implemented as W4-C3 with a narrowed, final-text-only scope.** Run with `npm run example:real-proof`.
+
+- Script records one real run using `AnthropicModelClient` with a **final-text-only prompt** (no tools, no fork, no diff); saves the trace to `traces/anthropic-proof-trace.json`
 - Replays the saved trace offline — zero provider calls
-- Forks from the cassette at a chosen step with a tool-result mutation
-- Runs `diff` on parent and child traces
-- Prints success/failure; validates every trace with `validateTrace`
+- Validates the trace with `validateTrace`; prints `PASS`/`FAIL` and exits with the matching code
+- Fails safely when `ANTHROPIC_API_KEY` is absent: exits 1 with a clear message and writes no trace
 
 This script is the "proof" artifact. It is not automated in `npm test`; it is run manually with a real API key and its output is human-verified.
 
+**Deferred:** real-provider tool-use and fork/continue are out of scope until structured transcript migration (Path B in `docs/13_adapter_contract.md`). The legacy transcript encoding cannot persist `tool_use_id`, so a fresh adapter cannot reconstruct tool-result correlation from a cassette. W4-C proves record → offline replay only.
+
 Files to touch:
 - `src/examples/realRunProof.ts` (new, clearly labeled as requiring `ANTHROPIC_API_KEY`)
+- `package.json` — `example:real-proof` script
 - No changes to existing tests
 
 ### Phase W4-E: Audit and decision
@@ -109,14 +112,14 @@ No code changes in W4-E unless the audit finds critical issues.
 
 ## Acceptance Criteria
 
-- `npm test -- --run` still passes with no regressions (162+ tests, no new test failures introduced)
+- `npm test -- --run` still passes with no regressions (216 tests at the W4-C checkpoint, no new test failures introduced)
 - `ModelClient` and `ToolExecutor` interfaces are explicit and documented
 - `FakeDeterministicModelClient` and fixture tools satisfy both interfaces without any changes to existing behavior
 - `replayTrace` takes neither interface as a parameter (structurally verified)
 - `AnthropicModelClient` compiles and satisfies `ModelClient`; reads API key from env; throws clearly if key is absent
 - All tests that instantiate `AnthropicModelClient` are guarded by an env check and skipped in normal `npm test` runs
 - No API key, token, or credential appears in any committed file
-- A manual run of `src/examples/realRunProof.ts` with a real `ANTHROPIC_API_KEY` produces a trace that passes `validateTrace`, replays offline, and forks cleanly
+- A manual run of `src/examples/realRunProof.ts` with a real `ANTHROPIC_API_KEY` produces a trace that passes `validateTrace` and replays offline (final-text-only; real-provider fork is deferred — see W4-D)
 - Codex W4-E audit returns no critical isolation violations
 
 ---
