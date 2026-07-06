@@ -1,10 +1,10 @@
 # W4-E Plan — Real-Provider Structured Tool-Use / Fork Proof
 
-**Status:** planned, not started.
+**Status:** E1 live gate **PASSED** (2026-07-06). E2/E3 not started.
 **Predecessor:** `week-four-structured-transcript-migration` (`33329ab`).
 **Mode:** narrow, opt-in, live-gated. Exactly one purpose: answer one empirical question.
 
-> **Scope of this document:** planning only. No product code, tests, `package.json`, `README.md`, `DEMO.md`, `AGENTS.md`, or existing docs are changed by this artifact. No live provider call has been run. No W4-E implementation has started. (See §17.)
+> **E1 result (2026-07-06):** the with-key proof (`npm run example:real-tooluse-proof`, commit `ed1628a`) **PASSED**. The real Anthropic Messages API (`claude-haiku-4-5-20251001`) accepted Blackbox's synthetic `call-0` as the turn-2 `tool_use.id` and `tool_result.tool_use_id`; the run completed to a final answer and the saved v2 cassette replayed offline, neutrality-clean. The core §2 assumption is proven for a single real record. **Real fork continuation (E2/E3) remains unproven** — a fresh adapter continuing from a mutated fork point has not yet been run live.
 
 ---
 
@@ -57,7 +57,9 @@ Context7 + installed types raise confidence but **cannot** close the assumption;
 
 ---
 
-## 5. E1 — go/no-go proof (one real tool-use record only)
+## 5. E1 — go/no-go proof (one real tool-use record only) — ✅ PASSED
+
+**Result (2026-07-06, commit `ed1628a`):** run against `claude-haiku-4-5-20251001` — 2 requests sent, 1 tool round; the turn-2 request carried `tool_use.id="call-0"` and `tool_result.tool_use_id="call-0"`; the API accepted it and the run completed; the 7-step v2 cassette (`traces/anthropic-tooluse-parent.json`, git-ignored) validated, replayed offline (`success`), and passed the neutrality audit (no `toolu_`/`msg_`/`usage`/`stop_reason`/`stop_sequence`/key). **Gate passed → proceed to E2/E3.**
 
 E1 is the hard gate. It builds the minimum needed to answer §2 and nothing more.
 
@@ -142,11 +144,11 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## 11. Implementation slices (E0–E4)
 
-- **E0 — research (no code):** Context7 confirmation (§4) + record the verified assumption. Installed types already confirmed (§3).
-- **E1 — go/no-go record proof:** opt-in `realToolUseProof.ts` phase 1 only; prove/deny synthetic-id acceptance; save parent; neutrality grep. **Hard gate — stop here if it fails.**
-- **E2 — offline replay phase** of the parent cassette.
-- **E3 — fork → mutate → fresh-adapter continue → diff phase**; save child; assert first divergence at the mutation step.
-- **E4 — docs + build log + tag decision** (§13, §16).
+- **E0 — research (no code):** ✅ Context7 confirmation (§4) + record the verified assumption. Installed types confirmed (§3).
+- **E1 — go/no-go record proof:** ✅ **PASSED** (commit `ed1628a`; live run 2026-07-06). Synthetic `call-0` accepted by the real API; parent cassette saved; neutrality clean.
+- **E2 — offline replay phase** of the parent cassette. *(not started; a minimal offline replay is already folded into the E1 script)*
+- **E3 — fork → mutate → fresh-adapter continue → diff phase**; save child; assert first divergence at the mutation step. *(not started)*
+- **E4 — docs + build log + tag decision** (§13, §16). *(E1 docs recorded; tag decision deferred until E3)*
 
 ---
 
@@ -207,12 +209,10 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## 17. Change / safety statement
 
-- **No file other than `docs/16_week_four_e_plan.md` is changed by this artifact.**
-- **No live provider call has been run.**
-- **No W4-E implementation has started** — E0–E4 above are proposed, not built.
+*(Original planning-artifact statement — superseded by the E1 result above.)* As of E1 closeout: the E1 proof script and helpers shipped in `ed1628a`; a single authorized live call was run manually and passed (§5). The saved cassette is git-ignored and not committed. E2/E3 (fork → mutate → continue → diff) have not started.
 
 ---
 
 ## Verdict
 
-**Ready for Codex plan audit.** The mechanism already exists and is mocked-tested; installed types confirm string ids; the sole open item is a runtime acceptance that this plan isolates behind a single cheap, gated live call (E1) with a neutrality-safe rollback. The one pre-implementation action is a Context7 doc confirmation — the first step inside E0/E1, not blocking research. No further research is needed before the audit.
+**E1 PASSED — proceed to E2/E3.** The real Anthropic API accepts Blackbox's synthetic request-local `call-0` as `tool_use.id` / `tool_result.tool_use_id` (proven live, single record). The remaining open question is the full active-debugging loop — real **fork continuation** with a fresh adapter from a mutated fork point — which E3 exercises and which is **not yet proven**. The §9 rollback path was not needed.

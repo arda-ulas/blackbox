@@ -38,7 +38,9 @@ Real providers must never be called during:
 - `AnthropicModelClient.translateMessages` consumes structured parts (`text` → text block; `tool_use` → tool_use block with `id = toolCallId`; `tool_result` → tool_result block with `tool_use_id = toolCallId`, `is_error: true` on the error variant). **Verified with a mocked client only.**
 - A **fresh** adapter instance translates a cassette-derived multi-turn structured history into a self-consistent request **with no `#pendingToolCalls` state**. The legacy `[tool_call:<name>]` / pending path is retained only as a **narrow fallback for pre-v2 plain-string content**; the structured path never consults it.
 
-**Still deferred to W4-E (NOT proven here):** that a live Anthropic API **accepts a synthetic Blackbox `toolCallId` as a provider `tool_use.id`**, and any real-provider tool-use / fork-continuation run. W4-D proves neutral reconstruction against a mocked client only; live acceptance must be established with Context7 + installed types + a live proof before it is claimed.
+**W4-E E1 result (2026-07-06, proof `example:real-tooluse-proof`, commit `ed1628a`):** the live Anthropic Messages API (`claude-haiku-4-5-20251001`) **accepted** Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` and `tool_result.tool_use_id` on a real tool-use record (turn-2 request accepted; run completed; cassette replays offline, neutrality-clean). So the core acceptance assumption is **proven for a single real record**.
+
+**Still NOT proven (E2/E3, deferred):** real **fork continuation** — a *fresh* adapter continuing from a mutated fork point of a structured v2 cassette against the live API. W4-D proved this against a mocked client only; the live fork/mutate/continue/diff loop has not yet been run. Do not claim real fork continuation until E3 establishes it.
 
 The historical encoding tables below are retained for context; the "legacy" shape is now superseded by the structured `MessagePart[]` model above.
 
@@ -91,7 +93,7 @@ The `toolCallId` is a deterministic, provider-neutral correlation key (`call-0`,
 
 The pre-v2 encoding smuggled tool rounds through strings: assistant `content: "[tool_call:<toolName>]"` (a label — no `toolInput`) and user `content: JSON.stringify(toolResult)` (a bare value — no `toolName`, no id). This is **no longer the writer output** and v1 cassettes are rejected by `loadTrace`. The `AnthropicModelClient` retains `TOOL_CALL_PATTERN` / `#pendingToolCalls` only as a **narrow fallback for plain-string content**; the structured path never consults it.
 
-Provider-specific fields (e.g., Anthropic `tool_use_id`) live inside the real adapter layer only — they must not appear in `ModelInput.messages`, `Message.content`, or `TraceStep.payload`. The adapter maps the neutral `toolCallId` onto the provider's block id when synthesizing a request; whether a **live** provider accepts a synthetic `toolCallId` as its `tool_use.id` is **not proven** and is deferred to **W4-E**. Live Anthropic tool-use / fork continuation is not claimed here.
+Provider-specific fields (e.g., Anthropic `tool_use_id`) live inside the real adapter layer only — they must not appear in `ModelInput.messages`, `Message.content`, or `TraceStep.payload`. The adapter maps the neutral `toolCallId` onto the provider's block id when synthesizing a request. **W4-E E1 proved (live, commit `ed1628a`) that the real Anthropic API accepts this synthetic `toolCallId` as its `tool_use.id` / `tool_result.tool_use_id`** on a single real tool-use record. Real **fork continuation** with a fresh adapter (E2/E3) is not yet proven and is not claimed here.
 
 **Current `ToolDefinition` shape (`src/agent/modelClient.ts`):**
 

@@ -378,3 +378,29 @@ In priority order — do not expand scope without explicit decision:
 | No CLI adapter flag wiring | ✓ proof-script only |
 | Real-provider tool-use / fork acceptance | ✗ not claimed — deferred to W4-E |
 | Codex closeout audit | pending (this closeout awaiting audit before tagging) |
+
+---
+
+## 2026-07-06 — Week Four W4-E slice E1 (real tool-use proof gate — PASSED)
+
+### What Was Built
+- **E1 plan** (`fc54d8d`) — `docs/16_week_four_e_plan.md`: narrow, opt-in, live-gated proof of whether the real Anthropic Messages API accepts Blackbox's synthetic provider-neutral `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id`.
+- **E1 gate** (`ed1628a`) — opt-in `src/examples/realToolUseProof.ts` + `example:real-tooluse-proof` (not in `npm test`, no CLI wiring); pure offline helpers `src/examples/toolUseProofHelpers.ts` (`auditNeutrality`, `collectToolBlockIds`) with 14 offline unit tests.
+
+### SDK-boundary verification (AGENTS.md rule 5/7)
+- Installed `@anthropic-ai/sdk` 0.110.0 types: `ToolUseBlockParam.id: string`, `ToolResultBlockParam.tool_use_id: string`, `is_error?: boolean` — types permit `call-0`.
+- Context7 (`/websites/platform_claude_en_api`): `tool_use_id` documented as the request-local id of the tool_use a result corresponds to; no format constraint documented. Runtime acceptance of a *synthetic* id was the residual E1 proves.
+
+### Empirical result — with-key live run (2026-07-06)
+- Provider: Anthropic (real); Model: `claude-haiku-4-5-20251001`.
+- Requests sent: 2; tool rounds: 1.
+- **Turn-2 request carried `tool_use.id="call-0"` and `tool_result.tool_use_id="call-0"`; the API accepted it** and the run completed to a final answer.
+- Saved cassette: `traces/anthropic-tooluse-parent.json` (git-ignored) — version 2, 7 steps, `call-0` in `model_output`/`tool_call`/`tool_result` payloads.
+- Offline replay: `success`. Neutrality audit: clean (no `toolu_`/`msg_`/`usage`/`stop_reason`/`stop_sequence`/key).
+- **Verdict: PASS.** The synthetic-`toolCallId` acceptance assumption is proven for a single real record; the §9 rollback was not needed.
+
+### Guardrails Held
+- One authorized live call, run manually by the human; no live tests in `npm test` (`npm test -- --run`: 267/267, zero live calls). No CLI Anthropic wiring. Replay stayed offline (Trace-only). `hash.ts`, `replayTrace`, and the adapter unchanged. No provider-native ids/usage/message-ids/content-arrays/`stop_reason`/key in the trace. The git-ignored cassette was not committed.
+
+### Still Deferred (NOT yet proven)
+- Real **fork continuation** with a fresh adapter from a mutated fork point (E2/E3 — record → replay → fork → mutate → continue → diff live). Not started. No tag until E3 lands and Codex accepts.
