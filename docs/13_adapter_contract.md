@@ -66,59 +66,44 @@ interface ModelInput {
 }
 ```
 
-**Current `Message` shape:**
+**Current `Message` shape (schema v2 — implemented):**
 
 ```typescript
 interface Message {
   role:    "user" | "assistant";
-  content: string;               // JSON-encoded for tool calls/results
+  content: string | MessagePart[];   // plain-string text, or structured parts for tool rounds
 }
 ```
 
-The current `Message.content` is always a `string`. For the fake adapter this is sufficient; scripted responses do not inspect message content at all. For a real adapter, the content encoding must be precisely defined so the adapter can translate it into provider-native API calls.
+`Message.content` is `string | MessagePart[]`. Plain text turns stay a `string`; a tool round is recorded as structured `MessagePart[]` (see the `MessagePart` union in `docs/03_trace_schema.md` and `src/agent/modelClient.ts`). This structured encoding is the **current writer output** — `agentLoop.ts` emits it and `TraceStep.payload` for `model_input` steps stores it. It is what a real adapter translates into provider-native API calls.
 
-**Current / legacy transcript encoding (what `agentLoop.ts` produces today):**
+**Current transcript encoding (what `agentLoop.ts` produces today — schema v2):**
 
 | Turn | Role | `content` value |
 |---|---|---|
 | Initial prompt | `user` | plain string — the user's prompt |
-| Model tool call | `assistant` | `"[tool_call:<toolName>]"` — label string only; `toolInput` is **not** included in the transcript message |
-| Tool result | `user` | `JSON.stringify(toolResult)` — the raw result value only; no `toolName` or error wrapper |
+| Model tool call | `assistant` | `[{ type: "tool_use", toolCallId, toolName, toolInput }]` |
+| Tool result | `user` | `[{ type: "tool_result", toolCallId, toolName, result }]` (or the `error` variant on failure) |
 
-This is the encoding currently stored in `TraceStep.payload` for `model_input` steps. It is sufficient for `FakeDeterministicModelClient` because the fake adapter ignores message content entirely. It is **not** sufficient for a real provider adapter, which needs `toolInput` to reconstruct the conversation and `toolName` to correlate results to calls.
+The `toolCallId` is a deterministic, provider-neutral correlation key (`call-0`, `call-1`, …). The `tool_use` part and its paired `tool_result` part share the same `toolCallId`, so a real adapter can rebuild a correlated request from cassette data alone — no adapter-memory state required. Every field needed to reconstruct the conversation (`toolInput`) and to correlate results to calls (`toolName`, `toolCallId`) is present in the transcript.
 
-**Preferred future structured encoding (target for W4-B or W4-C):**
+**Historical / legacy encoding (superseded — narrow fallback only):**
 
-The following encoding is provider-neutral and carries all information a real adapter needs:
+The pre-v2 encoding smuggled tool rounds through strings: assistant `content: "[tool_call:<toolName>]"` (a label — no `toolInput`) and user `content: JSON.stringify(toolResult)` (a bare value — no `toolName`, no id). This is **no longer the writer output** and v1 cassettes are rejected by `loadTrace`. The `AnthropicModelClient` retains `TOOL_CALL_PATTERN` / `#pendingToolCalls` only as a **narrow fallback for plain-string content**; the structured path never consults it.
 
-| Turn | Role | `content` value |
-|---|---|---|
-| Initial prompt | `user` | plain string |
-| Model tool call | `assistant` | `JSON.stringify({ toolName, toolInput })` |
-| Tool result | `user` | `JSON.stringify({ toolName, result, error? })` |
+Provider-specific fields (e.g., Anthropic `tool_use_id`) live inside the real adapter layer only — they must not appear in `ModelInput.messages`, `Message.content`, or `TraceStep.payload`. The adapter maps the neutral `toolCallId` onto the provider's block id when synthesizing a request; whether a **live** provider accepts a synthetic `toolCallId` as its `tool_use.id` is **not proven** and is deferred to **W4-E**. Live Anthropic tool-use / fork continuation is not claimed here.
 
-Provider-specific fields (e.g., Anthropic `tool_use_id`) must be added inside the real adapter layer only — they must not appear in `ModelInput.messages`, `Message.content`, or `TraceStep.payload`.
-
-**W4-B implementation paths for transcript encoding:**
-
-W4-B has two acceptable approaches. Pick one explicitly before implementation begins:
-
-- **Path A (smaller scope — recommended for W4-B):** Preserve the current `[tool_call:<toolName>]` / raw-result encoding. Add `ToolExecutor` boundary and model-call error recording only. Migrate to structured encoding in a separate step (W4-C or between W4-B and W4-C), with explicit tests updating `model_input` payload expectations. No existing test payloads change in W4-B.
-
-- **Path B (migrate in W4-B):** Change `agentLoop.ts` to emit the structured encoding in W4-B itself. All tests that assert `model_input` step payloads must be updated. This is a larger diff but gets the cleaner encoding in place before the real adapter is written.
-
-**Recommendation: Path A.** Migrate encoding only when necessary — i.e., when W4-C requires it to construct provider API calls correctly. Keep W4-B to the ToolExecutor refactor and model-call error recording.
-
-**Current `ToolDefinition` shape (already in `src/agent/modelClient.ts`):**
+**Current `ToolDefinition` shape (`src/agent/modelClient.ts`):**
 
 ```typescript
 interface ToolDefinition {
-  name:        string;
-  description: string;
+  name:         string;
+  description:  string;
+  inputSchema?: JsonObject;   // optional JSON Schema; provider-agnostic (added W4-C1)
 }
 ```
 
-`inputSchema?: JsonObject` was added to `ToolDefinition` in W4-C1 for provider schema conversion (additive, backward-compatible). The Anthropic adapter uses `{ type: "object", ...(def.inputSchema ?? {}) }` as the `input_schema` fallback when `inputSchema` is absent.
+`inputSchema?: JsonObject` is additive and backward-compatible. The Anthropic adapter uses `{ type: "object", ...(def.inputSchema ?? {}) }` as the `input_schema` fallback when `inputSchema` is absent.
 
 **`ModelOutput` (already in `src/agent/modelClient.ts`):**
 
