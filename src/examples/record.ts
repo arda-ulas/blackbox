@@ -9,7 +9,7 @@
 import { mkdir } from "node:fs/promises";
 import { TraceRecorder } from "../trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../agent/modelClient.ts";
-import { defaultFixtureTools } from "../agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../agent/fixtureTools.ts";
 import { runAgentLoop } from "../agent/agentLoop.ts";
 import { saveTrace, validateTrace } from "../replay/CassetteReplay.ts";
 
@@ -43,7 +43,7 @@ console.log(label("Tools:"),     "search → calendar → booking");
 
 const successResult = await runAgentLoop({
   model:    successModel,
-  tools:    defaultFixtureTools(),
+  toolExecutor: defaultToolExecutor(),
   recorder: successRecorder,
   prompt:   SUCCESS_SCENARIO,
   maxSteps: 10,
@@ -75,7 +75,7 @@ const errorRecorder = new TraceRecorder("example-error-run", { createdAt: Date.n
 try {
   await runAgentLoop({
     model:    errorModel,
-    tools:    defaultFixtureTools(),
+    toolExecutor: defaultToolExecutor(),
     recorder: errorRecorder,
     prompt:   ERROR_SCENARIO,
     maxSteps: 5,

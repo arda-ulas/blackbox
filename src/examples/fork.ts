@@ -12,7 +12,7 @@
 import { mkdir } from "node:fs/promises";
 import { loadTrace, saveTrace, validateTrace } from "../replay/CassetteReplay.ts";
 import { FakeDeterministicModelClient } from "../agent/modelClient.ts";
-import { defaultFixtureTools } from "../agent/fixtureTools.ts";
+import { defaultToolExecutor } from "../agent/fixtureTools.ts";
 import { forkRun } from "../fork/forkRun.ts";
 import { diffTraces, formatFirstDivergence } from "../fork/diffTraces.ts";
 
@@ -93,7 +93,7 @@ const { childTrace, finalAnswer, prefixLength } = await forkRun({
       text: "No hotels available for Alice this weekend. The area is fully booked — consider a different date.",
     },
   ]),
-  tools: defaultFixtureTools(),
+  toolExecutor: defaultToolExecutor(),
 });
 
 // ---------------------------------------------------------------------------
