@@ -17,10 +17,13 @@ import type { JsonObject, JsonValue } from "../trace/TraceTypes.ts";
  * `tool_use_id`. This lets tool-call correlation live in cassette data rather
  * than adapter memory.
  *
- * NOTE (W4-D1): these types are defined but not yet emitted. The agent loop,
- * fork reconstruction, and adapters still produce/consume the legacy string
- * encoding until W4-D2 atomically switches to structured payloads and bumps
- * the trace schema version.
+ * STATUS (W4-D, schema v2): these structured parts are now emitted. `agentLoop`
+ * records tool rounds as `MessagePart[]`, `forkRun` reconstructs structured
+ * `MessagePart[]` histories, and `AnthropicModelClient` consumes them on its
+ * structured translation path. The legacy `[tool_call:<name>]` / stringified
+ * result encoding survives only as a narrow fallback for plain-string content.
+ * Whether a live provider accepts a synthetic `toolCallId` as its `tool_use.id`
+ * is not proven here and remains deferred to W4-E.
  */
 export type MessagePart =
   | { type: "text"; text: string }
