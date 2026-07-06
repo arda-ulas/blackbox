@@ -19,7 +19,7 @@ import {
   ModelCallError,
   FakeDeterministicModelClient,
 } from "../src/agent/modelClient.ts";
-import type { ModelInput, ToolDefinition } from "../src/agent/modelClient.ts";
+import type { ModelInput, Message, ToolDefinition } from "../src/agent/modelClient.ts";
 
 // ---------------------------------------------------------------------------
 // Fake client builders
@@ -101,6 +101,34 @@ const toolUseResponse = {
 const minimalInput: ModelInput = {
   messages: [{ role: "user", content: "Hello." }],
 };
+
+// A cassette-derived structured (v2) multi-turn history: a search tool round
+// followed by the mutated/plain tool result, correlated purely by toolCallId.
+const structuredHistory: Message[] = [
+  { role: "user", content: "Find hotels." },
+  {
+    role: "assistant",
+    content: [
+      { type: "tool_use", toolCallId: "call-0", toolName: "search", toolInput: { query: "hotels" } },
+    ],
+  },
+  {
+    role: "user",
+    content: [
+      { type: "tool_result", toolCallId: "call-0", toolName: "search", result: { results: [] } },
+    ],
+  },
+];
+
+// Extract every structured content block across all message params.
+function contentBlocks(params: unknown): Array<Record<string, unknown>> {
+  const messages = (params as Record<string, unknown>)["messages"] as Array<
+    Record<string, unknown>
+  >;
+  return messages.flatMap((m) =>
+    Array.isArray(m["content"]) ? (m["content"] as Array<Record<string, unknown>>) : [],
+  );
+}
 
 // Env guard helper.
 function withoutKey<T>(fn: () => T): T {
@@ -338,6 +366,143 @@ describe("AnthropicModelClient — request translation", () => {
     const userContent = userToolMsg!["content"] as Array<Record<string, unknown>>;
     expect(userContent[0]["type"]).toBe("tool_result");
     expect(userContent[0]["tool_use_id"]).toBe("toolu_abc123");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structured transcript translation — W4-D4
+// ---------------------------------------------------------------------------
+
+describe("AnthropicModelClient — structured MessagePart[] translation", () => {
+  it("translates a structured text part to an Anthropic text block", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "Let me check." }] }],
+    });
+    const blocks = contentBlocks(lastParams());
+    expect(blocks).toContainEqual({ type: "text", text: "Let me check." });
+  });
+
+  it("translates a structured tool_use part to a tool_use block with id === toolCallId", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", toolCallId: "call-0", toolName: "search", toolInput: { query: "hotels" } },
+          ],
+        },
+      ],
+    });
+    const block = contentBlocks(lastParams()).find((b) => b["type"] === "tool_use");
+    expect(block).toBeDefined();
+    expect(block!["id"]).toBe("call-0");
+    expect(block!["name"]).toBe("search");
+    expect(block!["input"]).toEqual({ query: "hotels" });
+  });
+
+  it("translates a structured tool_result part to a tool_result block with tool_use_id === toolCallId", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", toolCallId: "call-0", toolName: "search", result: { ok: true } },
+          ],
+        },
+      ],
+    });
+    const block = contentBlocks(lastParams()).find((b) => b["type"] === "tool_result");
+    expect(block).toBeDefined();
+    expect(block!["tool_use_id"]).toBe("call-0");
+    // Result is carried as a JSON-safe string.
+    expect(block!["content"]).toBe(JSON.stringify({ ok: true }));
+  });
+
+  it("translates a structured tool_result error part safely with is_error", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", toolCallId: "call-1", toolName: "search", error: "tool exploded" },
+          ],
+        },
+      ],
+    });
+    const block = contentBlocks(lastParams()).find((b) => b["type"] === "tool_result");
+    expect(block).toBeDefined();
+    expect(block!["tool_use_id"]).toBe("call-1");
+    expect(block!["content"]).toBe("tool exploded");
+    expect(block!["is_error"]).toBe(true);
+  });
+
+  it("a fresh adapter translates cassette-derived multi-turn structured history with no pending state", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    // Fresh instance — it never returned a tool_use response, so #pendingToolCalls
+    // is empty. The legacy path would have thrown; the structured path must not.
+    const adapter = new AnthropicModelClient({ client });
+    const out = await adapter.complete({ messages: structuredHistory });
+    expect(out.type).toBe("final_answer");
+
+    const toolUse = contentBlocks(lastParams()).find((b) => b["type"] === "tool_use");
+    const toolResult = contentBlocks(lastParams()).find((b) => b["type"] === "tool_result");
+    expect(toolUse).toBeDefined();
+    expect(toolResult).toBeDefined();
+    // Correlation reconstructed entirely from cassette data (toolCallId), not memory.
+    expect(toolUse!["id"]).toBe("call-0");
+    expect(toolResult!["tool_use_id"]).toBe("call-0");
+    expect(toolUse!["id"]).toBe(toolResult!["tool_use_id"]);
+  });
+
+  it("structured tool_result correlation requires no pendingToolCalls state", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    // A lone tool_result as the very first message — impossible to satisfy via
+    // pending state. Must still translate correctly from toolCallId alone.
+    await expect(
+      adapter.complete({
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "tool_result", toolCallId: "call-7", toolName: "calendar", result: { slots: [] } },
+            ],
+          },
+        ],
+      }),
+    ).resolves.toBeDefined();
+    const block = contentBlocks(lastParams()).find((b) => b["type"] === "tool_result");
+    expect(block!["tool_use_id"]).toBe("call-7");
+  });
+
+  it("uses only the synthetic toolCallId as the block id — no provider-native id substituted", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({ messages: structuredHistory });
+    const toolUse = contentBlocks(lastParams()).find((b) => b["type"] === "tool_use");
+    // The id is exactly the cassette's call-N, never a "toolu_..." provider id.
+    expect(toolUse!["id"]).toBe("call-0");
+    expect(String(toolUse!["id"]).startsWith("toolu_")).toBe(false);
+  });
+
+  it("plain string messages still translate unchanged alongside the structured path", async () => {
+    const { client, lastParams } = makeCapturingClient(finalAnswerResponse);
+    const adapter = new AnthropicModelClient({ client });
+    await adapter.complete({ messages: structuredHistory });
+    const messages = (lastParams() as Record<string, unknown>)["messages"] as Array<
+      Record<string, unknown>
+    >;
+    // The leading plain user string is passed through as a string.
+    expect(messages[0]["role"]).toBe("user");
+    expect(messages[0]["content"]).toBe("Find hotels.");
   });
 });
 

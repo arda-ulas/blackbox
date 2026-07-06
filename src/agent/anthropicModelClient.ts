@@ -1,20 +1,23 @@
 // Anthropic adapter — implements ModelClient behind the provider-neutral interface.
 //
-// FORK CONTINUATION LIMITATION:
-// This adapter maintains pending tool_use_id state across calls within a single
-// live run instance. It cannot reconstruct tool_use_id values from the legacy
-// transcript encoding ([tool_call:<name>] / JSON.stringify(result)) when a fresh
-// adapter instance is created from a saved cassette. Fork continuation via this
-// adapter is therefore unsound with the current transcript encoding and is
-// explicitly out of scope until structured transcript migration (Path B) is done.
+// STRUCTURED TRANSCRIPT PATH (W4-D4):
+// Structured v2 messages (Message.content as MessagePart[]) are translated
+// directly: a tool_use part maps to an Anthropic tool_use block whose `id` is the
+// cassette's deterministic toolCallId, and a tool_result part maps to a
+// tool_result block whose `tool_use_id` is that same toolCallId. Correlation
+// therefore lives entirely in the cassette data — a FRESH adapter instance can
+// translate a saved multi-turn history with no prior in-memory state. This
+// resolves the earlier fork-continuation limitation for structured cassettes.
 //
-// PENDING TOOL CALL STATE:
-// After returning a tool_call ModelOutput, the adapter stores the corresponding
-// tool_use_id and original input in #pendingToolCalls (FIFO). On the next
-// complete() call the matching legacy transcript assistant message
-// ([tool_call:<toolName>]) is reconstructed into a proper tool_use content block.
-// The proof scenario must use each tool at most once per run to avoid name
-// collisions in the pending queue.
+// NOTE: The synthetic `call-N` ids are self-consistent within the request we
+// build (tool_use.id === matching tool_result.tool_use_id). These mocked tests do
+// not assert that a live Anthropic endpoint accepts such synthetic ids.
+//
+// LEGACY STRING FALLBACK (pre-v2):
+// Plain-string content still passes through, and the legacy
+// "[tool_call:<name>]" assistant encoding is still reconstructed via
+// #pendingToolCalls (FIFO) for backward compatibility. This pending state is
+// used ONLY for the legacy string path; the structured path never touches it.
 //
 // SDK CLIENT INJECTION:
 // The constructor accepts an optional `client` field so that tests can inject a
@@ -32,6 +35,7 @@ import {
   type ModelInput,
   type ModelOutput,
   type Message,
+  type MessagePart,
   type ToolDefinition,
   ModelCallError,
 } from "./modelClient.ts";
@@ -171,6 +175,22 @@ export class AnthropicModelClient implements ModelClient {
 
     while (i < messages.length) {
       const msg = messages[i];
+
+      // Structured v2 path: MessagePart[] content maps 1:1 to an Anthropic
+      // message param, with each part translated independently. Self-contained —
+      // toolCallId supplies both tool_use.id and tool_result.tool_use_id, so no
+      // #pendingToolCalls memory is consulted or required here.
+      if (Array.isArray(msg.content)) {
+        result.push({
+          role: msg.role,
+          content: msg.content.map((part) => this.translatePart(part)),
+        });
+        i++;
+        continue;
+      }
+
+      // Legacy string path (pre-v2 fallback): plain text, or the
+      // "[tool_call:<name>]" assistant encoding reconstructed via pending state.
       const toolMatch = msg.role === "assistant" ? TOOL_CALL_PATTERN.exec(msg.content) : null;
 
       if (toolMatch) {
@@ -217,6 +237,43 @@ export class AnthropicModelClient implements ModelClient {
     }
 
     return result;
+  }
+
+  /**
+   * Translate a single structured MessagePart into an Anthropic content block.
+   * The synthetic toolCallId is carried straight through as the block id /
+   * tool_use_id, keeping tool_use ↔ tool_result correlation self-consistent
+   * within the built request — no provider-native ids and no pending state.
+   */
+  private translatePart(part: MessagePart): InternalContentBlock {
+    switch (part.type) {
+      case "text":
+        return { type: "text", text: part.text };
+
+      case "tool_use":
+        return {
+          type: "tool_use",
+          id: part.toolCallId,
+          name: part.toolName,
+          input: part.toolInput,
+        };
+
+      case "tool_result":
+        if ("error" in part) {
+          // is_error is a supported field on the SDK's ToolResultBlockParam.
+          return {
+            type: "tool_result",
+            tool_use_id: part.toolCallId,
+            content: part.error,
+            is_error: true,
+          };
+        }
+        return {
+          type: "tool_result",
+          tool_use_id: part.toolCallId,
+          content: JSON.stringify(part.result),
+        };
+    }
   }
 
   // ---------------------------------------------------------------------------
