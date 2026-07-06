@@ -216,3 +216,80 @@ In priority order — do not expand scope without explicit decision:
 3. **Richer mutation scenarios**: multiple simultaneous tool-result mutations, mutation of `model_input` payloads (system prompt injection), and a `--dry-run` flag that validates the mutation without running the agent.
 4. **Portfolio/demo writeup**: a short published post or README demo video showing the record → fork → diff loop on a realistic agent task; useful for sharing progress and gathering feedback.
 5. **Web UI (explicitly deferred)**: no UI work until the CLI is solid and UI is explicitly chosen as the next milestone.
+
+---
+
+## 2026-07-05 — Week Three Completion
+
+### Tag
+`week-three-cli-packaging` → commit `9e98fd6 docs: polish week three demo docs`
+
+### What Was Built
+
+**W3-A — Unified CLI entry point**
+- `src/cli.ts`: hand-rolled arg parser; per-command flag allow-lists and value-presence checks; `record`, `replay`, `fork`, `diff` subcommands dispatched via a top-level switch
+- `npm run cli -- <subcommand> [flags]` is the single supported invocation; no global binary, no `bin/` directory, no new dependencies
+- Codex audit patch: unknown flags rejected before file I/O; missing value flags rejected; default fork output path derived from parent path (`traces/example-trace-fork.json`) rather than trace ID
+- Files: `src/cli.ts`, `tests/cli.test.ts`, `package.json`, `docs/10_week_three_plan.md`, `docs/11_cli_spec.md`
+
+**W3-B — Cassette list and inspect commands**
+- `list` scans a directory for `.json` files, loads each with `loadTrace`, validates each with `validateTrace` (hash-chain check), prints a compact `id/version/steps/status/createdAt/parentId` row; invalid files get a `[warning]` row and are excluded from the valid count
+- `inspect` loads one cassette, validates it, runs `replayTrace` offline, then prints a full step-by-step timeline with index, type, 8-char hash prefix, and payload summary
+- Codex audit patch: `list` was not calling `validateTrace` — hash-tampered cassettes were silently counted as valid; fixed; tampered-trace integration test added
+- Files: `src/cli.ts`, `tests/cli.test.ts`, `docs/11_cli_spec.md`
+
+**W3-C — Terminal output polish**
+- Consistent `[blackbox]` section headers across all six commands; sub-section markers (`--- events ---`, `--- parent ---`, `--- mutation ---`, `--- child ---`, `--- trace diff ---`, `--- steps ---`) added for visual structure
+- `diff` command gained a `[blackbox] --- diff ---` header with file paths before the formatted output
+- `list` summary line changed to `[blackbox] N of M trace(s) valid, W warning(s).`
+- `humanSummary()` added to `src/fork/diffTraces.ts`: derives a one-line description of the first divergence from the `TraceDiff` struct — `"<type> differs at index N"`, `"parent ended before child at index N"`, or `"child ended before parent at index N"` — surfaced as `Summary: ...` in `formatFirstDivergence` output above raw hash/payload lines
+- Four new unit tests for `humanSummary` variants; CLI fork and diff integration tests assert `"Summary:"` present
+- Files: `src/cli.ts`, `src/fork/diffTraces.ts`, `tests/diffTraces.test.ts`, `tests/cli.test.ts`, `docs/11_cli_spec.md`
+
+**W3-D — Demo walkthrough**
+- `DEMO.md`: full command-by-command walkthrough of the six-command demo flow with expected output shapes, explanations of what each command reads/writes, key proof points (offline replay structural guarantee, prefix hash identity, tool-result mutation mechanics, human divergence summary), real-vs-mocked table, and limitations
+- `README.md`: status updated, Week Three CLI section added (W3-A through W3-D), Quick Start updated to `npm run cli --` form with a link to `DEMO.md`
+- Docs polish: `docs/10_week_three_plan.md` acceptance criteria updated to match implemented flag interface; `docs/11_cli_spec.md` fork output section description corrected to actual section names
+
+### Final Acceptance Criteria Status
+| Criterion | Status |
+|---|---|
+| `npm test -- --run` passes | ✓ 162/162 |
+| `npm run cli -- record` creates both demo traces | ✓ `traces/example-trace.json` (15 steps), `traces/example-error-trace.json` (5 steps) |
+| `npm run cli -- list` shows valid/warning counts | ✓ validates hash chains; tampered files counted as warnings |
+| `npm run cli -- inspect` prints step timeline | ✓ offline; no model/tool instantiation |
+| `npm run cli -- replay` replays fully offline | ✓ structural guarantee (no model/tool params) |
+| `npm run cli -- fork` creates child trace via tool-result mutation | ✓ `traces/example-trace-fork.json`, 7 steps, valid hash chain |
+| `npm run cli -- diff` prints human summary and first divergence | ✓ `Summary: tool_result differs at index 3` + raw hash/payload lines |
+| Flag validation: unknown flags and missing values rejected | ✓ checked before any file I/O |
+| `DEMO.md` exists and is accurate | ✓ all six commands documented with output shapes |
+| Codex audit verdict | ✓ Week Three accepted |
+
+### Demo Commands (in order)
+```sh
+npm install
+npm test -- --run
+npm run cli -- record
+npm run cli -- list
+npm run cli -- inspect
+npm run cli -- replay
+npm run cli -- fork
+npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
+```
+
+### Known Limitations
+1. **Local CLI only.** No hosted backend, no sharing, no remote cassette storage. Everything runs on the local filesystem.
+2. **Fake model and tools only.** `FakeDeterministicModelClient` plays back scripted responses; fixture tools are deterministic in-memory stubs. No real model API or external tool integration exists.
+3. **No real-agent adapter.** Running Blackbox against arbitrary agent code requires implementing the `ModelClient` interface. No adapter for any real LLM SDK ships yet.
+4. **No UI.** All interaction is terminal output. No web UI, dashboard, branch graph, or timeline view.
+5. **No npm package or global binary.** The CLI is invoked via `npm run cli --` inside the repo. Packaging as a global binary or published package is a future phase.
+6. **Single-agent only.** The loop, recorder, and fork logic assume one agent running one tool at a time. Multi-agent orchestration is out of scope.
+7. **Replay summarizes, does not re-execute.** `replayTrace` reads stored payloads and cannot detect whether a re-execution of the same inputs would produce different outputs.
+
+### Recommended Next Milestone (scoped)
+In priority order — do not expand scope without explicit decision:
+1. **Real-agent adapter spike**: implement a thin `ModelClient` wrapper around one real LLM SDK (e.g., Anthropic SDK) so Blackbox can record an actual model run. Fake tools are fine for the first spike; the point is to prove the hash chain and replay hold against real model output.
+2. **Install ergonomics**: add a `"bin"` entry and a shebang wrapper so the CLI is invocable as `npx blackbox` or a global `blackbox` command without `npm run`.
+3. **Richer mutation scenarios**: multiple simultaneous tool-result mutations, `model_input` payload mutation (system-prompt injection), `--dry-run` flag that validates a fork without running the agent.
+4. **Portfolio/demo polish**: record an `asciinema` cast of the full demo flow and commit it to `docs/`; add a "Demo" section to `README.md` with an embedded or linked terminal recording.
+5. **Web UI (explicitly deferred)**: no UI work until the above is solid and UI is explicitly chosen as the next milestone.
