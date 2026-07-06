@@ -10,7 +10,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 253 tests; all should pass
+npm test -- --run     # 267 tests; all should pass
 ```
 
 ---

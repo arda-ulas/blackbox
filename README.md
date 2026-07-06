@@ -4,11 +4,13 @@ Blackbox is a time-travel debugger for AI agents: record a multi-step run, repla
 
 ## Status
 
-Week Four structured transcript migration (W4-D) is implemented and in closeout (awaiting Codex audit before tagging). The Week Four Anthropic adapter spike (`week-four-anthropic-adapter-spike`), adapter boundary (`week-four-adapter-boundary`), Week Three CLI packaging, Week-two hardening, and Week-one CLI proof are all accepted and tagged.
+Week Four structured transcript migration (W4-D) is complete and tagged (`week-four-structured-transcript-migration`). The Week Four Anthropic adapter spike (`week-four-anthropic-adapter-spike`), adapter boundary (`week-four-adapter-boundary`), Week Three CLI packaging, Week-two hardening, and Week-one CLI proof are all accepted and tagged.
 
 The core trace format is now **schema v2**: tool rounds are recorded as structured, provider-neutral transcript parts (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
-The Anthropic adapter is **opt-in, proof-script only** (`npm run example:real-proof`) — it is not wired into the CLI. The default CLI and all tests remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls). The optional real-proof records a **final-text-only** run and replays it offline. Real-provider **tool-use / fork continuation** — including whether a live provider accepts a synthetic `toolCallId` as its `tool_use.id` — is **not** proven and remains deferred to W4-E.
+W4-E slice **E1 passed**: an opt-in live proof (`npm run example:real-tooluse-proof`) confirmed that on a **single real tool-use record**, the Anthropic Messages API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` and `tool_result.tool_use_id`; the run completed and its v2 cassette replayed offline, neutrality-clean. Real **fork continuation** with a fresh adapter after mutation remains **unproven** until E2/E3 — so the full live **record → replay → fork → mutate → continue → diff** loop is not yet claimed.
+
+Both Anthropic proofs are **opt-in, proof-script only** — neither is wired into the CLI. The default CLI and all of `npm test` remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls).
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 

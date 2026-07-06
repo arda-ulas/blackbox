@@ -131,7 +131,7 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## 10. Acceptance criteria
 
-1. `npm test -- --run` stays **253/253**, zero live calls, nothing added to the suite.
+1. `npm test -- --run` stays green (**267/267** after E1 added offline helper tests), with **zero live calls** — `npm test` remains fully offline; only mocked/pure unit tests were added, no live/key-gated tests.
 2. With key: real record where the turn-2 request sends `call-0` as `tool_use.id` / `tool_use_id` and the API **accepts** it (run completes). ← core assumption proven.
 3. Parent cassette validates (hash chain) and replays fully offline (no provider calls in replay).
 4. Fork + mutate continues with a **fresh** adapter (no shared state); continuation call succeeds.
