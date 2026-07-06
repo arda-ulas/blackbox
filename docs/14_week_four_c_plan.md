@@ -191,13 +191,12 @@ Tool-use proof is explicitly deferred for W4-C3. The current legacy transcript e
 ### W4-C4: Safety checks and docs
 
 **What:**
-- Add `traces/real-run-proof.json` to `.gitignore`
+- Proof trace `traces/anthropic-proof-trace.json` is already git-ignored (the whole `traces/` directory is in `.gitignore`) — no new entry needed
 - Secret-scan check: `git grep -rn "ANTHROPIC_API_KEY\s*=" src/` must return nothing
 - Update `docs/08_build_log.md` with W4-C completion entry
 - Annotate `src/agent/anthropicModelClient.ts` with a clear comment stating the fork-continuation limitation and why
 
 **Files to touch:**
-- `.gitignore` — add `traces/real-run-proof.json`
 - `docs/08_build_log.md` — W4-C completion note
 
 **Acceptance gate:** Codex scan finds no hardcoded key references; `npm test -- --run` still passes unchanged.

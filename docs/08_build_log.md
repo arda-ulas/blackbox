@@ -293,3 +293,43 @@ In priority order — do not expand scope without explicit decision:
 3. **Richer mutation scenarios**: multiple simultaneous tool-result mutations, `model_input` payload mutation (system-prompt injection), `--dry-run` flag that validates a fork without running the agent.
 4. **Portfolio/demo polish**: record an `asciinema` cast of the full demo flow and commit it to `docs/`; add a "Demo" section to `README.md` with an embedded or linked terminal recording.
 5. **Web UI (explicitly deferred)**: no UI work until the above is solid and UI is explicitly chosen as the next milestone.
+
+---
+
+## 2026-07-06 — Week Four W4-C Completion (Anthropic adapter spike)
+
+### What Was Built
+
+**W4-C1 — Adapter skeleton with injected-client tests**
+- `src/agent/anthropicModelClient.ts`: `AnthropicModelClient implements ModelClient`, constructor accepts an optional injected `client` so tests need no `ANTHROPIC_API_KEY`; missing key throws `ModelCallError("provider_auth_error")`
+- Added `inputSchema?: JsonObject` to `ToolDefinition` in `src/agent/modelClient.ts` (additive, backward-compatible)
+- Mocked tests added to the **default suite** — no live calls
+
+**W4-C2 — Request/response translation with mocked tests**
+- `complete()` translates `ModelInput` → Anthropic `messages.create` params (system, messages, tools with `input_schema` fallback) and Anthropic response → `ModelOutput` (`end_turn` → final_answer, `tool_use` → tool_call, `refusal`/others → `ModelCallError`)
+- SDK errors normalized to sanitized `ModelCallError`; no provider-native fields (`tool_use_id`, `usage`, `message.id`) reach `agentLoop` or `TraceStep.payload`
+- Non-streaming: `stream` omitted, SDK default overload selected
+
+**W4-C3 — Explicit proof script**
+- `src/examples/realRunProof.ts`, run with `npm run example:real-proof`
+- Proof is **final-text-only** record → offline replay: records one real run with a final-text-only prompt (no tools), saves `traces/anthropic-proof-trace.json`, then replays fully offline via `loadTrace` + `replayTrace`
+- Missing `ANTHROPIC_API_KEY` **fails safely** — exits 1 with a clear message and writes no trace
+- The real Anthropic provider is used only during the record phase; replay never calls the provider
+
+### Guardrails Held
+- No CLI Anthropic adapter wiring — `FakeDeterministicModelClient` remains the default in all tests and CLI commands
+- No default live tests — `npm test -- --run` passes with 216 tests and zero real provider calls
+- Replay remains structurally offline (`replayTrace` takes only a `Trace`)
+- API key read only from `ANTHROPIC_API_KEY`; never logged, never stored in any trace or file
+
+### Deferred
+- Real-provider **tool-use / fork continuation** is deferred until structured transcript migration (Path B in `docs/13_adapter_contract.md`). The legacy transcript encoding cannot persist `tool_use_id`, so a fresh adapter instance cannot reconstruct tool-result correlation from a cassette. W4-C proves record → offline replay only.
+
+### Final Acceptance Criteria Status
+| Criterion | Status |
+|---|---|
+| `npm test -- --run` passes | ✓ 216/216, zero live calls |
+| `npm run cli -- record` / `replay` / `fork` unchanged | ✓ fake model/tools still default |
+| `npm run example:real-proof` without key | ✓ exits 1, no trace written |
+| No CLI adapter flag wiring | ✓ proof-script only |
+| Codex audit verdict | ✓ W4-C ready to close, no critical issues |
