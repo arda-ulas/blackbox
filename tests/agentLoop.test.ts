@@ -7,6 +7,7 @@ import {
 } from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
+import { validateTrace } from "../src/replay/CassetteReplay.ts";
 
 function makeRecorder(id = "run-test") {
   return new TraceRecorder(id, { createdAt: 0 });
@@ -263,8 +264,11 @@ describe("agentLoop — model-call error recording", () => {
       }),
     ).rejects.toThrow();
 
-    const terminal = recorder.getTrace().steps.at(-1);
+    const trace = recorder.getTrace();
+    const terminal = trace.steps.at(-1);
     expect(terminal?.type).toBe("metadata");
+    // Hash chain must remain valid even after an aborted run.
+    expect(() => validateTrace(trace)).not.toThrow();
   });
 
   it("terminal metadata has event, status, reason, errorKind, and message fields", async () => {

@@ -9,7 +9,7 @@ import {
   replayTrace,
 } from "../src/replay/CassetteReplay.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
-import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
+import { FakeDeterministicModelClient, type ModelClient } from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { CURRENT_TRACE_VERSION } from "../src/trace/TraceTypes.ts";
@@ -195,6 +195,26 @@ describe("replayTrace", () => {
     const trace = await recordToolTrace();
     const summary = replayTrace(trace);
     expect(summary.events).toHaveLength(trace.steps.length);
+  });
+
+  it("returns status:error and failureReason:model_error for a model-call-error trace", async () => {
+    const recorder = new TraceRecorder("run-model-error-replay", { createdAt: 0 });
+    const throwingModel: ModelClient = {
+      async complete() {
+        throw new Error("fake provider timeout");
+      },
+    };
+    await expect(
+      runAgentLoop({ model: throwingModel, toolExecutor: defaultToolExecutor(), recorder, prompt: "go" }),
+    ).rejects.toThrow();
+
+    const trace = recorder.getTrace();
+    // Hash chain must be intact even though the run failed.
+    expect(() => validateTrace(trace)).not.toThrow();
+    // Replay reads cassette payloads only — no model or tool calls.
+    const summary = replayTrace(trace);
+    expect(summary.status).toBe("error");
+    expect(summary.failureReason).toBe("model_error");
   });
 
   it("returns status:error and failureReason for a max-step-exceeded trace", async () => {

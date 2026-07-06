@@ -127,7 +127,7 @@ These invariants must hold regardless of which adapter is in use.
 
 1. **Recording** — `agentLoop` calls `model.complete(input)` where `input` is a `ModelInput`. The response is a `ModelOutput`. The output, along with the corresponding model input, is recorded in `TraceStep` entries by the `TraceRecorder`. The hash chain is computed over the recorded payloads, not over any provider-native object.
 
-   **Important:** the current `agentLoop` implementation does not wrap `model.complete(input)` in a try/catch and does not record a terminal `metadata` step on model-call failure. If the adapter throws, the run aborts with no trace of the error in the cassette. **W4-B must add model-call error recording** before a real adapter is introduced. See Failure Modes and the W4-B scope below.
+   **W4-B completed:** `agentLoop` wraps `model.complete(input)` in a try/catch. On failure it records a terminal `metadata` step (see Failure Modes) and re-throws. Model-call failures are now traceable in the cassette.
 
 2. **Replay** — `replayTrace(trace: Trace)` takes no `ModelClient` parameter. It cannot call a provider by construction. It reads `TraceStep.payload` entries and reconstructs a `ReplaySummary`. This invariant must not change.
 
@@ -246,7 +246,7 @@ The `block.id` / `providerCallId` is **not** stored in the payload. It is only n
 
 Each failure mode must be representable in the trace without adding new step types or breaking the existing schema. The `metadata` step with `event: "run_failed"` is the existing mechanism.
 
-**Pre-condition:** the failure modes below that require a terminal `metadata` step on model-call error depend on `agentLoop` wrapping `model.complete(input)` in a try/catch. **This does not exist yet.** It is a required deliverable of W4-B. Without it, model-call errors abort the run without writing any terminal step, leaving the cassette in an incomplete state. All adapter error-handling below assumes W4-B has been completed first.
+**Status: completed in W4-B slice 2.** `agentLoop` wraps `model.complete(input)` in a try/catch. On error it appends the terminal `metadata` step shown below, then re-throws. 181 tests pass, including 7 dedicated model-error tests.
 
 **Stable terminal metadata shape for model-call failures (W4-B deliverable):**
 
@@ -277,7 +277,7 @@ The raw SDK error object, stack trace, and any provider-native error code must n
 
 Do not add new `TraceStepType` values for error cases. The `metadata` terminal step with `reason: "model_error"` and `errorKind` is sufficient for the W4-C spike. Richer error representation is a future decision.
 
-**W4-B must test model-call error recording using `FakeDeterministicModelClient` configured to throw.** No real SDK is required to test this path.
+**W4-B completed.** Model-call error recording is tested with inline throwing `ModelClient` implementations. No real SDK is used.
 
 ---
 
@@ -309,7 +309,7 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 - **Test with a fake throwing `ModelClient`**, not a real SDK. `FakeDeterministicModelClient` that throws on call N is sufficient.
 - New tests must prove the terminal `metadata` step is present after a model-call error.
 
-**Codex audit after W4-B before proceeding to W4-C.**
+**Codex audit after W4-B before proceeding to W4-C. ✓ W4-B accepted.**
 
 ### W4-C: Optional Anthropic adapter behind env flag
 
@@ -320,6 +320,8 @@ W4-B is a refactor plus a targeted behavior addition. The non-error path is unch
 - `providerCallId` retained in memory only; not stored in trace
 - Guarded tests in `tests/anthropicModelClient.test.ts`
 - No changes to CLI default behavior; fake adapter remains the default
+
+**Error sanitization requirement for W4-C adapters:** inside `complete()`, catch all SDK/provider-native errors and normalize them into a `ModelCallError` (from `src/agent/modelClient.ts`) before re-throwing. The `errorKind` field carries the semantic classification (see failure modes table above). Raw SDK error objects, stack traces, and provider-native codes must never reach `agentLoop` or appear in `TraceStep.payload`. This normalization is the adapter's responsibility — `agentLoop` only distinguishes `ModelCallError` from generic `Error` to set `errorKind`; it never inspects provider-specific fields.
 
 ### W4-D: Cassette round-trip proof script
 
