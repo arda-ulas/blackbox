@@ -60,20 +60,39 @@ interface Message {
 }
 ```
 
-The current `Message.content` is always a `string`. For the fake adapter this is sufficient; scripted responses do not inspect message content. For a real adapter, this content encoding must be well-defined. **W4-B should document (not yet change)** the intended content encoding for each message role/turn so W4-C can implement it without ambiguity.
+The current `Message.content` is always a `string`. For the fake adapter this is sufficient; scripted responses do not inspect message content at all. For a real adapter, the content encoding must be precisely defined so the adapter can translate it into provider-native API calls.
 
-**Provider-neutral content encoding guidance (for W4-B documentation):**
+**Current / legacy transcript encoding (what `agentLoop.ts` produces today):**
 
-To remain compatible with both the fake adapter and a real provider, message content must be JSON-safe and consistently encoded. The intended logical structure for each turn:
+| Turn | Role | `content` value |
+|---|---|---|
+| Initial prompt | `user` | plain string — the user's prompt |
+| Model tool call | `assistant` | `"[tool_call:<toolName>]"` — label string only; `toolInput` is **not** included in the transcript message |
+| Tool result | `user` | `JSON.stringify(toolResult)` — the raw result value only; no `toolName` or error wrapper |
 
-| Turn | Role | Content |
+This is the encoding currently stored in `TraceStep.payload` for `model_input` steps. It is sufficient for `FakeDeterministicModelClient` because the fake adapter ignores message content entirely. It is **not** sufficient for a real provider adapter, which needs `toolInput` to reconstruct the conversation and `toolName` to correlate results to calls.
+
+**Preferred future structured encoding (target for W4-B or W4-C):**
+
+The following encoding is provider-neutral and carries all information a real adapter needs:
+
+| Turn | Role | `content` value |
 |---|---|---|
 | Initial prompt | `user` | plain string |
-| Model final answer | `assistant` | plain string |
-| Model tool call request | `assistant` | JSON string of `{ toolName, toolInput }` |
-| Tool result | `user` | JSON string of `{ toolName, result, error? }` |
+| Model tool call | `assistant` | `JSON.stringify({ toolName, toolInput })` |
+| Tool result | `user` | `JSON.stringify({ toolName, result, error? })` |
 
-This encoding is already used by the current `agentLoop.ts`. A real adapter must parse these JSON strings when constructing provider-native API calls. Provider-specific fields (e.g., Anthropic `tool_use_id`) must be added inside the real adapter layer only — they must not leak into `ModelInput`, `Message`, or `TraceStep.payload`.
+Provider-specific fields (e.g., Anthropic `tool_use_id`) must be added inside the real adapter layer only — they must not appear in `ModelInput.messages`, `Message.content`, or `TraceStep.payload`.
+
+**W4-B implementation paths for transcript encoding:**
+
+W4-B has two acceptable approaches. Pick one explicitly before implementation begins:
+
+- **Path A (smaller scope — recommended for W4-B):** Preserve the current `[tool_call:<toolName>]` / raw-result encoding. Add `ToolExecutor` boundary and model-call error recording only. Migrate to structured encoding in a separate step (W4-C or between W4-B and W4-C), with explicit tests updating `model_input` payload expectations. No existing test payloads change in W4-B.
+
+- **Path B (migrate in W4-B):** Change `agentLoop.ts` to emit the structured encoding in W4-B itself. All tests that assert `model_input` step payloads must be updated. This is a larger diff but gets the cleaner encoding in place before the real adapter is written.
+
+**Recommendation: Path A.** Migrate encoding only when necessary — i.e., when W4-C requires it to construct provider API calls correctly. Keep W4-B to the ToolExecutor refactor and model-call error recording.
 
 **Current `ToolDefinition` shape (already in `src/agent/modelClient.ts`):**
 
