@@ -3,7 +3,7 @@
 // Real model calls always sit behind ModelClient so the agent loop can run
 // identically against the fake (recording, tests) or a real API (live use).
 
-import type { JsonValue } from "../trace/TraceTypes.ts";
+import type { JsonObject, JsonValue } from "../trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
 // I/O types
@@ -17,6 +17,8 @@ export interface Message {
 export interface ToolDefinition {
   name: string;
   description: string;
+  /** JSON Schema describing the tool's input. Required by real provider adapters; optional for fixture tools. */
+  inputSchema?: JsonObject;
 }
 
 /** Provider-neutral tool execution boundary. Decouples agentLoop from fixture-tool internals. */
