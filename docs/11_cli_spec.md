@@ -210,7 +210,7 @@ All subcommands follow this pattern:
 5. Print output to stdout
 6. Exit 0
 
-All error messages are prefixed with `[blackbox error]`. All informational output is prefixed with `[blackbox]`.
+All error messages are prefixed with `[blackbox error]`. Top-level command headers and status/summary lines are prefixed with `[blackbox]`. Within-command sub-section markers (e.g. `--- events ---`, `--- parent ---`, `--- trace diff ---`) are intentionally unprefixed to reduce noise in multi-section output.
 
 ---
 

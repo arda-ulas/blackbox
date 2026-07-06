@@ -183,6 +183,15 @@ describe("cli diff", () => {
     ]);
     expect(result.stdout).toContain("First divergence");
   }, 15_000);
+
+  it("stdout contains 'Summary:' human-readable line", async () => {
+    const result = await runCli([
+      "diff",
+      "--parent", SUCCESS_PATH,
+      "--child",  FORK_OUT_PATH,
+    ]);
+    expect(result.stdout).toContain("Summary:");
+  }, 15_000);
 });
 
 // ---------------------------------------------------------------------------

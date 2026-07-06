@@ -208,7 +208,71 @@ describe("formatFirstDivergence", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. Diff uses hash equality, not object identity
+// 6. formatFirstDivergence — human summary line
+// ---------------------------------------------------------------------------
+
+describe("formatFirstDivergence — human summary", () => {
+  it("includes a 'Summary:' line when traces diverge", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace: toolTrace,
+      forkIndex: 4,
+      childId: "child-summary",
+      promptMutation: "Different prompt.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Summary test." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    const diff   = diffTraces(toolTrace, childTrace);
+    const output = formatFirstDivergence(diff);
+    expect(output).toContain("Summary:");
+  });
+
+  it("same-type divergent steps produce '<type> differs at index N'", async () => {
+    const FORK_INDEX = 4;
+    const { childTrace } = await forkRun({
+      parentTrace: toolTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-same-type",
+      promptMutation: "Mutated prompt.",
+      model: new FakeDeterministicModelClient([
+        { type: "final_answer", text: "Same type." },
+      ]),
+      tools: defaultFixtureTools(),
+    });
+    const diff   = diffTraces(toolTrace, childTrace);
+    const output = formatFirstDivergence(diff);
+    // Both traces have model_input at index 4; only hash differs.
+    expect(output).toContain(`model_input differs at index ${FORK_INDEX}`);
+  });
+
+  it("parent-strict-prefix divergence produces 'parent ended before child'", () => {
+    const shortParent: Trace = {
+      version: CURRENT_TRACE_VERSION,
+      id: "short-p2",
+      createdAt: 0,
+      steps: structuredClone(toolTrace.steps.slice(0, 2)),
+    };
+    const diff   = diffTraces(shortParent, toolTrace);
+    const output = formatFirstDivergence(diff);
+    expect(output).toContain("parent ended before child at index 2");
+  });
+
+  it("child-strict-prefix divergence produces 'child ended before parent'", () => {
+    const shortChild: Trace = {
+      version: CURRENT_TRACE_VERSION,
+      id: "short-c2",
+      createdAt: 0,
+      steps: structuredClone(toolTrace.steps.slice(0, 2)),
+    };
+    const diff   = diffTraces(toolTrace, shortChild);
+    const output = formatFirstDivergence(diff);
+    expect(output).toContain("child ended before parent at index 2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Diff uses hash equality, not object identity
 // ---------------------------------------------------------------------------
 
 describe("diffTraces — hash equality not object identity", () => {

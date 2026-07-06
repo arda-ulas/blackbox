@@ -75,6 +75,16 @@ function payloadSummary(payload: unknown): string {
   return raw.length > 60 ? raw.slice(0, 57) + "..." : raw;
 }
 
+function humanSummary(diff: TraceDiff): string {
+  const idx = diff.firstDivergenceIndex as number;
+  if (diff.isParentStrictPrefixOfChild) return `parent ended before child at index ${idx}`;
+  if (diff.isChildStrictPrefixOfParent) return `child ended before parent at index ${idx}`;
+  const pType = diff.parentStep?.type ?? "unknown";
+  const cType = diff.childStep?.type ?? "unknown";
+  if (pType === cType) return `${pType} differs at index ${idx}`;
+  return `${pType} vs ${cType} at index ${idx}`;
+}
+
 export function formatFirstDivergence(diff: TraceDiff): string {
   const lines: string[] = [
     "--- trace diff ---",
@@ -89,6 +99,7 @@ export function formatFirstDivergence(diff: TraceDiff): string {
     return lines.join("\n");
   }
 
+  lines.push(`Summary:        ${humanSummary(diff)}`);
   lines.push(`First divergence at index ${diff.firstDivergenceIndex}`);
 
   if (diff.parentStep !== null) {
