@@ -71,15 +71,18 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current Milestone: W4-C Anthropic Adapter Spike
+## Current Milestone: W4-D Structured Transcript Migration (planning)
 
-Active rules for W4-C:
+W4-C (Anthropic adapter spike) is complete and tagged (`week-four-anthropic-adapter-spike`). W4-D is planned in `docs/15_week_four_d_plan.md` (Codex-reviewed); implementation not started.
 
-- **W4-C proves real-provider `record → offline replay` only.** No broader scope.
-- **Real-provider fork continuation is deferred** until structured transcript migration (Path B from `docs/13_adapter_contract.md`). Do not claim or implement fork-with-fresh-Anthropic-adapter from a cassette.
-- **No CLI Anthropic flag** (`--adapter anthropic`) until explicitly planned. Activation is proof-script only (`src/examples/realRunProof.ts`).
-- **W4-C3 (proof script) does not begin** until W4-C2 is pushed and any docs drift identified by audit is addressed.
-- **W4-C is not complete** until the tool-use path is either demonstrated end-to-end (record → offline replay with one tool call) or explicitly scoped out with documented rationale.
+Active rules for W4-D:
+
+- **W4-D is fake-first, deterministic, and offline-only.** No real provider calls, no live/key-gated tests, no CLI Anthropic wiring anywhere in W4-D.
+- **Migrate the transcript, do not run the provider.** W4-D moves tool-call correlation from adapter memory into structured cassette data; it proves reconstruction against the fake model and a **mocked** Anthropic client only.
+- **No version bump until structured payloads are written.** W4-D1 adds types/helpers only (no schema bump); W4-D2 atomically bumps `CURRENT_TRACE_VERSION` to 2 when structured emission begins. Never create v2 cassettes with v1 transcript semantics.
+- **`toolCallId` is provider-neutral and deterministic.** Never persist provider `tool_use_id`, usage, message ids, or raw provider content arrays. Fork continuation must seed the next tool-call index (no `call-0` reuse).
+- **Do not claim Anthropic accepts synthetic `toolCallId` as `tool_use.id`.** That is a W4-E question, to be verified with Context7 + installed types + a live proof.
+- **Legacy `TOOL_CALL_PATTERN` / `#pendingToolCalls` are removed only after** v2 structured cassettes are the only loadable shape.
 
 ---
 
