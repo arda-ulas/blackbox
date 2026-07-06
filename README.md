@@ -4,7 +4,9 @@ Blackbox is a time-travel debugger for AI agents: record a multi-step run, repla
 
 ## Status
 
-Week Two hardening complete (W2-A through W2-D). Week-one CLI proof accepted and tagged.
+Week Three CLI packaging complete (W3-A through W3-D). Week-two hardening and week-one CLI proof accepted and tagged.
+
+See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 
 ## What It Does
 
@@ -29,6 +31,13 @@ Week Two hardening complete (W2-A through W2-D). Week-one CLI proof accepted and
 - **W2-C** — Fork-point semantics: defined and documented for every step type; `metadata` steps are rejected as fork points
 - **W2-D** — Richer demos: success path (search → calendar → booking) and error path (unknown tool) both recorded; `example:fork` demonstrates tool-result mutation
 
+## Week-Three CLI ✓
+
+- **W3-A** — Unified `npm run cli --` entry point with `record`, `replay`, `fork`, `diff` subcommands; hand-rolled arg parser; flag validation
+- **W3-B** — `list` and `inspect` subcommands; `list` validates hash chains before counting files as valid
+- **W3-C** — Terminal output polish: consistent section headers, human-readable divergence summary (`Summary: tool_result differs at index 3`), `[blackbox]` prefixes on command headers
+- **W3-D** — Demo walkthrough (`DEMO.md`)
+
 ## Not Current Focus
 
 - Web UI / Dashboard / Metrics charts
@@ -39,8 +48,14 @@ Week Two hardening complete (W2-A through W2-D). Week-one CLI proof accepted and
 ## Quick Start
 
 ```sh
-npm test
-npm run example:record   # records a success trace and an error trace to traces/
-npm run example:replay   # replays the success trace offline from cassette
-npm run example:fork     # injects a different search result, forks at step 4, diffs the histories
+npm install
+npm test -- --run
+npm run cli -- record
+npm run cli -- list
+npm run cli -- inspect
+npm run cli -- replay
+npm run cli -- fork
+npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 ```
+
+See [DEMO.md](DEMO.md) for annotated expected output and explanation of each step.
