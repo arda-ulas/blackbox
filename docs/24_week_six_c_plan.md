@@ -85,12 +85,14 @@ assertion alone.
 
 ### 3.2 Docs are reconciled to reality, never reality to docs
 
-Where a doc claim and the repo disagree, **the repo wins** and the doc is corrected — never the reverse. The only
-edits permitted are: (a) the stale test count `360 → 394` wherever it appears; (b) the README Status headline +
-latest-tag line advanced to the W6-B state; (c) new README build-history sections for W5-B, W6-A, W6-B; (d) the
-DEMO opening core-loop string extended to `… → diff → verify → check`; (e) the appended build-log entry. If Phase A
-uncovers a *command* mismatch that cannot be fixed by docs (not expected), the work **stops** and a separate,
-Codex-audited source-fix plan is written — W6-C does not silently patch runtime code.
+Where a doc claim and the repo disagree, **the repo wins** and the doc is corrected — never the reverse. The
+permitted edits are: (a) the stale test count `360 → 394` wherever it appears; (b) the README Status headline +
+tag lines advanced to the W6-B/W6-C state with the durable tag wording of §3.5; (c) new README build-history
+sections for W5-B, W6-A, W6-B (and a W6-C release-freeze note); (d) the DEMO opening core-loop string extended to
+`… → diff → verify → check`; (e) the appended build-log entry; and (f) the **required** current-state pointer
+refresh in `AGENTS.md` and `CLAUDE.md` (§3.6). If Phase A uncovers a *command* mismatch that cannot be fixed by docs
+(not expected), the work **stops** and a separate, Codex-audited source-fix plan is written — W6-C does not silently
+patch runtime code.
 
 ### 3.3 A release-freeze checklist is captured in this plan (§6)
 
@@ -104,6 +106,31 @@ repo state the public docs are allowed to claim at this tag. It lives in this pl
 W6-C adds **no** CLI flag, command, or exit code, and changes **no** source, test, fixture, or config file except
 the documentation files enumerated in §7. The freeze verifies the *existing* surface; it does not extend it.
 
+### 3.5 Durable tag wording (survives W6-C's own tag)
+
+W6-C is expected to land its own release-freeze tag: **`week-six-release-freeze`**. Naming
+`week-six-verify-replay-explanations` as "latest tag" in `README.md` would therefore become false the moment W6-C is
+tagged. To stay true *after* W6-C tagging, the README must distinguish the two:
+
+- **Latest release-freeze tag:** `week-six-release-freeze` (this milestone; the frozen, verified public surface).
+- **Latest technical-capability tag before release-freeze:** `week-six-verify-replay-explanations` (W6-B — the last
+  behaviour-changing milestone).
+
+Any equivalent wording is acceptable provided it remains literally true after `week-six-release-freeze` exists. The
+README must **not** call `week-six-verify-replay-explanations` "the latest tag" unqualified. Because the release-freeze
+tag is created only at closeout (after push), the doc edit lands referencing `week-six-release-freeze` as the
+intended release-freeze tag; §6-B's post-push checklist confirms the tag actually points at HEAD.
+
+### 3.6 `AGENTS.md` and `CLAUDE.md` are required, not optional
+
+W6-C is a **release-freeze + repo-truth** milestone, so the two agent-facing state files must also tell the truth.
+Both currently carry stale current-state language: `AGENTS.md` still says "Current State: W5-B docs/repo-readiness"
+and cites `360/360`; `CLAUDE.md` still describes the "Post-W5-A. W5-B in progress" state with `360/360` and a
+W5-B-scoped "Next Safest Task". Reconciling them is **in required scope** for W6-C (a narrow current-state pointer
+refresh only — the same category of edit prior milestones made at closeout, now mandatory rather than optional).
+Guardrails, build-scope rules, the agent-role table, invariants, technical rules, response-format sections, and all
+historical milestone entries (including their historical counts) are preserved verbatim in both files.
+
 ---
 
 ## 4. Exact acceptance criteria
@@ -116,30 +143,46 @@ An implementation of W6-C is accepted only if **all** of the following hold:
 2. **Test count truthful everywhere.** No doc states a stale test total. Every count reads **394/394** (or the exact
    number `npm test -- --run` reports at implementation time, if a later same-scope doc-only commit changed it —
    the number must match the suite, whatever it is).
-3. **Status + latest tag truthful.** `README.md` Status names the current milestone state (post-W6-B) and
-   `week-six-verify-replay-explanations` as the latest tag; no doc claims `week-five-trace-fixture-corpus` is HEAD.
+3. **Status + tag wording truthful and durable.** `README.md` Status names the current milestone state (W6-C
+   release-freeze, post-W6-B) and uses the §3.5 durable tag wording — **latest release-freeze tag:**
+   `week-six-release-freeze`; **latest technical-capability tag before release-freeze:**
+   `week-six-verify-replay-explanations`. No doc calls `week-six-verify-replay-explanations` "the latest tag"
+   unqualified, and no doc claims `week-five-trace-fixture-corpus` is HEAD.
 4. **Build history complete.** `README.md`'s build-history section has accurate W5-B, W6-A, and W6-B entries in
-   milestone order, consistent with `docs/08_build_log.md` and the tag set.
+   milestone order (plus a W6-C release-freeze note), consistent with `docs/08_build_log.md` and the tag set.
 5. **Core loop stated consistently.** Both `README.md` and `DEMO.md` state the loop as
    `record → replay → fork → mutate → continue → diff → verify → check` in their front-matter narrative.
-6. **No command/flag/path/exit-code claim changed.** The only doc edits are the drift classes in §1 (count, status,
-   tag, build-history, core-loop string) plus the build-log entry. No command invocation, flag name, default path,
-   or exit-code claim is altered (Phase A confirms them already correct).
-7. **Release-freeze checklist present and green.** The §6 checklist is executed and every line passes at the
-   implementation commit; the outcome is recorded in the build-log entry.
-8. **Offline + green, unchanged.** `npm test -- --run` passes at **394** (or the then-current true count), zero live
+6. **`AGENTS.md` and `CLAUDE.md` reconciled (required).** Both agent-facing state files are truthful at closeout:
+   - **W6-B closed and tagged** `week-six-verify-replay-explanations`.
+   - **W6-C (release-freeze + README/DEMO verification) is the current milestone**, tagged `week-six-release-freeze`
+     at closeout.
+   - **Current baseline is 394/394** (or the then-true suite count) wherever a *current* count appears.
+   - **No stale W5-A / W5-B current-state language** remains (no "Current State: W5-B", no "Post-W5-A. W5-B in
+     progress", no W5-B-scoped "Next Safest Task").
+   - **No stale current `360/360`** where the current state should read 394/394.
+   - **Guardrails, build-scope rules, the agent-role table, invariants, technical rules, and response-format
+     sections are preserved verbatim**; all **historical milestone entries and their historical counts are
+     unchanged** — only current-state pointers/counts/next-step lines advance.
+7. **No command/flag/path/exit-code claim changed.** The only doc edits are the drift classes in §1 (count, status,
+   tag, build-history, core-loop string), the §3.6 `AGENTS.md`/`CLAUDE.md` pointer refresh, and the build-log entry.
+   No command invocation, flag name, default path, or exit-code claim is altered (Phase A confirms them already
+   correct).
+8. **Release-freeze checklists present and green.** The §6-A local pre-push checklist passes at the implementation
+   commit; the §6-B post-push/tag checklist passes at closeout. Both outcomes are recorded in the build-log entry.
+9. **Offline + green, unchanged.** `npm test -- --run` passes at **394** (or the then-current true count), zero live
    calls, no API key required. `npm run cli -- check` PASS. `npm run fixtures:generate` check mode reports the
    corpus in sync. `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof` exits at the key guard.
-9. **No frozen artifact touched.** No fixture byte changes; no frozen hash constant in `tests/fixtures.test.ts` is
-   edited; `git ls-files traces` stays empty. `hash.ts`, `TraceStepHashInput`, `CURRENT_TRACE_VERSION`,
-   `Trace`/`TraceStep`/`TraceStepType`, `validateTrace`, `replayTrace`, `forkRun`, `diffTraces`, `verifyTrace`,
-   `selfCheck`, `cli.ts`, and all provider/adapter code are untouched.
-10. **No new dependency / surface.** `package.json` / `package-lock.json` gain no dependency or script. No UI,
+10. **No frozen artifact touched.** No fixture byte changes; no frozen hash constant in `tests/fixtures.test.ts` is
+    edited; `git ls-files traces` stays empty. `hash.ts`, `TraceStepHashInput`, `CURRENT_TRACE_VERSION`,
+    `Trace`/`TraceStep`/`TraceStepType`, `validateTrace`, `replayTrace`, `forkRun`, `diffTraces`, `verifyTrace`,
+    `selfCheck`, `cli.ts`, and all provider/adapter code are untouched.
+11. **No new dependency / surface.** `package.json` / `package-lock.json` gain no dependency or script. No UI,
     backend, dashboard, observability, or Anthropic CLI wiring.
-11. **Docs-only diff.** `git diff --name-only` at the implementation commit shows only documentation files:
-    `README.md`, `DEMO.md`, `docs/08_build_log.md`, this plan's status header, and (only if §11 triggers)
-    `docs/24_week_six_c_release_checklist.md`. No file under `src/`, `tests/`, `scripts/`, or `fixtures/`.
-12. **Historical counts preserved.** Prior milestone entries keep their historical counts (e.g. W4-G 321, W5-A 360,
+12. **Docs-only diff.** `git diff --name-only` at the implementation commit shows only the allowed documentation
+    files: `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`, `docs/24_week_six_c_plan.md`
+    (status header), and (only if §11 triggers) `docs/24_week_six_c_release_checklist.md`. No file under `src/`,
+    `tests/`, `scripts/`, or `fixtures/`, and no `package.json` / `package-lock.json` / `.gitignore`.
+13. **Historical counts preserved.** Prior milestone entries keep their historical counts (e.g. W4-G 321, W5-A 360,
     W6-A 381, W6-B 394); only *current-state* headlines are advanced. No historical build-log entry is rewritten.
 
 ---
@@ -180,8 +223,9 @@ Additional claim checks (non-command, still verified against the repo):
 | "5 fixture(s)" corpus | `fixtures/traces/` file count + `FIXTURE_MANIFEST` | PASS |
 | verify PASS block wording | `runVerify` output in `src/cli.ts` | PASS |
 | verify FAIL labelled block (`Failure` / `invariant:` / `action:`) | `formatVerifyFailure` (W6-B) | PASS |
-| Latest tag = `week-six-verify-replay-explanations` | `git tag` / `git log --decorate` | PASS after §7 edit |
+| Tag wording durable (§3.5): release-freeze `week-six-release-freeze`; last capability tag `week-six-verify-replay-explanations` | `git tag` / `git log --decorate` | PASS after §7 edit (release-freeze tag confirmed by §6-B post-push) |
 | Test total = 394/394 | `npm test -- --run` | PASS after §7 edit |
+| `AGENTS.md` / `CLAUDE.md` current-state truthful | file contents vs. tags/count | PASS after §7 edit |
 
 The live proof scripts (rows 14–16) are verified for **existence only** — they are opt-in, key-gated, and never run
 by this milestone (row 16's key-guard exit may be exercised without a key, as prior milestones do).
@@ -190,14 +234,19 @@ by this milestone (row 16's key-guard exit may be exercised without a key, as pr
 
 ## 6. Release-freeze definition (checklist)
 
-The "freeze" is this repeatable checklist. It asserts the exact repo state the public docs are allowed to claim at
-the W6-C tag. Every line must pass at the implementation commit and the result is recorded in the build-log entry.
+The "freeze" is a repeatable checklist in **two phases**, because W6-C is audited locally *before* push. Phase A is
+the gate for the local closeout (the working tree is expected to be **ahead** of `origin/master` by the W6-C
+commit(s), not aligned). Phase B is the gate applied *after* push and tag, when HEAD/origin/tag alignment becomes
+required. Both outcomes are recorded in the build-log entry.
 
-**Repo state**
-- [ ] Working tree clean; on `master`; HEAD aligned with `origin/master`.
-- [ ] `git ls-files traces` is empty (no cassette committed); `git ls-files fixtures/traces` lists exactly the five
-      committed fixtures.
-- [ ] `git tag --list "week-*"` contains all closed tags through `week-six-verify-replay-explanations`.
+### 6-A. Local pre-push closeout (at the implementation commit, before push/tag)
+
+**Repo state (local)**
+- [ ] Working tree clean.
+- [ ] On branch `master`.
+- [ ] Branch is **ahead of `origin/master` by exactly the W6-C implementation/docs commit(s)** and by nothing else
+      (do not require HEAD = origin here — the commit is not pushed yet).
+- [ ] `git ls-files traces` is empty; `git ls-files fixtures/traces` lists exactly the five committed fixtures.
 
 **Test + loop**
 - [ ] `npm test -- --run` → **394/394** (or the then-true count), zero live calls, no API key present.
@@ -207,19 +256,35 @@ the W6-C tag. Every line must pass at the implementation commit and the result i
 
 **Docs truthful**
 - [ ] Every command in the §5 matrix marked PASS with evidence.
-- [ ] Test count in `README.md` + `DEMO.md` matches the suite (394).
-- [ ] `README.md` Status names the post-W6-B state and `week-six-verify-replay-explanations` as latest tag.
-- [ ] `README.md` build history has W5-B, W6-A, W6-B entries in order.
+- [ ] Test count in `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md` matches the suite (394) wherever a *current*
+      count appears; historical counts unchanged.
+- [ ] `README.md` Status uses the §3.5 durable tag wording (release-freeze `week-six-release-freeze`; last
+      capability tag `week-six-verify-replay-explanations`) — not "latest tag = W6-B" unqualified.
+- [ ] `README.md` build history has W5-B, W6-A, W6-B entries in order (plus a W6-C release-freeze note).
 - [ ] `README.md` and `DEMO.md` both state the full loop `record → replay → fork → mutate → continue → diff →
       verify → check`.
+- [ ] `AGENTS.md` and `CLAUDE.md` current-state pointers name W6-C as current and W6-B (`week-six-verify-replay-
+      explanations`) as the last closed capability tag; no stale W5-A/W5-B current-state language remains.
 - [ ] No doc claims a command, flag, path, or exit code the repo does not implement.
 
-**Guardrails**
-- [ ] `package.json` / `package-lock.json` unchanged; no new dependency or script.
-- [ ] `git diff --name-only` shows documentation files only.
+**Guardrails (no forbidden files changed)**
+- [ ] `package.json` / `package-lock.json` / `.gitignore` unchanged; no new dependency or script.
+- [ ] `git diff --name-only` shows only the allowed docs (`README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`,
+      `docs/08_build_log.md`, `docs/24_week_six_c_plan.md`, and — only if §11 triggers —
+      `docs/24_week_six_c_release_checklist.md`).
 - [ ] No source/test/fixture/config change.
 
-Passing every line is the definition of "release-frozen at W6-C." Any failing line blocks the tag.
+Passing every 6-A line is the gate for the **local Codex closeout audit**. Any failing line blocks push.
+
+### 6-B. Post-push / tag closeout (after push and after the W6-C tag is created)
+
+- [ ] `git push` completed; **HEAD = `origin/master`**.
+- [ ] The W6-C tag **`week-six-release-freeze`** exists and **points at HEAD**.
+- [ ] Working tree clean.
+- [ ] `git tag --list "week-*"` includes **`week-six-diff-inspect-ergonomics` (W6-A)**,
+      **`week-six-verify-replay-explanations` (W6-B)**, and **`week-six-release-freeze` (W6-C)**.
+
+Passing every 6-A line locally then every 6-B line after push/tag is the definition of "release-frozen at W6-C."
 
 ---
 
@@ -228,15 +293,17 @@ Passing every line is the definition of "release-frozen at W6-C." Any failing li
 Edits are the **minimum** needed to reconcile the §1 drift; nothing else in these files is touched.
 
 - **`README.md`**
-  - **Status section** — advance the headline from "Post-W5-A. Ready for W5-B (docs/repo-readiness)." to the
-    post-W6-B state; change "Latest tag: `week-five-trace-fixture-corpus` (W5-A …)" to
-    `week-six-verify-replay-explanations` (W6-B) with a one-line descriptor; change "Tests: 360/360" to
-    "Tests: 394/394".
+  - **Status section** — advance the headline from "Post-W5-A. Ready for W5-B (docs/repo-readiness)." to the W6-C
+    release-freeze state (post-W6-B); replace "Latest tag: `week-five-trace-fixture-corpus` (W5-A …)" with the §3.5
+    **durable** wording — **latest release-freeze tag:** `week-six-release-freeze`; **latest technical-capability tag
+    before release-freeze:** `week-six-verify-replay-explanations` — so the line stays true after W6-C is tagged;
+    change "Tests: 360/360" to "Tests: 394/394".
   - **"For reviewers" block** — change the `npm test -- --run # 360 tests` comment to `# 394 tests`.
-  - **"Build history"** — append three sections in order: **Week-Five Public Demo Readiness
+  - **"Build history"** — append sections in order: **Week-Five Public Demo Readiness
     (`week-five-public-demo-readiness`)**, **Week-Six Diff/Inspect Ergonomics (`week-six-diff-inspect-ergonomics`)**,
-    **Week-Six Verify/Replay Explanations (`week-six-verify-replay-explanations`)** — each a short, accurate bullet
-    list consistent with the build-log entries. No prior section is rewritten.
+    **Week-Six Verify/Replay Explanations (`week-six-verify-replay-explanations`)**, and a **Week-Six Release Freeze
+    (`week-six-release-freeze`)** note — each a short, accurate bullet list consistent with the build-log entries.
+    No prior section is rewritten.
   - Optionally add one line to "What it proves" noting divergence and verify-failure legibility (W6-A/W6-B) — only
     if it stays accurate and adds no overclaim; skip if it risks bloat.
 - **`DEMO.md`**
@@ -250,9 +317,18 @@ Edits are the **minimum** needed to reconcile the §1 drift; nothing else in the
   freeze-checklist pass, and the exact doc edits.
 - **`README.md` / `DEMO.md` command lists** — unchanged in count and order; only the inline comments/claims above
   change.
-- **`AGENTS.md` / `CLAUDE.md`** — current-state pointer refresh at closeout only (advance the "current milestone"
-  line and closed-tag set), consistent with prior milestones; no guardrail or invariant change. *(Optional at
-  closeout; not required for the matrix/freeze work itself.)*
+- **`AGENTS.md`** *(required)* — narrow current-state pointer refresh only: change "Current State: W5-B
+  docs/repo-readiness (W5-A closed and tagged)" to name **W6-C release-freeze as current** with **W6-B
+  (`week-six-verify-replay-explanations`) closed and tagged**, and the current baseline **394/394**; update the
+  "Test Rule"/current-state count from `360/360` to 394/394 wherever it reflects the *current* suite. Preserve the
+  Build Scope Guardrails, invariants, the Documentation Rule, the Agent Roles table, Commit Hygiene, and every
+  historical milestone entry (and their historical counts) verbatim.
+- **`CLAUDE.md`** *(required)* — narrow current-state/count/next-step refresh only: change the "Post-W5-A. W5-B
+  (docs/repo-readiness) in progress." headline to the **W6-C release-freeze** state; add
+  `week-six-verify-replay-explanations` (and, at closeout, `week-six-release-freeze`) to the closed-tag set; change
+  the current test count `360/360` to **394/394**; re-point the "Agent Workflow" sequencing and "Next Safest Task"
+  from the W5-B flow to the W6-C release-freeze flow. Preserve Hard Guardrails, Technical Rules, Core Loop, and
+  Response Format verbatim; do not rewrite the closed-tags historical list beyond adding the newly closed tags.
 - **`docs/03_trace_schema.md`** — no change (schema untouched; hard requirement).
 
 ---
@@ -268,8 +344,10 @@ unchanged suite proving nothing regressed.
    `tests/fixtures.test.ts` unmodified and passing.
 3. **Command matrix executed.** Each §5 row confirmed against its evidence source; the live proof rows confirmed
    for existence (`example:real-fork-proof` exercised only to its key-guard exit, no live call).
-4. **Freeze checklist executed.** Every §6 line passes; the result is captured in the build-log entry.
-5. **Docs-only diff asserted.** `git diff --name-only` shows documentation files only (criterion §4.11).
+4. **Freeze checklists executed.** Every §6-A line passes locally before push; every §6-B line passes after
+   push/tag; both results are captured in the build-log entry.
+5. **Docs-only diff asserted.** `git diff --name-only` shows only the allowed docs (criterion §4.12) —
+   `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`, `docs/24_week_six_c_plan.md`.
 6. **No frozen artifact touched.** `git ls-files traces` empty; `git ls-files fixtures/traces` lists the five
    fixtures unchanged; no frozen hash constant edited.
 
@@ -330,28 +408,39 @@ needed).
 > Documentation / verification only — do not touch any file under `src/`, `tests/`, `scripts/`, or `fixtures/`, and
 > do not change `package.json`, `package-lock.json`, or `.gitignore`.
 >
+> Allowed files (docs-only): `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`,
+> `docs/24_week_six_c_plan.md` (status header), and — only if §11 explicitly triggers —
+> `docs/24_week_six_c_release_checklist.md`. Touch nothing else.
+>
 > 1. **Phase A — verify (read-only).** For every command in `README.md` and `DEMO.md`, confirm it against its source
 >    of truth: `npm run *` scripts against `package.json`; `npm run cli -- <sub>` subcommands/flags against the
 >    `src/cli.ts` allow-lists and dispatch switch; default paths and exit codes against the command bodies. Record
 >    the result in the §5 matrix. Run `npm test -- --run` and note the exact total. Run `npm run cli -- check`,
 >    `npm run fixtures:generate` (check mode), and `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof`
->    (key-guard exit). Execute the §6 freeze checklist.
-> 2. **Phase B — reconcile (docs only).** Edit `README.md` and `DEMO.md` *only* for the proven drift: the stale test
->    count `360 → 394` (or the true suite count) everywhere it appears; the README Status headline + latest-tag line
->    advanced to the W6-B state (`week-six-verify-replay-explanations`); new README build-history sections for W5-B,
->    W6-A, W6-B in order; the DEMO opening core-loop string extended to `… → diff → verify → check`. Do not change
->    any command, flag, path, or expected-output block. Append a W6-C build-log entry recording the matrix result
->    and the freeze-checklist pass. Optionally refresh the `AGENTS.md`/`CLAUDE.md` current-state pointers at
->    closeout.
+>    (key-guard exit). Execute the §6-A local pre-push freeze checklist.
+> 2. **Phase B — reconcile (docs only).** Edit the allowed docs *only* for the proven drift:
+>    - the stale test count `360 → 394` (or the true suite count) everywhere a *current* count appears (in
+>      `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`);
+>    - the README Status headline + tag lines advanced to the W6-C release-freeze state using the §3.5 **durable**
+>      wording (latest release-freeze tag `week-six-release-freeze`; latest capability tag before release-freeze
+>      `week-six-verify-replay-explanations`) — do **not** write "latest tag = W6-B" unqualified;
+>    - new README build-history sections for W5-B, W6-A, W6-B in order, plus a W6-C release-freeze note;
+>    - the DEMO opening core-loop string extended to `… → diff → verify → check`;
+>    - the **required** narrow current-state pointer refresh in `AGENTS.md` and `CLAUDE.md` per §3.6 / §7 (W6-C
+>      current, W6-B closed/tagged, 394/394, no stale W5-A/W5-B language; guardrails/roles/invariants/historical
+>      entries and historical counts preserved verbatim).
+>    Do not change any command, flag, path, or expected-output block. Append a W6-C build-log entry recording the
+>    matrix result and the §6-A checklist pass (and, at closeout, the §6-B result).
 > 3. If Phase A uncovers a real *command* mismatch that cannot be fixed by docs, **stop** and write a separate,
 >    Codex-audited source-fix plan — do not patch runtime code under this milestone.
 >
-> Acceptance gate: `npm test -- --run` green at the count the docs now state (zero live calls, no key),
-> `npm run cli -- check` PASS, `npm run fixtures:generate` check mode in sync,
+> Acceptance gate (local, pre-push): `npm test -- --run` green at the count the docs now state (zero live calls, no
+> key), `npm run cli -- check` PASS, `npm run fixtures:generate` check mode in sync,
 > `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof` exits at the key guard, `git ls-files traces` empty,
-> `package.json` unchanged, `git diff --name-only` shows documentation files only, every §5 matrix row PASS, every
-> §6 freeze line green. Then report: files changed / what is real / what is mocked / tests pass / next safest task.
-> Do not push or tag.
+> `package.json`/`package-lock.json`/`.gitignore` unchanged, `git diff --name-only` shows only the allowed docs,
+> every §5 matrix row PASS, every §6-A line green, branch ahead of `origin/master` by the W6-C commit(s) only. Then
+> report: files changed / what is real / what is mocked / tests pass / next safest task. Do not push or tag (§6-B is
+> applied only after the human pushes and tags `week-six-release-freeze`).
 
 ---
 
@@ -360,27 +449,40 @@ needed).
 > Audit the W6-C plan in `docs/24_week_six_c_plan.md` (and, once implemented, the diff) as a repo-aware reviewer
 > before it is accepted for implementation / before tag. Confirm specifically:
 >
-> 1. **Docs-only.** No change to any file under `src/`, `tests/`, `scripts/`, `fixtures/`, or to `package.json` /
->    `package-lock.json` / `.gitignore`. `git diff --name-only` shows documentation files only.
+> 1. **Docs-only, allowed set.** No change to any file under `src/`, `tests/`, `scripts/`, `fixtures/`, or to
+>    `package.json` / `package-lock.json` / `.gitignore`. `git diff --name-only` shows only the allowed docs:
+>    `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`, `docs/24_week_six_c_plan.md` (and, if
+>    §11 triggered, `docs/24_week_six_c_release_checklist.md`).
 > 2. **Every documented command is real.** Each command in `README.md`/`DEMO.md` maps to an actual `package.json`
 >    script or `src/cli.ts` subcommand/flag; no doc claims a command, flag, path, or exit code the repo does not
 >    implement. The §5 matrix is complete and evidence-backed.
-> 3. **Counts/tags/status truthful.** Every test count matches `npm test -- --run` (394 at HEAD); the README Status
->    and latest-tag line name `week-six-verify-replay-explanations`; no doc claims `week-five-trace-fixture-corpus`
->    is HEAD; the build history has accurate W5-B/W6-A/W6-B entries.
-> 4. **Core loop stated consistently.** Both front-door docs state `record → replay → fork → mutate → continue →
+> 3. **Counts/status truthful.** Every *current* test count matches `npm test -- --run` (394 at HEAD) in
+>    `README.md`, `DEMO.md`, `AGENTS.md`, and `CLAUDE.md`; no doc claims `week-five-trace-fixture-corpus` is HEAD;
+>    the build history has accurate W5-B/W6-A/W6-B entries plus a W6-C release-freeze note.
+> 4. **Tag wording durable (§3.5).** The README uses release-freeze `week-six-release-freeze` as the latest
+>    release-freeze tag and `week-six-verify-replay-explanations` as the latest capability tag before release-freeze
+>    — it does **not** call W6-B "the latest tag" unqualified, so the wording stays true after W6-C is tagged.
+> 5. **`AGENTS.md` / `CLAUDE.md` reconciled (required).** Both name W6-C as the current milestone and W6-B
+>    (`week-six-verify-replay-explanations`) as the last closed capability tag, cite 394/394 as the current
+>    baseline, and carry no stale W5-A/W5-B current-state language or stale current `360/360`. Guardrails,
+>    build-scope rules, the agent-role table, invariants, technical rules, and response-format sections are
+>    preserved verbatim; all historical milestone entries and their historical counts are unchanged.
+> 6. **Core loop stated consistently.** Both front-door docs state `record → replay → fork → mutate → continue →
 >    diff → verify → check`.
-> 5. **No overclaim.** No doc asserts a live-by-default path, a shipped/published package, a UI/backend/dashboard,
+> 7. **No overclaim.** No doc asserts a live-by-default path, a shipped/published package, a UI/backend/dashboard,
 >    or a capability the code does not prove. Anthropic proofs remain described as opt-in, human-run,
 >    never-in-`npm test`, never-CLI-wired.
-> 6. **Frozen artifacts intact.** No fixture byte or frozen-hash change; `git ls-files traces` empty;
+> 8. **Frozen artifacts intact.** No fixture byte or frozen-hash change; `git ls-files traces` empty;
 >    `git ls-files fixtures/traces` lists the five committed fixtures unchanged.
-> 7. **Historical record preserved.** Prior milestone entries and their historical counts are unchanged; only
+> 9. **Historical record preserved.** Prior milestone entries and their historical counts are unchanged; only
 >    current-state headlines advanced.
-> 8. **Freeze checklist sound.** The §6 checklist actually asserts the state the public docs claim, and every line
->    passed at the implementation commit (recorded in the build log).
-> 9. **Guardrails held.** No UI/backend/dashboard/observability, no Anthropic CLI wiring, no live call, no new
->    provider adapter, no new dependency, no schema/hash change, no new CLI surface, no product-surface expansion.
+> 10. **Freeze checklists sound and phase-correct.** §6-A asserts the *local pre-push* state (working tree clean, on
+>     master, branch ahead of `origin/master` by the W6-C commit(s) only — **not** HEAD = origin) and passed at the
+>     implementation commit; §6-B asserts the *post-push/tag* state (HEAD = origin/master, `week-six-release-freeze`
+>     points at HEAD, week-six tags include W6-A/W6-B/W6-C) and is applied after push. Both are recorded in the
+>     build log. Flag any pre-push line that impossibly requires HEAD = origin.
+> 11. **Guardrails held.** No UI/backend/dashboard/observability, no Anthropic CLI wiring, no live call, no new
+>     provider adapter, no new dependency, no schema/hash change, no new CLI surface, no product-surface expansion.
 >
 > Report any scope creep (especially any touch to source/tests/fixtures, any new dependency or CLI surface, or any
 > doc claim not backed by the repo) as a blocker.
