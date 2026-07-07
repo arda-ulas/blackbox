@@ -12,6 +12,7 @@
     "example:replay": "tsx src/examples/replay.ts",
     "example:fork": "tsx src/examples/fork.ts",
     "cli": "tsx src/cli.ts",
+    "fixtures:generate": "tsx scripts/generateFixtures.ts",
     "example:real-proof": "tsx src/examples/realRunProof.ts",
     "example:real-tooluse-proof": "tsx src/examples/realToolUseProof.ts",
     "example:real-fork-proof": "tsx src/examples/realForkProof.ts"

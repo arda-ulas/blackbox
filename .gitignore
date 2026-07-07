@@ -16,8 +16,10 @@ dist
 dist-ssr
 *.local
 
-# Generated cassette output from example scripts
-traces/
+# Generated cassette output from example scripts.
+# Anchored to the repo root so the committed regression corpus under
+# fixtures/traces/ is NOT ignored (an unanchored `traces/` would match it too).
+/traces/
 
 # Editor directories and files
 .vscode/*

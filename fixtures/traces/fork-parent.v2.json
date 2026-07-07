@@ -1,0 +1,507 @@
+{
+  "version": 2,
+  "id": "fixture-fork-parent",
+  "createdAt": 0,
+  "steps": [
+    {
+      "id": "fixture-fork-parent:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": null,
+      "hash": "0e91489d46f6b74c8ee14be3357136fe5b68960f767a1ffe36fb3a8cc3cf0ead"
+    },
+    {
+      "id": "fixture-fork-parent:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-0",
+        "toolName": "search",
+        "toolInput": {
+          "query": "weekend hotels"
+        }
+      },
+      "prevHash": "0e91489d46f6b74c8ee14be3357136fe5b68960f767a1ffe36fb3a8cc3cf0ead",
+      "hash": "5d32b8fc6c8af6efc44175b3a35b698c61433edaa9ca29b0e058862f9ca4f3c7"
+    },
+    {
+      "id": "fixture-fork-parent:2",
+      "index": 2,
+      "type": "tool_call",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "search",
+        "toolInput": {
+          "query": "weekend hotels"
+        }
+      },
+      "prevHash": "5d32b8fc6c8af6efc44175b3a35b698c61433edaa9ca29b0e058862f9ca4f3c7",
+      "hash": "991abf4ef07e9938f28864994486f27ceb4b257e6d30a054cb1d1bab89fce6c3"
+    },
+    {
+      "id": "fixture-fork-parent:3",
+      "index": 3,
+      "type": "tool_result",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "search",
+        "result": {
+          "results": [
+            {
+              "title": "Fixture result A for \"weekend hotels\"",
+              "snippet": "First deterministic result."
+            },
+            {
+              "title": "Fixture result B for \"weekend hotels\"",
+              "snippet": "Second deterministic result."
+            }
+          ]
+        }
+      },
+      "prevHash": "991abf4ef07e9938f28864994486f27ceb4b257e6d30a054cb1d1bab89fce6c3",
+      "hash": "a201c4698c41848d1ed3ac13ef8ee87e784b8bcb73371ccf446d2e5f362655e7"
+    },
+    {
+      "id": "fixture-fork-parent:4",
+      "index": 4,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "toolInput": {
+                  "query": "weekend hotels"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "result": {
+                  "results": [
+                    {
+                      "title": "Fixture result A for \"weekend hotels\"",
+                      "snippet": "First deterministic result."
+                    },
+                    {
+                      "title": "Fixture result B for \"weekend hotels\"",
+                      "snippet": "Second deterministic result."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": "a201c4698c41848d1ed3ac13ef8ee87e784b8bcb73371ccf446d2e5f362655e7",
+      "hash": "26a8605f9ec0e84c7642d318cae2106b53157cd17511c379c4ae30975f82ad37"
+    },
+    {
+      "id": "fixture-fork-parent:5",
+      "index": 5,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-1",
+        "toolName": "calendar",
+        "toolInput": {
+          "date": "2024-03-15"
+        }
+      },
+      "prevHash": "26a8605f9ec0e84c7642d318cae2106b53157cd17511c379c4ae30975f82ad37",
+      "hash": "8a8e16c1bbe72a7afa94b8220337b3af769724f15c56ab0fb436c8b387b78051"
+    },
+    {
+      "id": "fixture-fork-parent:6",
+      "index": 6,
+      "type": "tool_call",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "calendar",
+        "toolInput": {
+          "date": "2024-03-15"
+        }
+      },
+      "prevHash": "8a8e16c1bbe72a7afa94b8220337b3af769724f15c56ab0fb436c8b387b78051",
+      "hash": "defbd702ee9dbb4ca8506e73cdbaec23f627bc446460a0170b61a21638fc19b3"
+    },
+    {
+      "id": "fixture-fork-parent:7",
+      "index": 7,
+      "type": "tool_result",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "calendar",
+        "result": {
+          "date": "2024-03-15",
+          "availableSlots": [
+            "09:00",
+            "14:00",
+            "16:00"
+          ]
+        }
+      },
+      "prevHash": "defbd702ee9dbb4ca8506e73cdbaec23f627bc446460a0170b61a21638fc19b3",
+      "hash": "3a339c968f622aa4e42a6395799e91eea11503979651f6fee2a5d1caf03fc43e"
+    },
+    {
+      "id": "fixture-fork-parent:8",
+      "index": 8,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "toolInput": {
+                  "query": "weekend hotels"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "result": {
+                  "results": [
+                    {
+                      "title": "Fixture result A for \"weekend hotels\"",
+                      "snippet": "First deterministic result."
+                    },
+                    {
+                      "title": "Fixture result B for \"weekend hotels\"",
+                      "snippet": "Second deterministic result."
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-1",
+                "toolName": "calendar",
+                "toolInput": {
+                  "date": "2024-03-15"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "calendar",
+                "result": {
+                  "date": "2024-03-15",
+                  "availableSlots": [
+                    "09:00",
+                    "14:00",
+                    "16:00"
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": "3a339c968f622aa4e42a6395799e91eea11503979651f6fee2a5d1caf03fc43e",
+      "hash": "6ed23c267be2d23092a26ab4cff15ea3efe7517ff6211c5f8086b0854ea5b619"
+    },
+    {
+      "id": "fixture-fork-parent:9",
+      "index": 9,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-2",
+        "toolName": "booking",
+        "toolInput": {
+          "date": "2024-03-15",
+          "time": "14:00",
+          "name": "Alice"
+        }
+      },
+      "prevHash": "6ed23c267be2d23092a26ab4cff15ea3efe7517ff6211c5f8086b0854ea5b619",
+      "hash": "6fa058d933e08a583a979be8eae81814cfb85a50649ae36d6f99984644ad8a57"
+    },
+    {
+      "id": "fixture-fork-parent:10",
+      "index": 10,
+      "type": "tool_call",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-2",
+        "toolName": "booking",
+        "toolInput": {
+          "date": "2024-03-15",
+          "time": "14:00",
+          "name": "Alice"
+        }
+      },
+      "prevHash": "6fa058d933e08a583a979be8eae81814cfb85a50649ae36d6f99984644ad8a57",
+      "hash": "e28a34ff65dd7ad5bf9bd499495f4e5699be687633ecc7b006129c2cd6bf2285"
+    },
+    {
+      "id": "fixture-fork-parent:11",
+      "index": 11,
+      "type": "tool_result",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-2",
+        "toolName": "booking",
+        "result": {
+          "confirmed": true,
+          "reference": "BK-20240315-1400",
+          "name": "Alice"
+        }
+      },
+      "prevHash": "e28a34ff65dd7ad5bf9bd499495f4e5699be687633ecc7b006129c2cd6bf2285",
+      "hash": "76201e9bbf7fa5b87b253ffdaffcc8176599bf9ffdb614b8238dbc3142dc37a3"
+    },
+    {
+      "id": "fixture-fork-parent:12",
+      "index": 12,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "toolInput": {
+                  "query": "weekend hotels"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "result": {
+                  "results": [
+                    {
+                      "title": "Fixture result A for \"weekend hotels\"",
+                      "snippet": "First deterministic result."
+                    },
+                    {
+                      "title": "Fixture result B for \"weekend hotels\"",
+                      "snippet": "Second deterministic result."
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-1",
+                "toolName": "calendar",
+                "toolInput": {
+                  "date": "2024-03-15"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "calendar",
+                "result": {
+                  "date": "2024-03-15",
+                  "availableSlots": [
+                    "09:00",
+                    "14:00",
+                    "16:00"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-2",
+                "toolName": "booking",
+                "toolInput": {
+                  "date": "2024-03-15",
+                  "time": "14:00",
+                  "name": "Alice"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-2",
+                "toolName": "booking",
+                "result": {
+                  "confirmed": true,
+                  "reference": "BK-20240315-1400",
+                  "name": "Alice"
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": "76201e9bbf7fa5b87b253ffdaffcc8176599bf9ffdb614b8238dbc3142dc37a3",
+      "hash": "b5dd30188ae22c9b8bcceb9f923adb49196df7c15834bbb7b145292e16af81aa"
+    },
+    {
+      "id": "fixture-fork-parent:13",
+      "index": 13,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "final_answer",
+        "text": "Hotel booked for Alice on 2024-03-15 at 14:00."
+      },
+      "prevHash": "b5dd30188ae22c9b8bcceb9f923adb49196df7c15834bbb7b145292e16af81aa",
+      "hash": "2efbf05c23cd7fd79775db639022a423c25765db4576c8ad84781f10be83ebee"
+    },
+    {
+      "id": "fixture-fork-parent:14",
+      "index": 14,
+      "type": "metadata",
+      "timestamp": 0,
+      "payload": {
+        "event": "run_completed",
+        "status": "success",
+        "result": "Hotel booked for Alice on 2024-03-15 at 14:00."
+      },
+      "prevHash": "2efbf05c23cd7fd79775db639022a423c25765db4576c8ad84781f10be83ebee",
+      "hash": "ad95eb1808b8dd4d680a57a64d1da3ae568654bad327ccc756aa525e9d3dbc2f"
+    }
+  ]
+}

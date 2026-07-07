@@ -1,0 +1,170 @@
+{
+  "version": 2,
+  "id": "fixture-fork-parent-fork",
+  "createdAt": 0,
+  "steps": [
+    {
+      "id": "fixture-fork-parent-fork:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": null,
+      "hash": "0e91489d46f6b74c8ee14be3357136fe5b68960f767a1ffe36fb3a8cc3cf0ead"
+    },
+    {
+      "id": "fixture-fork-parent-fork:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-0",
+        "toolName": "search",
+        "toolInput": {
+          "query": "weekend hotels"
+        }
+      },
+      "prevHash": "0e91489d46f6b74c8ee14be3357136fe5b68960f767a1ffe36fb3a8cc3cf0ead",
+      "hash": "5d32b8fc6c8af6efc44175b3a35b698c61433edaa9ca29b0e058862f9ca4f3c7"
+    },
+    {
+      "id": "fixture-fork-parent-fork:2",
+      "index": 2,
+      "type": "tool_call",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "search",
+        "toolInput": {
+          "query": "weekend hotels"
+        }
+      },
+      "prevHash": "5d32b8fc6c8af6efc44175b3a35b698c61433edaa9ca29b0e058862f9ca4f3c7",
+      "hash": "991abf4ef07e9938f28864994486f27ceb4b257e6d30a054cb1d1bab89fce6c3"
+    },
+    {
+      "id": "fixture-fork-parent-fork:3",
+      "index": 3,
+      "type": "tool_result",
+      "timestamp": 0,
+      "payload": {
+        "toolName": "search",
+        "result": {
+          "results": [],
+          "available": false,
+          "message": "No hotels available for that date."
+        },
+        "toolCallId": "call-0"
+      },
+      "prevHash": "991abf4ef07e9938f28864994486f27ceb4b257e6d30a054cb1d1bab89fce6c3",
+      "hash": "bbf0f149979543aeb6ab17f24e0d5aa6b5d79649f53df9dad61bc3d63587dacc"
+    },
+    {
+      "id": "fixture-fork-parent-fork:4",
+      "index": 4,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Book a hotel for Alice this weekend."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "toolInput": {
+                  "query": "weekend hotels"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "search",
+                "result": {
+                  "results": [],
+                  "available": false,
+                  "message": "No hotels available for that date."
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": "bbf0f149979543aeb6ab17f24e0d5aa6b5d79649f53df9dad61bc3d63587dacc",
+      "hash": "d7eea354c03a663f2ac8c960397070ce54e56f2cc7534338a31621655acb5bf8"
+    },
+    {
+      "id": "fixture-fork-parent-fork:5",
+      "index": 5,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "final_answer",
+        "text": "No hotels available for Alice this weekend. The area is fully booked — consider a different date."
+      },
+      "prevHash": "d7eea354c03a663f2ac8c960397070ce54e56f2cc7534338a31621655acb5bf8",
+      "hash": "2bac0da3157e519ff29fb3d4b9573786d7e6986f3cd5b52102523a038207db6b"
+    },
+    {
+      "id": "fixture-fork-parent-fork:6",
+      "index": 6,
+      "type": "metadata",
+      "timestamp": 0,
+      "payload": {
+        "event": "run_completed",
+        "status": "success",
+        "result": "No hotels available for Alice this weekend. The area is fully booked — consider a different date."
+      },
+      "prevHash": "2bac0da3157e519ff29fb3d4b9573786d7e6986f3cd5b52102523a038207db6b",
+      "hash": "dc359be40a52aa2e1488d5b3233b30a8b8da3d1dc43708b02300e8a819bcf4bc"
+    }
+  ],
+  "parentId": "fixture-fork-parent",
+  "forkedFromStepId": "fixture-fork-parent:4"
+}

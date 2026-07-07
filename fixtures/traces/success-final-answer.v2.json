@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "fixture-success-final-answer",
+  "createdAt": 0,
+  "steps": [
+    {
+      "id": "fixture-success-final-answer:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is the capital of France?"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": null,
+      "hash": "69f285d56c33b1bc303c46487dabb75cce71ae3cecdbb713b0492780409d608d"
+    },
+    {
+      "id": "fixture-success-final-answer:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "final_answer",
+        "text": "The capital of France is Paris."
+      },
+      "prevHash": "69f285d56c33b1bc303c46487dabb75cce71ae3cecdbb713b0492780409d608d",
+      "hash": "92e98ba5d5c743e9fd25db58dea782aad943302530cc91e4e49bcec8e10b70c2"
+    },
+    {
+      "id": "fixture-success-final-answer:2",
+      "index": 2,
+      "type": "metadata",
+      "timestamp": 0,
+      "payload": {
+        "event": "run_completed",
+        "status": "success",
+        "result": "The capital of France is Paris."
+      },
+      "prevHash": "92e98ba5d5c743e9fd25db58dea782aad943302530cc91e4e49bcec8e10b70c2",
+      "hash": "b691b4fdfda8d70769766d0227e4028eedd58f7c7248bba3973424ebd70385ed"
+    }
+  ]
+}

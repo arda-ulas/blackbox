@@ -71,11 +71,18 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: post-W4-G — ready for W5-A planning
+## Current State: W5-A implemented — awaiting Codex audit before tag
+
+**W5-A (trace fixture corpus + regression harness) is implemented** per `docs/20_week_five_a_plan.md`: a committed
+fake/offline v2 corpus under `fixtures/traces/`, a deterministic check-by-default generator
+(`scripts/generateFixtures.ts`, `npm run fixtures:generate`), and `tests/fixtures.test.ts` asserting every core
+invariant (schema, hash chain, frozen hashes, neutrality, replay, terminal-error verify, fork-prefix identity,
+frozen first divergence) against the frozen artifacts. Tests: 360/360 offline, zero live calls. This is local
+regression hardening only — it consumes/freezes the existing core and changes no runtime semantics. **Not yet
+tagged**; awaiting Codex audit before push/tag.
 
 **W4-G is complete and tagged (`week-four-fork-verify-workflow`).** All Week Four work is closed through this
-tag. The current core loop is `record → replay → fork → mutate → continue → diff → verify → check`. The next
-allowed step is **W5-A planning only** — no W5-A implementation until it is explicitly scoped and Codex-audited.
+tag. The current core loop is `record → replay → fork → mutate → continue → diff → verify → check`.
 
 W4-F is complete and tagged (`week-four-cassette-verification`): reusable cassette verification core + `verify`
 CLI landed per `docs/18_week_four_f_plan.md`.

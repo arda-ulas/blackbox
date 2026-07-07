@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "id": "fixture-error-unknown-tool",
+  "createdAt": 0,
+  "steps": [
+    {
+      "id": "fixture-error-unknown-tool:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 0,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find the cheapest flight to Tokyo this weekend."
+          }
+        ],
+        "tools": [
+          {
+            "name": "search",
+            "description": "search"
+          },
+          {
+            "name": "calendar",
+            "description": "calendar"
+          },
+          {
+            "name": "booking",
+            "description": "booking"
+          }
+        ]
+      },
+      "prevHash": null,
+      "hash": "065c7c84ee9418f6f49fb94e3ff0e5d4d11b61c79cc0031d9496048d40e7e279"
+    },
+    {
+      "id": "fixture-error-unknown-tool:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 0,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-0",
+        "toolName": "flights",
+        "toolInput": {
+          "destination": "Tokyo"
+        }
+      },
+      "prevHash": "065c7c84ee9418f6f49fb94e3ff0e5d4d11b61c79cc0031d9496048d40e7e279",
+      "hash": "845f857498a3635e6c102b7ced575ecd50121d9b18fbca77158656a2f8e06d7d"
+    },
+    {
+      "id": "fixture-error-unknown-tool:2",
+      "index": 2,
+      "type": "tool_call",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "flights",
+        "toolInput": {
+          "destination": "Tokyo"
+        }
+      },
+      "prevHash": "845f857498a3635e6c102b7ced575ecd50121d9b18fbca77158656a2f8e06d7d",
+      "hash": "06306ddf64d30665746cb67c6918807d8f77398121d0ab203e142a945433549a"
+    },
+    {
+      "id": "fixture-error-unknown-tool:3",
+      "index": 3,
+      "type": "tool_result",
+      "timestamp": 0,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "flights",
+        "error": "Unknown fixture tool: \"flights\". Known tools: \"search\", \"calendar\", \"booking\""
+      },
+      "prevHash": "06306ddf64d30665746cb67c6918807d8f77398121d0ab203e142a945433549a",
+      "hash": "5d663ec6ad57d17e9964ac70e8687d90a2f10a2e1c014469f30e066e75d6b9a5"
+    },
+    {
+      "id": "fixture-error-unknown-tool:4",
+      "index": 4,
+      "type": "metadata",
+      "timestamp": 0,
+      "payload": {
+        "event": "run_failed",
+        "status": "error",
+        "reason": "unknown_tool",
+        "toolName": "flights",
+        "toolCallId": "call-0"
+      },
+      "prevHash": "5d663ec6ad57d17e9964ac70e8687d90a2f10a2e1c014469f30e066e75d6b9a5",
+      "hash": "3728bf094854fa68466a5370fd68c929a64e65ef2a880eaeea0305a47558103d"
+    }
+  ]
+}
