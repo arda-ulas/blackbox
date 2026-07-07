@@ -76,10 +76,12 @@ Three cohesive pieces under one thesis. (1) is primary; (2) and (3) are small su
 A new fully-offline subcommand that runs the canonical loop in one shot and emits a single PASS/FAIL verdict:
 
 ```
-npm run cli -- check [--out-dir <dir>] [--keep]
+npm run cli -- check
+npm run cli -- check --out-dir <dir>
 ```
 
-Stages (all in-memory, fake/deterministic — no model, no tool, no live call):
+Stages (all in-memory, fake/deterministic — no real model, tool, or network calls; the composed loop uses the
+deterministic fake model and fixture tools, exactly like the existing demo):
 
 | # | Stage | Composes | Expected |
 |---|---|---|---|
@@ -93,12 +95,16 @@ Design discipline (mirrors `verifyTrace`):
 
 - The orchestration lives in a **pure, testable core** `src/workflow/selfCheck.ts` exporting
   `runSelfCheck(opts?): Promise<SelfCheckReport>`. It runs **entirely in memory** using the existing library
-  functions and returns a structured report; it does **not** require disk. It cannot make a live call by
-  construction — it only instantiates `FakeDeterministicModelClient` and `defaultToolExecutor()`, exactly like
-  the existing demo.
-- Persistence is **opt-in**: with `--out-dir <dir>` (and/or `--keep`) the command writes the parent and child
-  cassettes to disk and prints their paths; with no flag it runs purely in memory and writes nothing. This
-  keeps the default `check` side-effect-free and safe to run anywhere.
+  functions and returns a structured report; it does **not** require disk. It cannot make a real model, tool, or
+  network call by construction — it only instantiates `FakeDeterministicModelClient` and `defaultToolExecutor()`,
+  exactly like the existing demo.
+- Persistence is controlled **solely by `--out-dir <dir>`**:
+  - **Default (no `--out-dir`):** the check is in-memory and self-contained — it writes **no** trace files. (This
+    does not change the existing `record`/`fork` commands, which still write to disk when explicitly invoked
+    during normal CLI usage.)
+  - **With `--out-dir <dir>`:** the command persists the parent and child cassettes under that directory, then
+    runs verify/diff over them and prints their paths.
+  There is no `--keep` flag; `--out-dir` is the only persistence control.
 - The `check` subcommand in `src/cli.ts` is a **thin wrapper**: call `runSelfCheck`, format the stage checklist
   + verdict, exit `0` on PASS / `1` on FAIL (scriptable, like `verify`).
 
@@ -115,7 +121,7 @@ export interface SelfCheckReport {
   pass: boolean;
   stages: SelfCheckStage[];
   firstFailure?: { name: SelfCheckStage["name"]; detail: string };
-  // Present so --keep can persist without re-running:
+  // Present so an --out-dir persist can write without re-running the loop:
   parentTrace: Trace;
   childTrace: Trace;
 }
@@ -171,11 +177,11 @@ Mode:            in-memory (no files written; pass --out-dir to persist)
 Result:          PASS
 ```
 
-**`check --out-dir traces/selfcheck` (PASS, persisted):**
+**`check --out-dir traces/selfcheck` (PASS, persisted via `--out-dir`):**
 
 ```
 [blackbox] --- check ---
-Mode:            persisted
+Mode:            persisted (--out-dir traces/selfcheck)
 Parent:          traces/selfcheck/check-parent.json
 Child:           traces/selfcheck/check-child.json
 
@@ -211,12 +217,26 @@ First failing stage: verify_child — hash_chain FAIL at step 4
 - `tests/selfCheck.test.ts` — unit coverage for `runSelfCheck` (see §6).
 
 **Edited (small, additive):**
-- `src/cli.ts` — add the `check` subcommand (allow-list `--out-dir`/`--keep`, `runCheck`, usage text, switch
+- `src/cli.ts` — add the `check` subcommand (allow-list `--out-dir` only, `runCheck`, usage text, switch
   case); add the overwrite guard in `runFork`; adopt `src/cli/format.ts` helpers where it does not change any
   asserted substring. No change to `record`/`replay`/`diff`/`verify`/`list`/`inspect` behavior.
 - `tests/cli.test.ts` — add `check` PASS smoke (exit 0, prints `Result: PASS`, stage names), `check --out-dir`
   persistence smoke, `check --bogus` unknown-flag, and a `fork --trace X --out X` overwrite-guard exit-1 test.
-- `DEMO.md`, `README.md` — test-count fix + canonical `check` workflow section + fork-guard note.
+- `DEMO.md`, `README.md` — canonical `check` workflow section + fork-guard note. `DEMO.md` also gets the
+  stale test-count fix (see the docs-cleanup requirement below).
+- **Docs cleanup (stale test counts):** reconcile stale **current-state / latest-total** test-count claims to
+  the pre-W4-G baseline of **307/307** across `docs/18_week_four_f_plan.md`, `docs/08_build_log.md`, and
+  `DEMO.md`:
+  - `DEMO.md` — replace the "274 tests" current-state claim (two places) with 307.
+  - `docs/18_week_four_f_plan.md` — its status header states "304 offline tests pass" as the W4-F *outcome*;
+    the secret-key audit hardening (`a8580e4`) landed after that, so 307 is the true post-W4-F total. Update the
+    stale latest-total claim to 307.
+  - `docs/08_build_log.md` — the W4-F **Outcome** line's latest-total ("304/304") is stale relative to the
+    307 baseline; update it to 307.
+  - **Preserve genuine history:** do **not** rewrite point-in-time counts that were accurate when recorded
+    (e.g. the W4-E entries' "267/267" and "274/274" at those milestones). Those are chronological facts, not
+    stale claims — only current/latest-total figures are reconciled to 307. The W4-G build-log entry then
+    records the post-W4-G total.
 - `docs/08_build_log.md` — W4-G entry (at implementation time, not now).
 - `AGENTS.md` — bump "Current Milestone" pointer to W4-G (at implementation time).
 
@@ -235,19 +255,24 @@ First failing stage: verify_child — hash_chain FAIL at step 4
 
 All offline, fake/deterministic, zero live calls.
 
+Persistence is controlled only by `--out-dir`; there is no `--keep` flag, so **no `--keep` tests exist**.
+
 **`tests/selfCheck.test.ts` (unit, in-process — no subprocess):**
 - Happy path: `runSelfCheck()` returns `pass: true` with all five stages `pass`, in order.
 - Determinism: two calls produce structurally identical stage reports (same names/statuses/details).
-- In-memory default writes nothing to disk; the report still carries `parentTrace`/`childTrace`.
-- Persistence: `runSelfCheck({ outDir })` writes exactly two cassettes that `loadTrace`+`validateTrace`
-  successfully, and the child's `parentId` references the parent.
+- **Default in-memory path:** `runSelfCheck()` with no `outDir` writes **nothing** to disk (assert no files
+  created), yet the report still carries `parentTrace`/`childTrace`.
+- **`--out-dir` persistence path:** `runSelfCheck({ outDir })` writes exactly two cassettes that
+  `loadTrace`+`validateTrace` successfully, and the child's `parentId` references the parent.
 - The parent and child both pass `verifyTrace` independently (guards against the composed report masking a
   real per-trace failure).
 - `diff` stage reports divergence at the mutation index with a non-empty, hash-identical shared prefix.
 
 **`tests/cli.test.ts` (subprocess smokes):**
-- `check` exits 0, prints `[blackbox] --- check ---`, `Result: PASS`, and each stage name.
-- `check --out-dir <temp>` exits 0, writes the two cassettes, prints their paths; temp dir cleaned by the test.
+- **Default in-memory:** `check` exits 0, prints `[blackbox] --- check ---`, `Result: PASS`, and each stage
+  name, and writes no trace files.
+- **`--out-dir` persistence:** `check --out-dir <temp>` exits 0, writes the two cassettes, prints their paths;
+  temp dir cleaned by the test.
 - `check --bogus` exits 1 with `Unknown flag: --bogus`.
 - `fork --trace <p> --out <p>` (same path) exits 1 with the "Refusing to overwrite the parent" message; the
   parent file is unchanged (assert bytes/hash equal before/after).
@@ -272,7 +297,8 @@ All offline, fake/deterministic, zero live calls.
   not a monitoring surface.
 - No change to hashing, the trace schema, `validateTrace`, `replayTrace`, `loadTrace`, `forkRun`, `diffTraces`,
   or `verifyTrace` **semantics** — W4-G only *composes* and *formats* them.
-- No positional-argument parser rework (flag-based `--out-dir`/`--keep` only, consistent with existing commands).
+- No positional-argument parser rework (flag-based `--out-dir` only, consistent with existing commands). No
+  `--keep` flag — `--out-dir` is the sole persistence control.
 - No auto-repair/migration of cassettes; no new mutation modes; no new fork geometry.
 - No `diff` exit-code-on-divergence change (would alter existing exit-0 contract and break current smokes).
 - No committing of any trace artifact; `traces/` stays git-ignored, `check --out-dir` defaults must not target a
@@ -310,18 +336,22 @@ W4-G is **purely additive and composition/presentation-only**:
 >    parent, `forkRun` (tool-result mutation at the demo step), `verifyTrace` on the child, and `diffTraces`.
 >    Stages run in order (`record → verify_parent → fork → verify_child → diff`), each recorded as pass/fail with
 >    a human-readable detail; short-circuit is not required but the first failure must be identifiable. Persist
->    the parent + child cassettes only when `opts.outDir` is provided. Never make a live call; never print a key.
+>    the parent + child cassettes only when `opts.outDir` is provided (there is no `--keep` flag). Make no real
+>    model, tool, or network call; never print a key.
 > 2. Create `src/cli/format.ts`: `header(name)`, `label(s)`, `LABEL_WIDTH`. Adopt these in `src/cli.ts` **without
 >    changing any substring the existing tests assert on** (header text and label text stay identical).
-> 3. Add a `check` subcommand to `src/cli.ts` (`--out-dir`/`--keep` allow-list, usage text, switch case) that
+> 3. Add a `check` subcommand to `src/cli.ts` (`--out-dir` allow-list only — no `--keep`, usage text, switch case) that
 >    calls `runSelfCheck`, prints the §4 stage checklist + `Result: PASS/FAIL` (and persisted paths when
 >    `--out-dir`), and exits 0 on PASS / 1 on FAIL. Do not change any existing subcommand's behavior.
 > 4. Add the overwrite guard to `runFork`: after resolving `outPath`, if its normalized absolute path equals the
 >    resolved `--trace` path, `die` with "Refusing to overwrite the parent trace …; pass an explicit --out."
 > 5. Add `tests/selfCheck.test.ts` (unit) and extend `tests/cli.test.ts` (subprocess) per §6, including the
 >    fork-guard exit-1 case and a bytes-unchanged assertion on the parent. Keep everything offline.
-> 6. Update `DEMO.md` + `README.md` (test count 274→307; canonical `check` workflow section; fork-guard note),
->    add the `docs/08_build_log.md` W4-G entry, and bump the `AGENTS.md` "Current Milestone" pointer.
+> 6. Update `DEMO.md` + `README.md` (canonical `check` workflow section; fork-guard note) and reconcile stale
+>    current/latest-total test counts to the 307/307 baseline in `DEMO.md` (274→307, two places),
+>    `docs/18_week_four_f_plan.md`, and `docs/08_build_log.md` per the §5 docs-cleanup requirement — preserving
+>    genuinely historical point-in-time counts. Add the `docs/08_build_log.md` W4-G entry and bump the
+>    `AGENTS.md` "Current Milestone" pointer.
 >
 > Acceptance: `npm test -- --run` passes (307 existing + new, zero live calls); `record`/`replay`/`fork`/`diff`/
 > `verify`/`list`/`inspect` unchanged and green; `check` exits 0 on PASS / 1 on FAIL; `fork` refuses to overwrite
