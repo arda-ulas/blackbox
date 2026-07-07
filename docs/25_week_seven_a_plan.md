@@ -99,7 +99,9 @@ implementation — working name `ReactiveDemoModelClient`. Properties:
      proceed to booking"-style final answer embedding a deterministic payload field (e.g. first result title or
      result count).
   4. **No `tool_result` in the transcript** → a deterministic generic final answer derived from the last user
-     message text (covers prompt-mode forks taken before any tool round).
+     message text. **This is the rule every prompt-mode fork hits** (see §4.2): `forkRun` reconstructs
+     `initialMessages` only when tool-result mutations are present, so a prompt-mode continuation sees no tool
+     rounds at all — only the mutated prompt.
   5. **Unrecognized result shape** → a deterministic fallback final answer embedding the tool name and a short
      canonical rendering of the payload. Never throws for exotic-but-JSON-safe payloads.
 - **Always returns `final_answer`** — it is a one-round *continuation* model for the demo fork, not a planner. It
@@ -119,10 +121,14 @@ In `runFork`, both modes replace their scripted `FakeDeterministicModelClient([.
 **deleted** from `cli.ts`. Everything else in `runFork` — flags, allow-lists, overwrite guardrail, output sections,
 diff rendering, exit codes — is unchanged. `record`, `replay`, `diff`, `verify`, `list`, `inspect` are untouched.
 
-Prompt-mode note (explicit): the reactive model derives from the transcript, and a prompt-mode fork at the default
-demo geometry still contains the *original* (unmutated) search result in its history — so the prompt-mode child
-produces the rule-3 "availability" answer. That is deterministic, honest, and documented; prompt-specific wording
-beyond rule 4 is out of scope.
+Prompt-mode note (explicit, corrected per Codex audit): `forkRun` builds `initialMessages` via
+`reconstructMessages` **only when `toolResultMutations` is non-empty** (`src/fork/forkRun.ts:169–170`); a
+prompt-mode fork passes `initialMessages: undefined` and enters the continuation with just the mutated prompt as a
+fresh user message. The reactive model therefore finds **no `tool_result` in its transcript** and produces the
+**rule-4 deterministic prompt-derived answer** — it does *not* see the parent's original search result. That is
+deterministic, honest, and documented (and still derived: the answer is a function of the mutated prompt text).
+**W7-A does not change `forkRun`'s reconstruction behavior** — making prompt-mode continuations transcript-aware
+would be a `forkRun` semantics change and is out of scope.
 
 ### 4.3 Swap the self-check continuation (`src/workflow/selfCheck.ts`)
 
@@ -130,13 +136,19 @@ The fork stage's injected model becomes `new ReactiveDemoModelClient()`; the loc
 deleted. Composition semantics are unchanged — `runSelfCheck` still only composes `runAgentLoop` / `verifyTrace` /
 `forkRun` / `diffTraces` over fake/offline clients and cannot make a live call by construction.
 
-### 4.4 `check` output stays byte-identical
+### 4.4 `check`: output byte-identical, derivation test required
 
 No `check` stage detail quotes the child answer text (`fork` stage prints `child valid, N step(s), tool_result
 mutation at step 3`). Since the reactive model keeps the child at 7 steps and the mutation geometry is unchanged,
-`npm run cli -- check` output is expected **byte-identical**; existing `selfCheck.test.ts` / `cli.test.ts` check
+`npm run cli -- check` stdout must remain **byte-identical**; existing `selfCheck.test.ts` / `cli.test.ts` check
 assertions must pass unedited. If implementation finds any check-output drift, that is a scope signal — stop and
 re-examine rather than editing those assertions.
+
+Because W7-A replaces the `check` continuation path, byte-identical output alone would leave the swap untested
+from the behavior side. A **required** (not optional) test therefore asserts derivation inside the self-check:
+`runSelfCheck()`'s `report.childTrace` replays offline (`replayTrace`) to a final result **derived from the
+mutated tool result** — i.e. embedding the demo mutation's `message` ("No hotels available for that date.") —
+proving the `check` child's behavior is computed, not scripted, even though the printed report never quotes it.
 
 ### 4.5 What is deliberately untouched
 
@@ -159,7 +171,9 @@ An implementation of W7-A is accepted only if **all** of the following hold:
 2. **The child answer is derived, provably.** Tests demonstrate that with the continuation model held fixed,
    changing only the injected mutation payload changes the child's final answer, and that the answer embeds a
    field of the mutated payload (e.g. its `message`). Two different `--payload-json` values → two different
-   answers at the CLI level.
+   answers at the CLI level. **Prompt mode:** a prompt-mode fork produces the rule-4 deterministic prompt-derived
+   answer (no `tool_result` visible per §4.2), test-asserted — not the old canned string, and not a rule-2/3
+   answer.
 3. **Determinism.** The same fork inputs produce an identical child answer across repeated runs (unit +
    integration asserted). The reactive model is a pure function of `ModelInput` — no clock, randomness, or I/O.
 4. **Loop invariants intact.** The demo child still: validates (`validateTrace`), verifies (4/4 invariants),
@@ -169,15 +183,24 @@ An implementation of W7-A is accepted only if **all** of the following hold:
 5. **Offline guarantee untouched.** `replayTrace` signature and behavior unchanged; the reactive model is
    fake/offline; no CLI path can reach a real provider. `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof`
    still exits at the key guard.
-6. **`check` output byte-identical** and its tests pass unedited (§4.4). Exit codes everywhere unchanged.
+6. **`check` output byte-identical AND `check` derivation proven.** `npm run cli -- check` stdout is unchanged and
+   its existing tests pass unedited; **additionally, a required new test asserts `runSelfCheck().childTrace`
+   replays offline to an answer embedding the demo mutation's `message`** (§4.4). Exit codes everywhere unchanged.
 7. **Fixture corpus untouched.** Zero byte changes under `fixtures/`; no frozen-hash constant in
    `tests/fixtures.test.ts` edited; `npm run fixtures:generate` (check mode) reports the corpus in sync.
 8. **No new CLI surface.** No new flag, command, or exit code; `FORK_ALLOWED` and all allow-lists unchanged.
 9. **No new dependency.** `package.json` / `package-lock.json` byte-identical.
 10. **Offline + green.** `npm test -- --run` ≥ 394 + new tests, zero live calls, no API key required.
     `npm run cli -- check` PASS. `git ls-files traces` empty.
-11. **Docs match reality.** DEMO.md's fork section quotes the *actual* new derived answer and gains a proof point
-    stating the answer is computed from the mutated payload (§8). No other DEMO section changes.
+11. **Docs match reality — including broad model-client claims.** DEMO.md's fork section quotes the *actual* new
+    derived answer and gains a proof point stating the answer is computed from the mutated payload (§8). In
+    addition, **no public doc may claim the default CLI or `check` uses only `FakeDeterministicModelClient`**
+    after the swap. The known inventory (§8): `README.md:76` (proof-status table row), `DEMO.md:375` (`check`
+    "only ever instantiates FakeDeterministicModelClient…"), `DEMO.md:429` (real-vs-mocked model row),
+    `DEMO.md:436` (Current Limitations "plays back scripted responses"). Each is updated to state that the default
+    CLI remains **fake/offline and deterministic**, using two fake clients: the **scripted** fake for record /
+    scripted paths and the **reactive** fake for fork/`check` continuation paths. `DEMO.md:410` (fixtures are
+    generated from the scripted fake) stays **unchanged** — it remains true because the generator is untouched.
 12. **Neutrality preserved.** The child trace produced by the reactive continuation passes the structured
     neutrality audit (test-asserted).
 
@@ -200,16 +223,21 @@ All offline, deterministic, zero live calls, no new fixtures on disk (in-memory 
    (default no-availability) and mutation B (custom payload) using the reactive model: different `finalAnswer`s,
    each embedding its own payload field; child validates; prefix hashes identical to parent through step 2;
    `firstDivergenceIndex === 3`; child replays offline with the derived answer as `result`; child passes
-   `verifyTrace` including neutrality.
+   `verifyTrace` including neutrality. **Prompt mode:** a prompt-mode `forkRun` (no `toolResultMutations`) with
+   the reactive model yields the rule-4 prompt-derived answer — asserting the §4.2 behavior (continuation sees no
+   tool rounds) rather than assuming it.
 3. **CLI end-to-end (extend `tests/cli.test.ts`).**
    - Default `fork` → exit 0; stdout `Result:` line contains the derived unavailable answer, including the
      mutation's `message` text ("No hotels available for that date.") — proving CLI-level derivation.
    - `fork --payload-json '<custom>'` with a distinct marker string → stdout `Result:` embeds the marker; differs
      from the default answer.
    - Existing fork/diff assertions (divergence, `Summary:`, `changed value (result):`) pass unedited.
-4. **Self-check regression.** Existing `tests/selfCheck.test.ts` passes unedited (stage names/details, 7 steps,
-   divergence at 3, determinism, persistence). Optionally add one assertion that `report.childTrace`'s replayed
-   result embeds the mutation message (derivation inside `check`).
+4. **Self-check regression + required derivation.** Existing `tests/selfCheck.test.ts` passes unedited (stage
+   names/details, 7 steps, divergence at 3, determinism, persistence), and `npm run cli -- check` stdout remains
+   byte-identical (existing CLI check assertions unedited). **Required (per Codex audit): a new test asserts
+   `runSelfCheck().childTrace` replays offline (`replayTrace`) to a result embedding the demo mutation's `message`
+   ("No hotels available for that date.")** — proving the `check` continuation derives its behavior from the
+   mutated result even though the printed report never quotes the answer.
 5. **Corpus tripwires.** `tests/fixtures.test.ts` unmodified and green; `npm run fixtures:generate` (check mode)
    in sync — proving the generator/corpus were not dragged along.
 6. **Canned-string inventory check.** Confirm before implementation (grep) that no test under `tests/` asserts the
@@ -239,20 +267,43 @@ Target: 394 baseline + roughly 12–18 new tests, all green, zero live calls.
 
 ## 8. Docs impact
 
-- **`DEMO.md`** — fork section (step 5) only: the `Result:` line in the expected-output block changes to the new
-  derived answer; the "Key proof points" list gains/upgrades a bullet stating the child's answer is **computed
-  from the mutated payload by a deterministic, input-reading fake** (change the mutation, the answer changes —
-  still zero live calls). The "What Is Real vs. Mocked" table's model-client row is updated to distinguish the
-  scripted record model from the reactive fork-continuation model (both fake/offline). `record`, `list`,
-  `inspect`, `replay`, `diff`, `verify`, `check`, fixtures sections unchanged (the standalone-diff section quotes
-  the mutation payload, not the answer — verify this survives verbatim, expected yes).
-- **`README.md`** — at most one line (e.g. in "What it proves") noting the offline fork continuation derives the
-  child's behavior from the mutated cassette state; skip if it reads as bloat. No status/tag/count change (test
-  count line updates only if the README states a current total that the new suite total supersedes — it does:
-  update `394` mentions to the new true count at closeout).
+- **`DEMO.md`** — four targeted updates (all driven by the swap; everything else byte-identical):
+  1. **Fork section (step 5):** the `Result:` line in the expected-output block changes to the new derived answer;
+     the "Key proof points" list gains/upgrades a bullet stating the child's answer is **computed from the mutated
+     payload by a deterministic, input-reading fake** (change the mutation, the answer changes — still zero live
+     calls).
+  2. **`check` proof point (`DEMO.md:375`):** "it only ever instantiates `FakeDeterministicModelClient` and
+     `defaultToolExecutor()`" becomes false after the swap — reword to name both fake clients (scripted fake for
+     record, reactive fake for the fork continuation), preserving the claim that no live call is possible by
+     construction.
+  3. **"What Is Real vs. Mocked" table (`DEMO.md:429`):** split/extend the model-client row to distinguish the
+     scripted record model from the reactive fork/`check`-continuation model (both fake, offline, deterministic).
+  4. **Current Limitations first bullet (`DEMO.md:436`):** "`FakeDeterministicModelClient` plays back scripted
+     responses" — reword to cover both fake clients while keeping the bullet's core claim (no real LLM API called
+     by any CLI command or by `npm test`) intact.
+  `record`, `list`, `inspect`, `replay`, `diff`, `verify`, fixtures sections otherwise unchanged; the fixtures
+  proof point (`DEMO.md:410`, corpus generated from the scripted fake) stays **verbatim — it remains true**
+  because the generator is untouched. The standalone-diff section quotes the mutation payload, not the answer —
+  verify it survives verbatim (expected yes).
+- **`README.md`** — one required update and one optional:
+  - **Required — proof-status table (`README.md:76`):** "Default loop (CLI + `npm test`) | Fake / offline —
+    `FakeDeterministicModelClient` + fixture tools" must not imply the scripted client is the *only* model client
+    on the default path. Reword to "fake/offline deterministic model clients (scripted + reactive demo
+    continuation) + fixture tools; zero live calls; replay is structurally offline" or equivalent.
+  - **Optional:** one line (e.g. in "What it proves") noting the offline fork continuation derives the child's
+    behavior from the mutated cassette state; skip if it reads as bloat.
+  - Current test-count mentions update to the new true suite total at closeout (the README states 394 today).
 - **`docs/08_build_log.md`** — append the W7-A entry (What Was Built / Outcome / Guardrails Held) at closeout.
 - **`AGENTS.md` / `CLAUDE.md`** — current-state pointer refresh at closeout (W7-A current/closed, new test total),
-  consistent with precedent; no guardrail or invariant change.
+  consistent with precedent — **plus one narrow, explicitly-authorized invariant-wording update**: `AGENTS.md:29`
+  ("`FakeDeterministicModelClient` and `defaultFixtureTools()` are the default in all tests and CLI commands…")
+  and `CLAUDE.md:43` ("`FakeDeterministicModelClient` + `defaultFixtureTools()` are the default everywhere") are
+  reworded to say **fake/offline deterministic model clients remain the default everywhere** — the scripted
+  `FakeDeterministicModelClient` for record/scripted paths and the reactive demo continuation client for
+  fork/`check` continuation paths. The invariant's *force* (default CLI and `npm test` are fake/offline, zero live
+  calls, no key) is preserved verbatim in meaning; only the client naming is corrected so the guardrail text stays
+  literally true after W7-A. (AGENTS.md's own escape hatch — "unless a milestone explicitly changes that" — is
+  exercised here, by this audited plan.) No other guardrail, role, or invariant changes.
 - **`docs/25_week_seven_a_plan.md`** — status header to IMPLEMENTED/in-closeout at landing; body unchanged.
 - **`docs/03_trace_schema.md`** — no change (schema untouched; hard requirement).
 
@@ -315,19 +366,29 @@ Target: 394 baseline + roughly 12–18 new tests, all green, zero live calls.
 >    `final_answer`, never `tool_call`, and its text is provider-neutral.
 > 2. In `src/cli.ts` `runFork`, replace both scripted continuations (tool-result mode's `DEMO_FORK_ANSWER`
 >    injection and prompt mode's `"Prompt-mode fork complete."`) with `new ReactiveDemoModelClient()`; delete the
->    dead constants. Change no flag, allow-list, output section, guardrail, or exit code.
+>    dead constants. Change no flag, allow-list, output section, guardrail, or exit code. **Prompt-mode
+>    expectation (plan §4.2):** `forkRun` reconstructs `initialMessages` only when tool-result mutations are
+>    present, so the prompt-mode child gets the rule-4 prompt-derived answer — do **not** change `forkRun`'s
+>    reconstruction to make prompt mode transcript-aware.
 > 3. In `src/workflow/selfCheck.ts`, swap the fork stage's injected model to `new ReactiveDemoModelClient()` and
->    delete its local `DEMO_FORK_ANSWER`. `check` output must remain byte-identical (the child must still be 7
+>    delete its local `DEMO_FORK_ANSWER`. `check` stdout must remain byte-identical (the child must still be 7
 >    steps, mutation at step 3); if any check assertion would need editing, stop and report instead.
 > 4. Add offline tests per plan §6: reactive-model unit tests (all five rules, determinism, input non-mutation,
 >    never-tool_call); fork integration (mutation A vs B → different derived answers embedding their payload
->    fields; child validates/verifies/replays; prefix identity; divergence at 3; neutrality audit passes); CLI
->    end-to-end (default fork `Result:` embeds "No hotels available for that date."; a custom `--payload-json`
->    marker appears in the child answer; two payloads → two answers). Keep `tests/fixtures.test.ts`,
+>    fields; child validates/verifies/replays; prefix identity; divergence at 3; neutrality audit passes; **a
+>    prompt-mode `forkRun` yields the rule-4 prompt-derived answer**); CLI end-to-end (default fork `Result:`
+>    embeds "No hotels available for that date."; a custom `--payload-json` marker appears in the child answer;
+>    two payloads → two answers); **and the required self-check derivation test: `runSelfCheck().childTrace`
+>    replays offline to a result embedding the demo mutation's `message`**. Keep `tests/fixtures.test.ts`,
 >    `tests/selfCheck.test.ts`, and all existing fork/diff/check assertions passing **unedited**; do not edit any
 >    frozen hash constant.
-> 5. Update `DEMO.md` step 5 only (new derived `Result:` line + derivation proof point + real-vs-mocked model rows)
->    and append the W7-A build-log entry. Update this plan's status header to IMPLEMENTED/in-closeout.
+> 5. Update the docs per plan §8: `DEMO.md` step 5 (new derived `Result:` line + derivation proof point), the
+>    `check` proof point at `DEMO.md:375`, the real-vs-mocked model rows (`DEMO.md:429`), and the Current
+>    Limitations bullet (`DEMO.md:436`) — each rewritten so no claim implies the default CLI/`check` uses only the
+>    scripted client, while keeping "fake/offline, zero live calls" intact; leave `DEMO.md:410` (fixtures from the
+>    scripted fake) verbatim. Update `README.md:76`'s proof-status row the same way. Append the W7-A build-log
+>    entry. Update this plan's status header to IMPLEMENTED/in-closeout. (`AGENTS.md:29` / `CLAUDE.md:43`
+>    invariant wording is refreshed at closeout per §8.)
 >
 > Acceptance gate: `npm test -- --run` green (≥ 394 + new, zero live calls, no key); `npm run cli -- check` PASS
 > with byte-identical output; `npm run fixtures:generate` check mode in sync; zero byte changes under `fixtures/`;
@@ -355,8 +416,14 @@ Target: 394 baseline + roughly 12–18 new tests, all green, zero live calls.
 >    `agentLoop`, `hash.ts`, schema/version constants, and `FakeDeterministicModelClient` are untouched. Child
 >    trace: 7 steps, hash-identical 3-step prefix, first divergence at index 3, verify 4/4, offline replay, clean
 >    neutrality audit — all test-asserted.
-> 5. **`check` byte-identical.** `npm run cli -- check` output unchanged; `selfCheck.test.ts` and the cli check
->    assertions pass unedited; exit codes unchanged everywhere.
+> 5. **`check` byte-identical AND derivation-tested.** `npm run cli -- check` stdout unchanged; `selfCheck.test.ts`
+>    and the cli check assertions pass unedited; exit codes unchanged everywhere. **The required new test exists
+>    and passes: `runSelfCheck().childTrace` replays offline to a result embedding the demo mutation's `message`**
+>    — flag its absence as a blocker.
+> 5b. **Prompt-mode behavior correct and honest.** The prompt-mode child answer is the rule-4 prompt-derived
+>    fallback (because `forkRun` reconstructs `initialMessages` only under tool-result mutations —
+>    `forkRun.ts:169–170`), a test asserts it, and no doc/plan text claims prompt-mode continuations see the
+>    parent's tool rounds. `forkRun`'s reconstruction behavior is untouched.
 > 6. **Fixtures frozen.** Zero byte changes under `fixtures/`; no frozen-hash edit in `tests/fixtures.test.ts`;
 >    `npm run fixtures:generate` check mode in sync; `scripts/generateFixtures.ts` untouched.
 > 7. **No surface growth.** No new CLI flag/command/exit code; allow-lists unchanged; no new dependency;
@@ -364,9 +431,15 @@ Target: 394 baseline + roughly 12–18 new tests, all green, zero live calls.
 >    Anthropic CLI wiring; no live call anywhere in the diff; proof scripts untouched.
 > 8. **Not a framework.** One class, fixed rule table, no configuration/plugin/DSL surface. Flag any
 >    generalization beyond the demo continuation as scope creep.
-> 9. **Docs match reality.** DEMO.md step 5's quoted `Result:` matches actual CLI output; the derivation proof
->    point does not overclaim (still fake/offline, still deterministic); all other DEMO sections byte-identical;
->    build-log entry accurate.
+> 9. **Docs match reality — including broad model-client claims.** DEMO.md step 5's quoted `Result:` matches
+>    actual CLI output; the derivation proof point does not overclaim (still fake/offline, still deterministic);
+>    the build-log entry is accurate. **Additionally, no public doc still claims the default CLI or `check` uses
+>    only `FakeDeterministicModelClient`:** verify `README.md:76`, `DEMO.md:375`, `DEMO.md:429`, and `DEMO.md:436`
+>    were rewritten to name both fake clients (scripted for record/scripted paths, reactive for fork/`check`
+>    continuations) while preserving the fake/offline/zero-live-calls claims — and that `DEMO.md:410` (fixtures
+>    from the scripted fake) was correctly left verbatim. At closeout, confirm the `AGENTS.md:29` / `CLAUDE.md:43`
+>    invariant rewording preserves the guardrail's force (default fake/offline, no key) and changes only the
+>    client naming.
 > 10. **Honesty of the demo claim.** After this change, is it fair to say the offline demo shows *derived*
 >     behavior? If any path still hardcodes the child's reaction on the demo surface, report it as a blocker.
 >
