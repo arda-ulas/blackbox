@@ -1,7 +1,11 @@
 # W6-A Plan — Diff/Inspect Ergonomics
 
-**Status:** PLANNED (awaiting Codex audit before implementation). This document is the plan only; no source, test,
-fixture, config, or doc file other than this one is touched by the planning step.
+**Status:** IMPLEMENTED (in closeout — awaiting Codex closeout audit before tag). This document is preserved as the
+accepted plan and historical record; the implementation landed in the slice `feat: improve diff inspect ergonomics`,
+touching `src/trace/stepLabels.ts` (new), `src/replay/CassetteReplay.ts`, `src/fork/diffTraces.ts`,
+`tests/stepLabels.test.ts` (new), `tests/cli.test.ts`, `DEMO.md`, `docs/08_build_log.md`, and this status header.
+Tests: 381/381 offline (360 baseline + 21 new), zero live calls. Replay output byte-identical; corpus fork pair
+first divergence remains index 3; no schema/hash/fixture change; no new CLI flag.
 **Predecessor:** W5-B complete, pushed, tagged `week-five-public-demo-readiness`. Full core loop implemented,
 hardened, composed under one self-check, proven live (opt-in), frozen against a committed regression corpus, and
 documented as a public-facing repo: `record → replay → fork → mutate → continue → diff → verify → check`. Tests:

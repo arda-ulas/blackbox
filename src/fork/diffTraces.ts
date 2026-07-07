@@ -2,6 +2,11 @@
 // identical hashes, then formats the result for terminal output.
 
 import type { Trace, TraceStep } from "../trace/TraceTypes.ts";
+import {
+  describeStep,
+  describeDivergenceField,
+  stepTypeLabel,
+} from "../trace/stepLabels.ts";
 
 export interface TraceDiff {
   parentTraceId: string;
@@ -70,11 +75,6 @@ export function diffTraces(parentTrace: Trace, childTrace: Trace): TraceDiff {
   };
 }
 
-function payloadSummary(payload: unknown): string {
-  const raw = JSON.stringify(payload);
-  return raw.length > 60 ? raw.slice(0, 57) + "..." : raw;
-}
-
 function humanSummary(diff: TraceDiff): string {
   const idx = diff.firstDivergenceIndex as number;
   if (diff.isParentStrictPrefixOfChild) return `parent ended before child at index ${idx}`;
@@ -102,18 +102,27 @@ export function formatFirstDivergence(diff: TraceDiff): string {
   lines.push(`Summary:        ${humanSummary(diff)}`);
   lines.push(`First divergence at index ${diff.firstDivergenceIndex}`);
 
+  // Per-side lines carry a humanized step label + one-line summary (shared with
+  // `inspect`/`replay` wording) instead of a raw JSON dump.
   if (diff.parentStep !== null) {
     const s = diff.parentStep;
-    lines.push(`  parent  ${s.type.padEnd(14)}  ${s.hash.slice(0, 8)}  ${payloadSummary(s.payload)}`);
+    lines.push(`  parent  ${stepTypeLabel(s.type).padEnd(14)}  ${s.hash.slice(0, 8)}  ${describeStep(s)}`);
   } else {
     lines.push("  parent  <no step>");
   }
 
   if (diff.childStep !== null) {
     const s = diff.childStep;
-    lines.push(`  child   ${s.type.padEnd(14)}  ${s.hash.slice(0, 8)}  ${payloadSummary(s.payload)}`);
+    lines.push(`  child   ${stepTypeLabel(s.type).padEnd(14)}  ${s.hash.slice(0, 8)}  ${describeStep(s)}`);
   } else {
     lines.push("  child   <no step>");
+  }
+
+  // Surface the value that actually changed so the difference is readable —
+  // rather than a JSON dump truncated mid-key before the difference appears.
+  // Empty for strict-prefix divergences (the `<no step>` marker covers those).
+  for (const line of describeDivergenceField(diff.parentStep, diff.childStep)) {
+    lines.push(line);
   }
 
   if (diff.isParentStrictPrefixOfChild) {

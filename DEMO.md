@@ -223,8 +223,11 @@ Shared prefix:  3 step(s)
 
 Summary:        tool_result differs at index 3
 First divergence at index 3
-  parent  tool_result     <hash>  {"toolCallId":"call-0","toolName":"search","result":{"res...
-  child   tool_result     <hash>  {"toolName":"search","result":{"results":[],"available":f...
+  parent  tool result     <hash>  Tool result: search → ok
+  child   tool result     <hash>  Tool result: search → ok
+  changed value (result):
+    parent: {"results":[{"title":"Fixture result A for \"weekend hotels\"","snippet":"First deterministic result."},{"title":"Fixture result B for \"weekend hotels\"","snippet":"Second deterministic result."}]}
+    child:  {"results":[],"available":false,"message":"No hotels available for that date."}
 ```
 
 **Key proof points:**
@@ -242,7 +245,7 @@ First divergence at index 3
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 ```
 
-**What it does:** loads both cassettes, validates their hash chains, and finds the first step index where their hashes diverge. Prints a human-readable summary and the raw step details at the divergence point.
+**What it does:** loads both cassettes, validates their hash chains, and finds the first step index where their hashes diverge. Prints a human-readable summary, a one-line summary of each divergent step, and the actual value that changed at the divergence.
 
 **Files read:** `traces/example-trace.json`, `traces/example-trace-fork.json`
 
@@ -260,15 +263,18 @@ Shared prefix:  3 step(s)
 
 Summary:        tool_result differs at index 3
 First divergence at index 3
-  parent  tool_result     <hash>  {"toolCallId":"call-0","toolName":"search","result":{"res...
-  child   tool_result     <hash>  {"toolName":"search","result":{"results":[],"available":f...
+  parent  tool result     <hash>  Tool result: search → ok
+  child   tool result     <hash>  Tool result: search → ok
+  changed value (result):
+    parent: {"results":[{"title":"Fixture result A for \"weekend hotels\"","snippet":"First deterministic result."},{"title":"Fixture result B for \"weekend hotels\"","snippet":"Second deterministic result."}]}
+    child:  {"results":[],"available":false,"message":"No hotels available for that date."}
 ```
 
 **Key proof points:**
 
 - `Shared prefix: 3 step(s)` — diff confirms that steps 0, 1, and 2 have hash-identical payloads in both traces. The prefix is verified by hash, not by content comparison.
 - `Summary: tool_result differs at index 3` — human-readable one-liner naming the step type and index.
-- Raw step lines show the actual injected payload difference: parent received real hotel results; child received the empty/unavailable mutation.
+- The `changed value (result):` block shows the actual difference in full: the parent received real hotel results; the child received the injected empty/unavailable mutation (`"available":false`, `"No hotels available for that date."`). The value is shown legibly rather than truncated mid-key.
 - Diff works on any two cassettes. You can diff the error trace against the success trace, or any two arbitrarily forked runs.
 
 ---

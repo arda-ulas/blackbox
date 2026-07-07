@@ -7,10 +7,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import {
   CURRENT_TRACE_VERSION,
   type Trace,
-  type TraceStep,
   type TraceStepType,
 } from "../trace/TraceTypes.ts";
 import { hashTraceStepInput } from "../trace/hash.ts";
+import { describeStep } from "../trace/stepLabels.ts";
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -141,7 +141,7 @@ export function replayTrace(trace: Trace): ReplaySummary {
   const events: ReplayEvent[] = trace.steps.map((step) => ({
     index: step.index,
     type: step.type,
-    summary: summarizeStep(step),
+    summary: describeStep(step),
   }));
 
   let status: ReplaySummary["status"] = "incomplete";
@@ -169,40 +169,4 @@ export function replayTrace(trace: Trace): ReplaySummary {
   if (result !== undefined) summary.result = result;
   if (failureReason !== undefined) summary.failureReason = failureReason;
   return summary;
-}
-
-function summarizeStep(step: TraceStep): string {
-  const p = step.payload;
-  switch (step.type) {
-    case "model_input": {
-      const msgs = (p as { messages?: unknown[] }).messages;
-      const count = Array.isArray(msgs) ? msgs.length : "?";
-      return `Model called with ${count} message(s)`;
-    }
-    case "model_output": {
-      const out = p as { type?: string; toolName?: string; text?: string };
-      if (out.type === "tool_call") return `Model → tool_call: ${out.toolName}`;
-      if (out.type === "final_answer") return `Model → final_answer: "${out.text}"`;
-      return "Model → unknown output";
-    }
-    case "tool_call": {
-      const tc = p as { toolName?: string };
-      return `Tool called: ${tc.toolName}`;
-    }
-    case "tool_result": {
-      const tr = p as { toolName?: string; error?: string };
-      if (tr.error !== undefined) return `Tool result: ${tr.toolName} → ERROR: ${tr.error}`;
-      return `Tool result: ${tr.toolName} → ok`;
-    }
-    case "metadata": {
-      const m = p as { event?: string; result?: string; reason?: string };
-      if (m.event === "run_completed") return `Run completed: "${m.result}"`;
-      if (m.event === "run_failed") return `Run failed: ${m.reason}`;
-      return `Metadata: ${JSON.stringify(p)}`;
-    }
-    default: {
-      const _exhaustive: never = step.type;
-      return `Unknown step type: ${_exhaustive}`;
-    }
-  }
 }

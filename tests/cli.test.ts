@@ -159,6 +159,15 @@ describe("cli fork", () => {
     expect(forkResult.stdout).toContain("Summary:");
   });
 
+  it("inline trace diff surfaces the changed value (not a truncated JSON dump)", () => {
+    // W6-A: the fork command's inline `--- trace diff ---` block must make the
+    // injected mutation legible, not truncate it away mid-key.
+    expect(forkResult.stdout).toContain("changed value (result):");
+    expect(forkResult.stdout).toContain("tool result");
+    expect(forkResult.stdout).toContain('"available":false');
+    expect(forkResult.stdout).toContain("No hotels available for that date.");
+  });
+
   it("child trace has a parentId referencing the parent", async () => {
     const trace = await loadTrace(FORK_OUT_PATH);
     expect(trace.parentId).toBe("example-run-001");
@@ -195,6 +204,23 @@ describe("cli diff", () => {
       "--child",  FORK_OUT_PATH,
     ]);
     expect(result.stdout).toContain("Summary:");
+  }, 15_000);
+
+  it("surfaces the changed value at the divergence (frozen corpus fork pair)", async () => {
+    // W6-A: standalone diff shows the mutated tool result value legibly. Uses
+    // the committed hash-identical fork pair so the divergence is deterministic
+    // (the temp SUCCESS_PATH is re-recorded by another test, so its prefix is
+    // not stable for this assertion).
+    const result = await runCli([
+      "diff",
+      "--parent", "fixtures/traces/fork-parent.v2.json",
+      "--child",  "fixtures/traces/fork-child.v2.json",
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("First divergence at index 3");
+    expect(result.stdout).toContain("changed value (result):");
+    expect(result.stdout).toContain('"available":false');
+    expect(result.stdout).toContain("No hotels available for that date.");
   }, 15_000);
 });
 
