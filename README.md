@@ -44,6 +44,11 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 - **W3-C** — Terminal output polish: consistent section headers, human-readable divergence summary (`Summary: tool_result differs at index 3`), `[blackbox]` prefixes on command headers
 - **W3-D** — Demo walkthrough (`DEMO.md`)
 
+## Week-Four Hardening ✓
+
+- **W4-A…E** — Provider-neutral adapter boundary; optional opt-in Anthropic proof scripts (never in `npm test`, no CLI wiring); structured v2 transcript; full live `record → replay → fork → mutate → continue → diff` loop proven against Anthropic
+- **W4-F** — Cassette verification + trace hygiene: `npm run cli -- verify --trace <path>` checks schema version, hash chain, provider-neutrality (no `toolu_`/`msg_`/`usage`/`stop_reason`/`stop_sequence`/`ANTHROPIC_API_KEY`/`sk-ant`/key leakage), and offline replayability, reporting PASS/FAIL and the first failing invariant. Reusable core: `verifyTrace` / `verifyTraceFile` (`src/trace/verifyTrace.ts`) and the neutrality audit (`src/trace/neutrality.ts`)
+
 ## Not Current Focus
 
 - Web UI / Dashboard / Metrics charts
@@ -62,6 +67,7 @@ npm run cli -- inspect
 npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
+npm run cli -- verify --trace traces/example-trace.json
 ```
 
 See [DEMO.md](DEMO.md) for annotated expected output and explanation of each step.

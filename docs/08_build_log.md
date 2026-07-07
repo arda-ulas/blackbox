@@ -426,3 +426,20 @@ In priority order — do not expand scope without explicit decision:
 
 ### W4-E status
 - E1 (single-record synthetic-id acceptance) and E2/E3 (fresh-adapter fork continuation) both proven live. Remaining: Codex closeout audit, then tag `week-four-real-fork-proof`.
+
+---
+
+## 2026-07-07 — Week Four W4-F (cassette verification + trace hygiene)
+
+### What Was Built
+- **Plan** (`e708da5`, Codex-accepted) — `docs/18_week_four_f_plan.md`.
+- **Neutrality → core** — new `src/trace/neutrality.ts`: `NEUTRALITY_FORBIDDEN` (now includes `sk-ant`), compatibility `auditNeutrality(serialized, apiKey?)` (unchanged substring behavior), and a new structured `auditTraceNeutrality(trace, apiKey?)` that flags key-form provider markers (`usage`/`stop_reason`/`stop_sequence`/`ANTHROPIC_API_KEY`) only as object keys and value-form markers (`toolu_`/`msg_`/`sk-ant`/`ANTHROPIC_API_KEY`) inside string values — reducing false positives from benign text like "usage". A leaked literal key surfaces as `<api-key-value>`, never echoed. `src/examples/toolUseProofHelpers.ts` now re-exports the audit (proof scripts/tests unchanged; `collectToolBlockIds` stays).
+- **Verification core** — new `src/trace/verifyTrace.ts`: `verifyTrace(trace, opts?)` (pure/offline, in-memory `Trace` only) runs `schema_version → hash_chain → provider_neutrality → replayability`, short-circuits at the first FAIL (later invariants → `skip`), returns a structured `VerifyReport` (PASS/FAIL, per-invariant detail, first failing invariant, step index when localized). `verifyTraceFile(path, opts?)` wraps `loadTrace` and maps read/JSON/version failures onto a `schema_version` FAIL instead of throwing. `replayability` fails only when a trace *claims* `run_completed`/`success` but replay disagrees — a legitimate terminal-error trace passes; `skipReplay` bypasses.
+- **CLI** — `npm run cli -- verify --trace <path>` (`src/cli.ts`): flag-based, prints the PASS/FAIL report, exits 0/1. No change to `record`/`replay`/`fork`/`diff`/`list`/`inspect`.
+- **Tests** — `tests/verifyTrace.test.ts` (valid traces, missing/unsupported/legacy version, malformed JSON + missing file via `verifyTraceFile`, hash mismatch / broken prevHash / index gap with step index, `toolu_`/`msg_`/`usage`/`stop_reason`/`ANTHROPIC_API_KEY`/`sk-ant`/literal-key leakage, benign "usage" text not flagged, non-terminal success claim → replay FAIL, `skipReplay`); CLI verify PASS/FAIL/missing-file/bad-flag smokes in `tests/cli.test.ts`.
+
+### Outcome
+- **Pass.** `npm test -- --run`: **304/304**, zero live calls. `record`/`replay`/`fork`/`diff` unchanged and green. `verify` PASS→exit 0, FAIL/missing→exit 1. `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof` exits at the key guard (no live call; re-export resolves). `git ls-files traces` empty — no cassette committed. `package.json` gained no dependency.
+
+### Guardrails Held
+- No behavior change to `hash.ts`, `validateTrace`, `replayTrace`, `loadTrace`. `verifyTrace` takes only an in-memory `Trace` (cannot make a live call by construction); `verifyTraceFile` only reads the filesystem. No new provider adapter, no CLI Anthropic wiring, no live tests. No key value ever printed.

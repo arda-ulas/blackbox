@@ -16,6 +16,7 @@ import {
 } from "./replay/CassetteReplay.ts";
 import { forkRun } from "./fork/forkRun.ts";
 import { diffTraces, formatFirstDivergence } from "./fork/diffTraces.ts";
+import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,7 @@ Commands:
   replay    Replay a cassette offline (no model or tool calls)
   fork      Fork a trace with a prompt or tool-result mutation
   diff      Load two cassettes and print the first divergence
+  verify    Verify a cassette's schema, hash chain, neutrality, and replayability
   list      List all trace cassettes in a directory
   inspect   Print detailed info and step timeline for a cassette
 
@@ -424,6 +426,53 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// verify
+// ---------------------------------------------------------------------------
+
+const VERIFY_ALLOWED     = ["trace"];
+const VERIFY_VALUE_FLAGS = ["trace"];
+
+/** Pad an invariant name to a stable column width for the report table. */
+function verifyLine(inv: VerifyReport["invariants"][number]): string {
+  const name   = inv.name.padEnd(20);
+  const status = inv.status === "fail" ? "FAIL" : inv.status;
+  const step   = inv.stepIndex !== undefined ? `[step ${inv.stepIndex}] ` : "";
+  return `  ${name} ${status.padEnd(5)} ${step}${inv.detail}`;
+}
+
+async function runVerify(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, VERIFY_ALLOWED);
+  checkValueFlags(flags, VERIFY_VALUE_FLAGS);
+
+  const tracePath = str(flags["trace"], "traces/example-trace.json");
+
+  // verifyTraceFile never throws for a bad trace — a load/JSON/version failure
+  // is reported as a schema_version FAIL, keeping the verdict honest.
+  const report = await verifyTraceFile(tracePath);
+
+  const label = (s: string) => s.padEnd(14);
+
+  console.log("[blackbox] --- verify ---");
+  console.log(label("Path:"),   tracePath);
+  console.log(label("Result:"), report.pass ? "PASS" : "FAIL");
+  console.log();
+
+  for (const inv of report.invariants) {
+    console.log(verifyLine(inv));
+  }
+
+  if (report.firstFailure) {
+    const { name, detail, stepIndex } = report.firstFailure;
+    const where = stepIndex !== undefined ? ` (step ${stepIndex})` : "";
+    console.log();
+    console.log(`First failing invariant: ${name}${where} — ${detail}`);
+  }
+
+  // Exit non-zero on FAIL so `verify` is scriptable.
+  if (!report.pass) process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // list
 // ---------------------------------------------------------------------------
 
@@ -553,12 +602,13 @@ try {
     case "replay":  await runReplay(flags);  break;
     case "fork":    await runFork(flags);    break;
     case "diff":    await runDiff(flags);    break;
+    case "verify":  await runVerify(flags);  break;
     case "list":    await runList(flags);    break;
     case "inspect": await runInspect(flags); break;
     default:
       if (subcommand) {
         console.error(
-          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, list, inspect`,
+          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, list, inspect`,
         );
         process.exit(1);
       }

@@ -306,6 +306,56 @@ describe("cli default fork path", () => {
 });
 
 // ---------------------------------------------------------------------------
+// W4-F: verify command
+// ---------------------------------------------------------------------------
+
+describe("cli verify", () => {
+  // Kept OUTSIDE TEMP_DIR so it is not counted by the `list` integrity tests.
+  const verifyTamperedPath = join(tmpdir(), `blackbox-verify-tampered-${Date.now()}.json`);
+
+  beforeAll(async () => {
+    // Build a hash-tampered copy of the recorded success trace.
+    const raw   = await import("node:fs/promises").then((m) => m.readFile(SUCCESS_PATH, "utf8"));
+    const data  = JSON.parse(raw) as Record<string, unknown>;
+    const steps = data["steps"] as Array<Record<string, unknown>>;
+    steps[3]["hash"] = "0".repeat(64); // corrupt step 3's hash
+    await writeFile(verifyTamperedPath, JSON.stringify(data, null, 2), "utf8");
+  });
+
+  afterAll(async () => {
+    await rm(verifyTamperedPath, { force: true });
+  });
+
+  it("verify on a valid trace exits 0 and prints PASS", async () => {
+    const result = await runCli(["verify", "--trace", SUCCESS_PATH]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("PASS");
+    expect(result.stdout).toContain("schema_version");
+    expect(result.stdout).toContain("replayability");
+  }, 15_000);
+
+  it("verify on a hash-tampered trace exits 1 and reports the first failing invariant", async () => {
+    const result = await runCli(["verify", "--trace", verifyTamperedPath]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("FAIL");
+    expect(result.stdout).toContain("First failing invariant");
+    expect(result.stdout).toContain("hash_chain");
+  }, 15_000);
+
+  it("verify on a missing trace exits 1", async () => {
+    const result = await runCli(["verify", "--trace", "/tmp/blackbox-no-such-verify.json"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("FAIL");
+  }, 15_000);
+
+  it("verify --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["verify", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
 // W3-B: list command
 // ---------------------------------------------------------------------------
 

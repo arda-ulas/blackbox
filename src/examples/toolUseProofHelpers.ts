@@ -6,52 +6,19 @@
 
 // ---------------------------------------------------------------------------
 // Neutrality audit
+//
+// The neutrality audit moved to core in W4-F (`src/trace/neutrality.ts`) so the
+// CLI and `verifyTrace` can reach it. These re-exports keep the proof scripts and
+// their tests importing from their original path unchanged.
 // ---------------------------------------------------------------------------
 
-/**
- * Provider-native markers that must never appear in a Blackbox trace.
- *
- * - `toolu_`         — Anthropic tool_use ids
- * - `msg_`           — Anthropic message ids
- * - `usage`          — token-usage accounting
- * - `stop_reason`    — provider stop metadata
- * - `stop_sequence`  — provider stop metadata
- * - `ANTHROPIC_API_KEY` — the env var name should never be serialized
- *
- * The API key VALUE is checked separately (it is dynamic) via `auditNeutrality`'s
- * `apiKey` argument. Raw provider content-block arrays would surface here too —
- * they always carry `stop_reason`/`usage`/`toolu_` siblings, so those markers
- * are a reliable proxy for "a raw provider object leaked into the trace".
- */
-export const NEUTRALITY_FORBIDDEN = [
-  "toolu_",
-  "msg_",
-  "usage",
-  "stop_reason",
-  "stop_sequence",
-  "ANTHROPIC_API_KEY",
-] as const;
-
-export interface NeutralityResult {
-  ok: boolean;
-  /** Forbidden markers that were found (empty when ok). */
-  found: string[];
-}
-
-/**
- * Scan a serialized trace for provider-native leakage. Pass the live API key so
- * its literal value is also rejected if it somehow reached the payload.
- */
-export function auditNeutrality(serialized: string, apiKey?: string): NeutralityResult {
-  const found: string[] = [];
-  for (const marker of NEUTRALITY_FORBIDDEN) {
-    if (serialized.includes(marker)) found.push(marker);
-  }
-  if (apiKey && apiKey.length > 0 && serialized.includes(apiKey)) {
-    found.push("<api-key-value>");
-  }
-  return { ok: found.length === 0, found };
-}
+export {
+  NEUTRALITY_FORBIDDEN,
+  auditNeutrality,
+  auditTraceNeutrality,
+  type NeutralityMarker,
+  type NeutralityResult,
+} from "../trace/neutrality.ts";
 
 // ---------------------------------------------------------------------------
 // Request inspection

@@ -71,14 +71,17 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current Milestone: W4-E Real Provider Proof — full live loop PROVEN (closeout)
+## Current Milestone: W4-F Cassette Verification + Trace Hygiene (implementation)
 
-W4-D structured transcript migration is complete and tagged (`week-four-structured-transcript-migration`). W4-E is **proven and in closeout** (2026-07-06):
+W4-E is complete and tagged (`week-four-real-fork-proof`): the full active-debugging loop — **record → replay → fork → mutate → continue → diff** — is proven against the live provider via opt-in proof scripts (E1 `ed1628a`, E2/E3 `d4d01f8`). Details in `docs/16_week_four_e_plan.md`, `docs/17_week_four_e2e3_plan.md`, and the W4-E build-log entries.
 
-- **E1** (`example:real-tooluse-proof`, `ed1628a`) — the real Anthropic Messages API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id` on a single real tool-use record.
-- **E2/E3** (`example:real-fork-proof`, `d4d01f8`) — a **fresh** `AnthropicModelClient` continues from a *mutated* structured v2 fork point using only cassette data; the API accepts it and the child diffs at the mutated `tool_result` over a hash-identical prefix.
+**W4-F (implemented)** hardens the local cassette contract per `docs/18_week_four_f_plan.md`:
 
-The full active-debugging loop — **record → replay → fork → mutate → continue → diff** — is proven against the live provider. Remaining: Codex closeout audit, then tag `week-four-real-fork-proof`. Details in `docs/16_week_four_e_plan.md`, `docs/17_week_four_e2e3_plan.md`, and the W4-E build-log entries.
+- **Reusable verification core** — `verifyTrace(trace)` / `verifyTraceFile(path)` (`src/trace/verifyTrace.ts`) run one ordered pass (`schema_version → hash_chain → provider_neutrality → replayability`), short-circuit at the first failure, and return a structured PASS/FAIL report (first failing invariant + step index). They compose the existing `CURRENT_TRACE_VERSION` check, `validateTrace`, `replayTrace`, and `loadTrace` **without changing their semantics**.
+- **Neutrality audit is now core** — `src/trace/neutrality.ts` holds `NEUTRALITY_FORBIDDEN` (now including `sk-ant`), the compatibility `auditNeutrality(serialized)` (re-exported from `toolUseProofHelpers.ts` for the proof scripts), and a structured `auditTraceNeutrality(trace)` that flags provider-key leaks while tolerating benign user text.
+- **CLI** — `npm run cli -- verify --trace <path>` (flag-based, exit 0 PASS / 1 FAIL). No change to `record`/`replay`/`fork`/`diff`/`list`/`inspect`.
+
+Scope guard: W4-F is verification/hygiene only — no new provider adapter, no CLI Anthropic wiring, no live tests, no packaging/observability platform.
 
 Rules still in force (do not relax without an explicit new milestone):
 

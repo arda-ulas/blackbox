@@ -141,6 +141,8 @@ These invariants must hold regardless of which adapter is in use.
 
 6. **No provider metadata in traces** — Provider-specific IDs (e.g., Anthropic `message.id`, `usage` token counts, `model` name) must not appear in `TraceStep.payload` unless explicitly added by a future design decision. Traces must be provider-agnostic. A trace recorded with a real adapter must be indistinguishable from one recorded with the fake adapter at the schema level.
 
+   **W4-F:** this neutrality invariant is now checked by reusable **core** code — `auditTraceNeutrality` in `src/trace/neutrality.ts`, surfaced through `verifyTrace` and `npm run cli -- verify` (see `docs/18_week_four_f_plan.md`). The forbidden set is `toolu_`, `msg_`, `usage`, `stop_reason`, `stop_sequence`, `ANTHROPIC_API_KEY`, `sk-ant`, plus any literal key value. The opt-in proof scripts import the same audit via a re-export from `src/examples/toolUseProofHelpers.ts`.
+
 ---
 
 ## Tool-Use Mapping

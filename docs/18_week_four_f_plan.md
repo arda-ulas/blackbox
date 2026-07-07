@@ -1,13 +1,16 @@
 # W4-F Plan — Cassette Verification + Trace Hygiene
 
-**Status:** PLANNED (not implemented). Plan-only deliverable.
+**Status:** IMPLEMENTED. `verify` core + CLI + tests landed; 304 offline tests pass, zero live calls.
 **Predecessor:** W4-E complete, pushed, tagged `week-four-real-fork-proof`. Full live
 record → replay → fork → mutate → continue → diff loop proven against Anthropic via opt-in
 proof scripts (`d4d01f8`, closeout `38349cf`). Default CLI and `npm test` remain fake/offline.
 **Mode:** local TypeScript core only. No live calls, no CLI Anthropic wiring, no new provider adapter.
 
-> This document is the **only** W4-F deliverable produced in this step. No runtime, source, test,
-> or `package.json` change is made here. Implementation is a separate, later step.
+> Implemented as planned: `src/trace/neutrality.ts` (relocated audit + `sk-ant`, plus a structured
+> `auditTraceNeutrality` that distinguishes provider-key leaks from benign text), `src/trace/verifyTrace.ts`
+> (`verifyTrace` / `verifyTraceFile`), the `verify` CLI subcommand, and `tests/verifyTrace.test.ts` +
+> CLI verify smokes. `hash.ts`, `validateTrace`, `replayTrace`, and `loadTrace` are unchanged.
+> The sections below are the accepted plan, retained for context.
 
 ---
 

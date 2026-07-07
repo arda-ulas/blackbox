@@ -268,6 +268,43 @@ First divergence at index 3
 
 ---
 
+### 7. Verify
+
+```sh
+npm run cli -- verify --trace traces/example-trace.json
+```
+
+**What it does:** runs one ordered hygiene pass over a single cassette and prints a PASS/FAIL verdict. The invariants run in order and short-circuit at the first failure:
+
+1. `schema_version` — version present and equal to the supported schema version
+2. `hash_chain` — `validateTrace` (index sequencing, `prevHash` links, recomputed hashes)
+3. `provider_neutrality` — no provider-native leakage (`toolu_`, `msg_`, `usage`, `stop_reason`, `stop_sequence`, `ANTHROPIC_API_KEY`, `sk-ant`, or a literal key value)
+4. `replayability` — the trace replays offline and a success claim is consistent with replay
+
+**Files read:** `traces/example-trace.json` (read-only — `verify` never rewrites a cassette)
+
+**Expected output shape (PASS):**
+
+```
+[blackbox] --- verify ---
+Path:          traces/example-trace.json
+Result:        PASS
+
+  schema_version       pass  version 2
+  hash_chain           pass  15 step(s), chain intact
+  provider_neutrality  pass  no forbidden markers
+  replayability        pass  status=success
+```
+
+**On failure**, the exit code is 1 and the report names the first failing invariant (with a step index when the failure is step-localized), e.g. `First failing invariant: hash_chain (step 3) — step 3 hash mismatch …`. A leaked API key value is reported as `<api-key-value>` and never echoed.
+
+**Key proof points:**
+
+- `verify` is fully offline — `verifyTrace` takes only an in-memory `Trace` (like `replayTrace`), so it cannot make a live call. `verifyTraceFile` only reads the filesystem.
+- The same neutrality audit is reused by the opt-in Anthropic proof scripts, so a cassette that passes `verify` carries no provider-native ids, usage, stop metadata, or credentials.
+
+---
+
 ## What Is Real vs. Mocked
 
 | Component | Status |
@@ -279,6 +316,7 @@ First divergence at index 3
 | Fork prefix copy + hash re-chain | Real |
 | Tool-result mutation + chain continuation | Real |
 | First-divergence diff | Real |
+| Cassette verification (`verifyTrace` / neutrality audit) | Real — offline, composes existing checks |
 | Model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
 | Fixture tools (search, calendar, booking) | Fake — in-memory, no network |
 
@@ -307,6 +345,7 @@ npm run cli -- inspect
 npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
+npm run cli -- verify --trace traces/example-trace.json
 ```
 
-All commands exit 0. The diff command confirms the first divergence at index 3 with a `tool_result differs` summary and raw hash/payload details for both sides.
+All commands exit 0 (a clean cassette passes `verify`). The diff command confirms the first divergence at index 3 with a `tool_result differs` summary and raw hash/payload details for both sides.
