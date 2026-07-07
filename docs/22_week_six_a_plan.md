@@ -14,8 +14,9 @@ documented as a public-facing repo: `record → replay → fork → mutate → c
 geometry, or provider adapters.** No live calls, no CLI Anthropic wiring, no new provider adapter, no
 product-surface expansion, no new dependency.
 
-> This is the accepted-plan document for W6-A. Implementation, if approved, will land in a single slice under the
-> §9 first-implementation prompt. Until then this file stands alone.
+> This is the accepted-plan document for W6-A, retained as a historical record. Implementation landed in a single
+> slice (`feat: improve diff inspect ergonomics`) following the §10 first-implementation prompt. The plan body
+> below is unchanged.
 
 ---
 

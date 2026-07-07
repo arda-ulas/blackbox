@@ -448,4 +448,6 @@ npm run fixtures:generate
 
 All commands exit 0 (a clean cassette passes `verify`, `check` runs the whole loop to a PASS verdict, and
 `fixtures:generate` in check mode confirms the committed corpus is in sync). The diff command confirms the first
-divergence at index 3 with a `tool_result differs` summary and raw hash/payload details for both sides.
+divergence at index 3 with a `tool_result differs` summary, humanized per-side step summaries, and a
+`changed value (result):` block that surfaces the injected child mutation (`"available":false` /
+`"No hotels available for that date."`) in full.
