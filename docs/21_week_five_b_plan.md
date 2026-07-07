@@ -48,6 +48,16 @@ Concretely, the docs have accreted rather than been authored:
    mocked* and *which commands to run to confirm it* from the DEMO's real-vs-mocked table plus scattered prose.
    There is no single "here's how a skeptic verifies this in four commands" path.
 
+6. **The agent-instruction docs are stale and contradict the current state.** `AGENTS.md` still says *"W5-A
+   implemented — awaiting Codex audit before tag"* and *"Not yet tagged; awaiting Codex audit before push/tag"* —
+   but W5-A is now audited, pushed, and tagged (`week-five-trace-fixture-corpus`). `CLAUDE.md` still says *"Post-W4-G.
+   Ready for W5-A planning"*, lists *"Tests: 321/321 passing"*, and points *"Next Safest Task"* at W5-A
+   planning/implementation. All of that predates W5-A landing (360/360). A repo-readiness milestone cannot leave the
+   two documents that describe the project's *current state* asserting an older milestone — README/DEMO cannot be
+   fully credible while `AGENTS.md`/`CLAUDE.md` describe a superseded state. (This was originally scoped *out* of
+   W5-B; the Codex audit of the plan correctly flagged that as a contradiction with W5-B's own goal, and it is now
+   scoped *in* as a narrow, docs-only current-state correction — see §3.7.)
+
 **Thesis:** the code is demo-ready; the *repo* is not yet. W5-B makes the repository understandable, credible, and
 demo-ready **without adding a single runtime feature** — it re-narrates the front door (README), tightens the
 walkthrough (DEMO), consolidates the "is / is not" boundary and the "proof status", and adds a short "for
@@ -61,9 +71,9 @@ overclaims production readiness. No code, tests, fixtures, or config change.
 - **The technical work is done and protected.** W4 closed the loop and proved it live; W5-A froze it against
   regression. The next unit of value is not more mechanism — it is making the existing mechanism *legible*. That is
   the smallest remaining step that increases the project's value to an outside reader.
-- **It is pure documentation.** Blast radius is a handful of Markdown files (`README.md`, `DEMO.md`, one new plan
-  doc, a build-log entry). **No source, no tests, no fixtures, no `package.json`, no `.gitignore`.** Reverting is
-  `git checkout` on the touched docs.
+- **It is pure documentation.** Blast radius is a handful of Markdown files (`README.md`, `DEMO.md`, `AGENTS.md`,
+  `CLAUDE.md`, a build-log entry, and this plan doc). **No source, no tests, no fixtures, no `package.json`, no
+  `.gitignore`.** Reverting is `git checkout` on the touched docs.
 - **It removes concrete, already-identified defects.** The stale README Status headline (§1.2) and the wrong test
   count in DEMO (§1.3) are live inaccuracies a reviewer *will* hit. Fixing them is low-risk and high-signal.
 - **It de-risks any future outward-facing step** (a demo, a writeup, sharing the repo) by ensuring the docs match
@@ -160,6 +170,27 @@ published package, live-by-default behavior, a UI, or a capability the code does
 implies more than "a proven local demo with an opt-in live proof" is softened. The existing DEMO "Current
 Limitations" list is the model for tone and is preserved.
 
+### 3.7 Narrow current-state updates to `AGENTS.md` and `CLAUDE.md`
+
+A tightly-scoped, **docs-only** correction of the *current-state* pointers in the two agent-instruction files so
+they stop describing a superseded milestone (§1.6). This is a status/pointer refresh, **not** a rewrite: guardrails,
+build-scope rules, agent-role tables, invariants, and all historical milestone entries are preserved verbatim.
+
+- **`AGENTS.md`** — update the "Current State" heading and body from *"W5-A implemented — awaiting Codex audit
+  before tag"* / *"Not yet tagged; awaiting Codex audit before push/tag"* to reflect that **W5-A is closed and
+  tagged** (`week-five-trace-fixture-corpus`) and that **W5-B is the docs/repo-readiness milestone** (in
+  implementation/closeout as appropriate). The prior W4-* history sections below "Current State" are left untouched.
+- **`CLAUDE.md`** — update the "Current State", test-count, and "Next Safest Task" lines: replace *"Post-W4-G. Ready
+  for W5-A planning"* with the true state (**W5-A closed and tagged; W5-B docs-readiness scope**), replace
+  *"Tests: 321/321 passing"* with the **current 360/360** baseline, and re-point "Next Safest Task" away from W5-A
+  planning/implementation to the W5-B docs-readiness flow. Closed-tag lists and guardrails are preserved; the W5-A
+  tag is added to the closed set.
+
+**Discipline:** these edits touch only *current-state / status / next-step / current-count* language. They must not
+alter any guardrail, invariant, build-scope rule, or agent-role definition, and must not rewrite or delete any
+historical milestone entry. **Historical test counts inside past milestone entries stay as written** (e.g. a W4-G
+entry citing 321 at that time is correct history and is *not* changed); only the *current-state* count becomes 360.
+
 ---
 
 ## 4. Proposed docs changes (file-by-file)
@@ -175,13 +206,20 @@ Limitations" list is the model for tone and is preserved.
   (§3.2); command blocks re-confirmed against the real CLI; no-overclaim pass.
 - `docs/08_build_log.md` — a W5-B entry recording the docs-only change and confirming the post-W5-B test total is
   unchanged at 360 (docs cannot change test count).
+- `AGENTS.md` — narrow current-state/status pointer refresh only (§3.7): W5-A closed and tagged; W5-B is the
+  docs-readiness milestone. Guardrails, build-scope rules, agent-role table, invariants, and all historical
+  milestone entries preserved verbatim.
+- `CLAUDE.md` — narrow current-state/test-count/next-step refresh only (§3.7): W5-A closed and tagged; current
+  baseline 360/360; "Next Safest Task" re-pointed to the W5-B docs-readiness flow; W5-A tag added to the closed set.
+  Guardrails and historical content preserved.
+
+**Allowed changed files for the W5-B implementation slice (exhaustive):**
+`README.md`, `DEMO.md`, `docs/08_build_log.md`, `AGENTS.md`, `CLAUDE.md`, `docs/21_week_five_b_plan.md`. Any diff
+outside this set is out of scope.
 
 **Explicitly NOT touched by W5-B (guardrail):**
 - Any file under `src/`, `tests/`, `scripts/`, or `fixtures/`.
 - `package.json`, `package-lock.json`, `.gitignore`, `tsconfig.json`, `vite`/`vitest` config.
-- `AGENTS.md`, `CLAUDE.md` — left as-is by W5-B unless a separate, explicitly-scoped decision updates the "Current
-  State" pointer; **not** part of this milestone. (If the human later wants the `CLAUDE.md`/`AGENTS.md` "Current
-  State" pointer advanced to "post-W5-A / W5-B docs readiness," that is a separate tiny commit, not W5-B scope.)
 
 ---
 
@@ -235,8 +273,9 @@ justifies it (noted here so the option is on record, not adopted).
 - **No production SDK, eval platform, metrics/observability/OTEL platform, or prompt-management surface.**
 - **No new capability claim.** W5-B may only *describe* what the code already proves; it may not add or imply any
   new behavior, and must remove (not add) any overclaim.
-- **No `AGENTS.md` / `CLAUDE.md` rewrite** as part of W5-B (a separate tiny pointer-advance commit is out of scope
-  here).
+- **No `AGENTS.md` / `CLAUDE.md` rewrite.** W5-B updates *only* the current-state / status / next-step /
+  current-count language in those two files (§3.7). It must not alter any guardrail, invariant, build-scope rule, or
+  agent-role definition, and must not rewrite or delete any historical milestone entry or its historical test count.
 
 ---
 
@@ -244,10 +283,11 @@ justifies it (noted here so the option is on record, not adopted).
 
 W5-B is **purely documentation**:
 
-- Revert is `git checkout -- README.md DEMO.md docs/08_build_log.md` (and, if undesired, delete
+- Revert is `git checkout -- README.md DEMO.md docs/08_build_log.md AGENTS.md CLAUDE.md` (and, if undesired, delete
   `docs/21_week_five_b_plan.md`). Because no code, test, fixture, or config file is touched, reverting W5-B **cannot
   affect any runtime behavior, any test outcome, or the fixture corpus**. The loop
-  (`record`/`replay`/`fork`/`diff`/`verify`/`check`) and the 360-test suite are identical with or without W5-B.
+  (`record`/`replay`/`fork`/`diff`/`verify`/`check`) and the 360-test suite are identical with or without W5-B. The
+  `AGENTS.md`/`CLAUDE.md` edits are status text only — reverting them changes no rule the agents must follow.
 - If only part of the rewrite is unwanted (e.g., the README reorganization but not the DEMO count fix), the edits
   are independent per file and can be reverted individually.
 - If the consolidated "is / is not" or "Proof status" section is judged redundant with DEMO's existing table, the
@@ -258,11 +298,12 @@ W5-B is **purely documentation**:
 
 ## 8. First implementation prompt
 
-> Implement W5-B (Public Demo Narrative + Repo Readiness) per `docs/21_week_five_b_plan.md`. **Documentation only —
-> do NOT touch any file under `src/`, `tests/`, `scripts/`, or `fixtures/`, and do NOT touch `package.json`,
-> `package-lock.json`, `.gitignore`, or any build config.** Do NOT add live calls, CLI Anthropic wiring, a new
-> provider adapter, a new dependency, a new npm script, a new CLI subcommand, or any product surface. Do NOT add
-> tests. Do NOT run any `example:real-*` proof with a live key.
+> Implement W5-B (Public Demo Narrative + Repo Readiness) per `docs/21_week_five_b_plan.md`. **Documentation only.**
+> The only files you may change are: `README.md`, `DEMO.md`, `docs/08_build_log.md`, `AGENTS.md`, `CLAUDE.md`, and
+> `docs/21_week_five_b_plan.md`. Do NOT touch any file under `src/`, `tests/`, `scripts/`, or `fixtures/`, and do
+> NOT touch `package.json`, `package-lock.json`, `.gitignore`, or any build config. Do NOT add live calls, CLI
+> Anthropic wiring, a new provider adapter, a new dependency, a new npm script, a new CLI subcommand, or any product
+> surface. Do NOT add tests. Do NOT run any `example:real-*` proof with a live key.
 >
 > 1. Re-author `README.md` as a front door (§3.1): lead with *what Blackbox is*, the core loop with one-line verb
 >    meanings, *what it proves* in plain language, and a **corrected Status line** reflecting the true current state
@@ -282,18 +323,28 @@ W5-B is **purely documentation**:
 >    doc matches reality (counts, output shapes, PASS verdicts). Confirm every script name referenced exists in
 >    `package.json`. Confirm the `example:real-*` scripts fail safely at the key guard **without** a live run. Do NOT
 >    run any with-key live proof.
-> 6. Do a **no-overclaim pass** (§3.6) over both files — nothing may claim production readiness, a shipped SDK, a
->    published package, live-by-default behavior, a UI, or any unproven capability.
-> 7. Add a `docs/08_build_log.md` W5-B entry: docs-only change, files touched, and confirmation the test total is
->    **unchanged at 360** (docs cannot change it).
+> 6. Do a **no-overclaim pass** (§3.6) over the edited docs — nothing may claim production readiness, a shipped SDK,
+>    a published package, live-by-default behavior, a UI, or any unproven capability.
+> 7. Apply the **narrow current-state refresh to `AGENTS.md` and `CLAUDE.md`** (§3.7): update only current-state /
+>    status / next-step / current-count language. In `AGENTS.md`, replace the "W5-A implemented — awaiting Codex
+>    audit before tag" / "Not yet tagged" state with "W5-A closed and tagged (`week-five-trace-fixture-corpus`);
+>    W5-B docs-readiness in progress". In `CLAUDE.md`, replace "Post-W4-G. Ready for W5-A planning" with the W5-A
+>    closed/tagged + W5-B docs-readiness state, change "Tests: 321/321 passing" to the current **360/360** baseline,
+>    add the W5-A tag to the closed-tag set, and re-point "Next Safest Task" to the W5-B docs-readiness flow. Do NOT
+>    alter any guardrail, invariant, build-scope rule, or agent-role definition, and do NOT rewrite or delete any
+>    historical milestone entry or its historical (non-current) test count.
+> 8. Add a `docs/08_build_log.md` W5-B entry: docs-only change, files touched (`README.md`, `DEMO.md`, `AGENTS.md`,
+>    `CLAUDE.md`, this plan), and confirmation the test total is **unchanged at 360** (docs cannot change it).
 >
 > Acceptance: `README.md` leads with a current, accurate narrative and correct Status; the "is / is not", "Proof
 > status", and "For reviewers" sections are present and non-overclaiming; `DEMO.md` says 360 and ends on the
-> fixtures step; every documented command was run and matches its description; no file under `src/`/`tests/`/
-> `scripts/`/`fixtures/` and no `package.json`/`.gitignore`/build config changed; `git status` shows only
-> `README.md`, `DEMO.md`, `docs/08_build_log.md` (and this plan doc) modified; `npm test -- --run` still 360/360,
-> zero live calls. Then summarize per the CLAUDE.md response format (files changed / real / mocked / tests / next
-> safest task).
+> fixtures step; `AGENTS.md` and `CLAUDE.md` reflect W5-A closed/tagged and W5-B docs-readiness with a 360 current
+> count and no stale "post-W4-G / ready for W5-A planning" or "W5-A awaiting audit/tag" language, while preserving
+> guardrails and historical entries; every documented command was run and matches its description; no file under
+> `src/`/`tests/`/`scripts/`/`fixtures/` and no `package.json`/`.gitignore`/build config changed; `git status` shows
+> only `README.md`, `DEMO.md`, `docs/08_build_log.md`, `AGENTS.md`, `CLAUDE.md` (and this plan doc) modified;
+> `npm test -- --run` still 360/360, zero live calls. Then summarize per the CLAUDE.md response format (files
+> changed / real / mocked / tests / next safest task).
 
 ---
 
@@ -302,9 +353,9 @@ W5-B is **purely documentation**:
 > Audit the W5-B implementation against `docs/21_week_five_b_plan.md`, `CLAUDE.md`, and `AGENTS.md`. Verify:
 >
 > 1. **Documentation-only.** `git diff --stat` shows changes confined to `README.md`, `DEMO.md`,
->    `docs/08_build_log.md`, and `docs/21_week_five_b_plan.md`. **No file under `src/`, `tests/`, `scripts/`, or
->    `fixtures/`, and no `package.json`, `package-lock.json`, `.gitignore`, or build config, changed.** Confirm via
->    diff.
+>    `docs/08_build_log.md`, `AGENTS.md`, `CLAUDE.md`, and `docs/21_week_five_b_plan.md`. **No file under `src/`,
+>    `tests/`, `scripts/`, or `fixtures/`, and no `package.json`, `package-lock.json`, `.gitignore`, or build
+>    config, changed.** Confirm via diff.
 > 2. **No runtime/test/fixture impact.** `npm test -- --run` is still **360/360**, zero live calls, no key present.
 >    The corpus under `fixtures/traces/` is byte-identical; `npm run fixtures:generate` (check mode) still reports in
 >    sync. `git ls-files traces` is empty; `git ls-files fixtures/traces` still lists exactly the five committed
@@ -313,9 +364,16 @@ W5-B is **purely documentation**:
 >    `package.json` script or `cli` subcommand and behaves as the doc says (run them: `check` → single PASS,
 >    `verify` → 4/4, `fork`/`diff` → first divergence at index 3, `fixtures:generate` → in sync). The claimed test
 >    count (360) matches reality in **both** files. No doc names a script or subcommand that does not exist.
-> 4. **Status is current, not stale.** The README no longer headlines "W4-D complete"; it reflects post-W5-A state
->    (`week-five-trace-fixture-corpus`, 360 tests). The milestone `✓` history is retained (not deleted) and re-framed
->    as build history.
+> 4. **Status is current, not stale — across README, DEMO, AGENTS, and CLAUDE.** The README no longer headlines
+>    "W4-D complete"; it reflects post-W5-A state (`week-five-trace-fixture-corpus`, 360 tests) and retains (not
+>    deletes) the milestone `✓` history re-framed as build history. `AGENTS.md` reflects **W5-A closed/tagged** and
+>    **W5-B docs-readiness** state — no residual "W5-A implemented — awaiting Codex audit / not yet tagged" language.
+>    `CLAUDE.md` reflects **W5-A closed/tagged**, the **current 360/360** baseline, the W5-A tag in the closed set,
+>    and a "Next Safest Task" pointing at the W5-B docs-readiness flow — no residual "Post-W4-G / ready for W5-A
+>    planning" language and no stale **321** as the *current* count. Confirm that **historical** test counts inside
+>    past milestone entries (in `docs/08_build_log.md`, and any historical W4-* text) are **preserved**, not
+>    rewritten — only current-state counts read 360. Confirm no guardrail, invariant, build-scope rule, or
+>    agent-role definition in `AGENTS.md`/`CLAUDE.md` was altered.
 > 5. **No overclaim.** Nothing claims production readiness, a shipped/published SDK or binary, live-by-default
 >    behavior, a UI/backend/dashboard, or any capability the code does not prove. The opt-in, human-run, never-in-
 >    `npm test`, never-CLI-wired nature of the Anthropic proofs is stated accurately. The fake/offline default and
@@ -330,9 +388,10 @@ W5-B is **purely documentation**:
 
 ## 10. Optional later Fable prompt (narrative polish)
 
-> *(Optional, only after Codex accepts the W5-B docs and only if a final prose pass is wanted. Fable is a narrative
-> stylist here, not a decision authority — it may reword for clarity and flow but may not add, remove, or soften any
-> factual claim, command, count, or guardrail.)*
+> *(Optional, and gated: run only after Codex has accepted the full W5-B docs set — including the `AGENTS.md` /
+> `CLAUDE.md` current-state consistency (§3.7, §9.4) — and only if a final prose pass is wanted. Do not run before
+> technical/docs consistency is accepted. Fable is a narrative stylist here, not a decision authority — it may
+> reword for clarity and flow but may not add, remove, or soften any factual claim, command, count, or guardrail.)*
 >
 > Do a light narrative-polish pass over the W5-B `README.md` (and, if useful, the `DEMO.md` intro) for a first-time
 > reader landing on the repo cold. Improve flow, opening hook, and skimmability of the "What Blackbox is",
