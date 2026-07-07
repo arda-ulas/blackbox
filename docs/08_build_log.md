@@ -404,3 +404,25 @@ In priority order — do not expand scope without explicit decision:
 
 ### Still Deferred (NOT yet proven)
 - Real **fork continuation** with a fresh adapter from a mutated fork point (E2/E3 — record → replay → fork → mutate → continue → diff live). Not started. No tag until E3 lands and Codex accepts.
+
+---
+
+## 2026-07-06 — Week Four W4-E slices E2/E3 (real fork continuation — PASSED)
+
+### What Was Built
+- **E2/E3 plan** (`7cc12d6`) — `docs/17_week_four_e2e3_plan.md`: the full live loop over a real cassette (load parent → offline replay → fork at `tool_result` → mutate → continue with a fresh `AnthropicModelClient` → diff).
+- **E2/E3 gate** (`d4d01f8`) — opt-in `src/examples/realForkProof.ts` + `example:real-fork-proof` (not in `npm test`, no CLI wiring); one offline mocked integration test `tests/forkAnthropicContinuation.test.ts` (7 tests). No product-runtime change — `forkRun`, `hash.ts`, `replayTrace`, and `AnthropicModelClient` unchanged.
+
+### Empirical result — with-key live run (2026-07-06)
+- Parent loaded from `traces/anthropic-tooluse-parent.json` (v2, 7 steps); offline replay `success`; neutrality clean.
+- Fork geometry located dynamically: mutation target step 3 (`tool_result`), fork index 4 (`model_input`).
+- Mutation: `{ results: [], available: false, message: "No hotels available for that date." }`.
+- **Continuation by a fresh `AnthropicModelClient` (no pending state): the request carried `tool_use.id="call-0"` and `tool_result.tool_use_id="call-0"` plus the mutated result; the real API accepted it.**
+- Child (`anthropic-tooluse-parent-001-fork`, v2, 7 steps) saved to `traces/anthropic-tooluse-fork.json` (git-ignored). `diffTraces`: first divergence at index 3 (mutated `tool_result`), shared prefix 3 steps hash-identical. Child neutrality clean; child replays offline (`success`).
+- **Verdict: PASS.** The full active-debugging loop — record → replay → fork → mutate → continue → diff — is proven against the live provider. The §9 rollback was not needed.
+
+### Guardrails Held
+- One authorized live call, run manually by the human; no live tests in `npm test` (`npm test -- --run`: 274/274, zero live calls). No CLI Anthropic wiring. Replay stayed offline (Trace-only). No provider-native ids/usage/message-ids/content-arrays/`stop_reason`/key in either cassette. Both git-ignored cassettes were not committed.
+
+### W4-E status
+- E1 (single-record synthetic-id acceptance) and E2/E3 (fresh-adapter fork continuation) both proven live. Remaining: Codex closeout audit, then tag `week-four-real-fork-proof`.

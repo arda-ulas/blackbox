@@ -1,10 +1,10 @@
 # W4-E E2/E3 Plan — Real Fork Continuation Proof
 
-**Status:** planned, not started.
+**Status:** E2/E3 **PASSED** (2026-07-06). Full live loop proven.
 **Predecessor:** W4-E slice E1 PASSED (`ed1628a`); E1 closeout pushed (`f062ffc`).
 **Mode:** narrow, opt-in, live-gated. Proves the full active-debugging loop against the real provider.
 
-> **Scope of this document:** planning only. No product code, `package.json`, tests, or existing docs are changed by this artifact. No live provider call has been run. No E2/E3 implementation has started.
+> **E2/E3 result (2026-07-06):** the with-key proof (`npm run example:real-fork-proof`, script committed in `d4d01f8`) **PASSED**. A **fresh** `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data: the continuation request carried `call-0` as `tool_use.id` / `tool_result.tool_use_id` plus the mutated result, the real API accepted it, and the child (v2, 7 steps) diffed with first divergence at the mutated `tool_result` (index 3) over a hash-identical 3-step prefix — neutrality-clean, replays offline. The full live **record → replay → fork → mutate → continue → diff** loop is proven. The §9 rollback was not needed.
 
 ---
 
@@ -202,4 +202,4 @@ Only neutral `call-N` ids and neutral `MessagePart[]` / step payloads are permit
 
 ## Verdict
 
-**Ready for Codex plan audit.** The mechanism is already in place (`forkRun` + a stateless adapter), E1 proved the harder unknown (live acceptance of synthetic `call-0`), and E2/E3 add only a proof script, one offline test, and docs — with a grounded fork geometry (`trIdx = 3`, `forkIndex = 4`), all-or-nothing child saving, dual neutrality checks, and an intact rollback path. No further research is needed before the audit.
+**E2/E3 PASSED — full live loop proven.** A fresh, stateless `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data and neutral `call-0` correlation; the real API accepted it, and the diff/prefix-identity invariants held on a real parent/child pair. This completes the W4-E thesis: `record → replay → fork → mutate → continue → diff` works end-to-end against the live provider. Remaining W4-E closeout: docs (this slice) + Codex closeout audit, then tag `week-four-real-fork-proof`.

@@ -8,9 +8,9 @@ Week Four structured transcript migration (W4-D) is complete and tagged (`week-f
 
 The core trace format is now **schema v2**: tool rounds are recorded as structured, provider-neutral transcript parts (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
-W4-E slice **E1 passed**: an opt-in live proof (`npm run example:real-tooluse-proof`) confirmed that on a **single real tool-use record**, the Anthropic Messages API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` and `tool_result.tool_use_id`; the run completed and its v2 cassette replayed offline, neutrality-clean. Real **fork continuation** with a fresh adapter after mutation remains **unproven** until E2/E3 — so the full live **record → replay → fork → mutate → continue → diff** loop is not yet claimed.
+W4-E is **proven**: opt-in live proofs confirmed the full active-debugging loop against the real Anthropic Messages API. **E1** (`npm run example:real-tooluse-proof`) showed the API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id` on a real tool-use record. **E2/E3** (`npm run example:real-fork-proof`) showed a **fresh** adapter continuing from a *mutated* structured v2 fork point using only cassette data — the API accepted it, and the child diffed with first divergence at the mutated `tool_result` over a hash-identical prefix. The full live **record → replay → fork → mutate → continue → diff** loop is proven, provider-neutral, and neutrality-clean.
 
-Both Anthropic proofs are **opt-in, proof-script only** — neither is wired into the CLI. The default CLI and all of `npm test` remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls).
+All three Anthropic proofs are **opt-in, proof-script only** — none is wired into the CLI. The default CLI and all of `npm test` remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls).
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 

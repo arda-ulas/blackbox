@@ -1,8 +1,10 @@
 # W4-E Plan — Real-Provider Structured Tool-Use / Fork Proof
 
-**Status:** E1 live gate **PASSED** (2026-07-06). E2/E3 not started.
+**Status:** E1, E2, and E3 all **PASSED** (2026-07-06). Full live loop proven; W4-E in closeout.
 **Predecessor:** `week-four-structured-transcript-migration` (`33329ab`).
 **Mode:** narrow, opt-in, live-gated. Exactly one purpose: answer one empirical question.
+
+> **Full-loop result (2026-07-06):** E2/E3 (`example:real-fork-proof`, script `d4d01f8`) PASSED — a fresh `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data; the live API accepted it, and the diff/prefix-identity invariants held on a real parent/child pair. The complete active-debugging loop **record → replay → fork → mutate → continue → diff** is proven against the live provider. See `docs/17_week_four_e2e3_plan.md`.
 
 > **E1 result (2026-07-06):** the with-key proof (`npm run example:real-tooluse-proof`, commit `ed1628a`) **PASSED**. The real Anthropic Messages API (`claude-haiku-4-5-20251001`) accepted Blackbox's synthetic `call-0` as the turn-2 `tool_use.id` and `tool_result.tool_use_id`; the run completed to a final answer and the saved v2 cassette replayed offline, neutrality-clean. The core §2 assumption is proven for a single real record. **Real fork continuation (E2/E3) remains unproven** — a fresh adapter continuing from a mutated fork point has not yet been run live.
 
@@ -215,4 +217,4 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## Verdict
 
-**E1 PASSED — proceed to E2/E3.** The real Anthropic API accepts Blackbox's synthetic request-local `call-0` as `tool_use.id` / `tool_result.tool_use_id` (proven live, single record). The remaining open question is the full active-debugging loop — real **fork continuation** with a fresh adapter from a mutated fork point — which E3 exercises and which is **not yet proven**. The §9 rollback path was not needed.
+**W4-E PASSED (E1 + E2/E3) — full live loop proven.** The real Anthropic API accepts Blackbox's synthetic request-local `call-0` as `tool_use.id` / `tool_result.tool_use_id` (E1), and a fresh, stateless adapter continues from a mutated structured v2 fork point using only cassette data (E2/E3). The complete active-debugging loop — record → replay → fork → mutate → continue → diff — is proven against the live provider. The §9 rollback path was not needed. Remaining: closeout audit, then tag `week-four-real-fork-proof`.

@@ -71,17 +71,20 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current Milestone: W4-E Real Tool-Use Proof — E1 PASSED, E2/E3 next
+## Current Milestone: W4-E Real Provider Proof — full live loop PROVEN (closeout)
 
-W4-D structured transcript migration is complete and tagged (`week-four-structured-transcript-migration`). W4-E slice **E1 passed** (2026-07-06): the opt-in proof `example:real-tooluse-proof` (commit `ed1628a`) confirmed the real Anthropic Messages API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id` on a single real tool-use record. Details in `docs/16_week_four_e_plan.md` and the W4-E build-log entry.
+W4-D structured transcript migration is complete and tagged (`week-four-structured-transcript-migration`). W4-E is **proven and in closeout** (2026-07-06):
 
-Next: **E2/E3** — the live fork → mutate → continue (fresh adapter) → diff loop, which is **not yet proven** and not started.
+- **E1** (`example:real-tooluse-proof`, `ed1628a`) — the real Anthropic Messages API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id` on a single real tool-use record.
+- **E2/E3** (`example:real-fork-proof`, `d4d01f8`) — a **fresh** `AnthropicModelClient` continues from a *mutated* structured v2 fork point using only cassette data; the API accepts it and the child diffs at the mutated `tool_result` over a hash-identical prefix.
+
+The full active-debugging loop — **record → replay → fork → mutate → continue → diff** — is proven against the live provider. Remaining: Codex closeout audit, then tag `week-four-real-fork-proof`. Details in `docs/16_week_four_e_plan.md`, `docs/17_week_four_e2e3_plan.md`, and the W4-E build-log entries.
 
 Rules still in force (do not relax without an explicit new milestone):
 
 - **Live provider calls are opt-in, proof-script only.** No CLI Anthropic wiring; no live/key-gated tests in `npm test`; live proofs are run manually by the human, never automatically.
 - **`toolCallId` is provider-neutral and deterministic.** Never persist provider `tool_use_id`, message ids, usage, `stop_reason`/`stop_sequence`, or raw provider content arrays in traces. Fork continuation seeds the next tool-call index (no `call-0` reuse).
-- **E1 proved single-record acceptance only.** Do **not** claim real *fork continuation* works until E3 establishes it live. On any live id rejection, apply the §9 rollback (on-wire id reshape; traces still store `call-N`).
+- **On any future live id rejection, apply the §9 rollback** (on-wire id reshape inside the adapter; traces still store `call-N`) — never persist a provider-native id.
 - **Offline replay stays structural.** `replayTrace(trace)` takes only a `Trace`; no model/tool dependency. `hash.ts` unchanged.
 - **Legacy `TOOL_CALL_PATTERN` / `#pendingToolCalls` are retained only as a narrow pre-v2 plain-string fallback** — the structured path never consults them.
 
