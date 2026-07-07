@@ -1,82 +1,92 @@
 # Blackbox
 
-Blackbox is a time-travel debugger for AI agents: record a multi-step run, replay it fully offline from cassette, fork at any step with a mutated prompt or tool result, and diff the two execution histories.
+**Blackbox is a local, offline-by-default time-travel debugger for AI agents.** It records a multi-step
+model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette,
+forks at any step with a mutated prompt or injected tool result, and diffs the resulting execution histories to
+find the first point where the two runs diverged — then verifies and self-checks the whole loop.
+
+It is *active debugging*, not passive observability: you don't just watch an agent run, you re-run it from a past
+step under a changed condition and see exactly what changes.
+
+## The core loop
+
+```
+record → replay → fork → mutate → continue → diff → verify → check
+```
+
+- **record** — run a scripted, multi-step tool-using agent and save an append-only, canonically-hashed trace.
+- **replay** — re-derive the whole run offline from the cassette; no model or tool is ever called.
+- **fork** — branch from any past step, copying the parent prefix byte-for-byte.
+- **mutate** — inject a different prompt or a different tool result at the fork point.
+- **continue** — let the agent run on from the mutation with a deterministic model.
+- **diff** — find and print the first step where parent and child diverge.
+- **verify** — run one ordered hygiene pass over a cassette (schema, hash chain, provider neutrality, offline replay).
+- **check** — run the whole loop end-to-end in one command and report a single PASS/FAIL.
+
+## What it proves
+
+- **Offline replay is a structural guarantee, not a convention.** `replayTrace(trace)` takes *only* a `Trace` — no
+  model client, no tools — so it is impossible to make a live call from inside replay.
+- **Fork prefixes are hash-identical.** A forked child shares a byte-for-byte, SHA-256-identical prefix with its
+  parent up to the mutation point; the diff pinpoints the first divergence.
+- **The full loop is proven against a real provider.** Opt-in, human-run proof scripts confirmed the complete
+  `record → replay → fork → mutate → continue → diff` loop against the live Anthropic Messages API — without ever
+  persisting a provider-native id, usage, stop metadata, or a key.
+- **A committed corpus guards cassette compatibility.** A small, frozen, fake/offline v2 trace corpus with frozen
+  hashes fails loudly if a future change would silently break cassette compatibility, hashing, replay, or fork
+  geometry.
 
 ## Status
 
-Week Four structured transcript migration (W4-D) is complete and tagged (`week-four-structured-transcript-migration`). The Week Four Anthropic adapter spike (`week-four-anthropic-adapter-spike`), adapter boundary (`week-four-adapter-boundary`), Week Three CLI packaging, Week-two hardening, and Week-one CLI proof are all accepted and tagged.
+**Post-W5-A. Ready for W5-B (docs/repo-readiness).** The local loop is complete, hardened, composed under one
+self-check, proven live via opt-in scripts, and protected by a committed regression corpus.
 
-The core trace format is now **schema v2**: tool rounds are recorded as structured, provider-neutral transcript parts (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
+- **Latest tag:** `week-five-trace-fixture-corpus` (W5-A — trace fixture corpus + regression harness).
+- **Tests:** 360/360 passing, fully offline, zero live calls, no API key required.
+- **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
+  (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
-W4-E is **proven**: opt-in live proofs confirmed the full active-debugging loop against the real Anthropic Messages API. **E1** (`npm run example:real-tooluse-proof`) showed the API accepts Blackbox's synthetic `toolCallId` (`call-0`) as the request-local `tool_use.id` / `tool_result.tool_use_id` on a real tool-use record. **E2/E3** (`npm run example:real-fork-proof`) showed a **fresh** adapter continuing from a *mutated* structured v2 fork point using only cassette data — the API accepted it, and the child diffed with first divergence at the mutated `tool_result` over a hash-identical prefix. The full live **record → replay → fork → mutate → continue → diff** loop is proven, provider-neutral, and neutrality-clean.
+See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected output.
 
-All three Anthropic proofs are **opt-in, proof-script only** — none is wired into the CLI. The default CLI and all of `npm test` remain fully fake and deterministic, and replay is always cassette-only (no model or tool calls).
+## What Blackbox is
 
-See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
+- A **local, offline-by-default, deterministic** time-travel debugger for single-agent, tool-using runs.
+- **Cassette record/replay** with a canonical SHA-256 hash chain.
+- **Fork + mutate + diff** — branch from any step, change one thing, see what diverges.
+- **Offline verify + one-shot check** — hygiene and a full-loop smoke test with PASS/FAIL exit codes.
+- A **committed fake/offline regression corpus** that freezes the loop's guarantees under version control.
+- An **opt-in, human-run live proof** against Anthropic — run manually, never by the default CLI or `npm test`.
 
-## What It Does
+## What Blackbox is not
 
-- **Record** — runs a scripted multi-step tool-using agent and saves an append-only, hash-chained trace to disk
-- **Replay** — replays a saved trace entirely offline; no model or tool calls are made
-- **Fork** — branches from any step with a mutated prompt or injected tool result; prefix hashes are provably identical to the parent up to the first divergent step (the fork point for prompt forks, the mutation target step for tool-result forks)
-- **Diff** — finds the first divergence between two traces and prints it to the terminal
-- **Check** — runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict
+- **Not** a web UI, dashboard, backend, hosted service, or sharing platform.
+- **Not** an observability / OpenTelemetry / metrics / log-aggregation platform.
+- **Not** an agent framework (no LangChain, LlamaIndex, or MCP), and **not** a multi-agent orchestrator.
+- **Not** an npm-published binary or a production SDK.
+- **Not** live-by-default: no CLI command and no test in `npm test` calls a real model or tool.
 
-## Week-One Proof ✓
+## Proof status
 
-- Record one multi-step tool-using agent run
-- Save an append-only hash-chained trace
-- Replay the run fully offline from cassette
-- Fork at step `k` with a mutated prompt
-- Verify the child trace shares a canonical-hash-identical prefix with the parent
-- Print a terminal diff showing the first divergence
+| Area | Status |
+|---|---|
+| Default loop (CLI + `npm test`) | **Fake / offline** — `FakeDeterministicModelClient` + fixture tools; zero live calls; replay is structurally offline |
+| Live provider proof | **Opt-in proof scripts only** — three human-run, key-gated scripts (`example:real-proof`, `example:real-tooluse-proof`, `example:real-fork-proof`); never in `npm test`, never CLI-wired; record real runs, replay offline. The full live `record → replay → fork → mutate → continue → diff` loop is proven (W4-E) |
+| Regression corpus | **Committed** fake/offline v2 cassettes under `fixtures/traces/` with frozen hashes (W5-A) guarding cassette compatibility |
+| UI / backend / dashboard / observability | **None, by design** — a discipline, not a TODO |
 
-## Week-Two Hardening ✓
+For the full real-vs-mocked breakdown, see the [What Is Real vs. Mocked](DEMO.md#what-is-real-vs-mocked) table in
+DEMO.md.
 
-- **W2-A** — Cassette schema versioning: `loadTrace` rejects stale or unsupported cassettes
-- **W2-B** — Tool-result mutation: inject a different result at any prefix step, re-chain the hash chain from that point onward
-- **W2-C** — Fork-point semantics: defined and documented for every step type; `metadata` steps are rejected as fork points
-- **W2-D** — Richer demos: success path (search → calendar → booking) and error path (unknown tool) both recorded; `example:fork` demonstrates tool-result mutation
+## For reviewers
 
-## Week-Three CLI ✓
-
-- **W3-A** — Unified `npm run cli --` entry point with `record`, `replay`, `fork`, `diff` subcommands; hand-rolled arg parser; flag validation
-- **W3-B** — `list` and `inspect` subcommands; `list` validates hash chains before counting files as valid
-- **W3-C** — Terminal output polish: consistent section headers, human-readable divergence summary (`Summary: tool_result differs at index 3`), `[blackbox]` prefixes on command headers
-- **W3-D** — Demo walkthrough (`DEMO.md`)
-
-## Week-Four Hardening ✓
-
-- **W4-A…E** — Provider-neutral adapter boundary; optional opt-in Anthropic proof scripts (never in `npm test`, no CLI wiring); structured v2 transcript; full live `record → replay → fork → mutate → continue → diff` loop proven against Anthropic
-- **W4-F** — Cassette verification + trace hygiene: `npm run cli -- verify --trace <path>` checks schema version, hash chain, provider-neutrality (no `toolu_`/`msg_`/`usage`/`stop_reason`/`stop_sequence`/`ANTHROPIC_API_KEY`/`sk-ant`/key leakage), and offline replayability, reporting PASS/FAIL and the first failing invariant. Reusable core: `verifyTrace` / `verifyTraceFile` (`src/trace/verifyTrace.ts`) and the neutrality audit (`src/trace/neutrality.ts`)
-- **W4-G** — Fork/verify workflow polish: `npm run cli -- check` runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict (in-memory by default; `--out-dir <dir>` persists the parent + child cassettes). Reusable core: `runSelfCheck` (`src/workflow/selfCheck.ts`), composing the existing checks over the fake model + fixture tools. `fork` now refuses to overwrite its own parent trace
-
-## Week-Five Regression Hardening ✓
-
-- **W5-A** — Trace fixture corpus + regression harness: a small committed, fake/offline v2 corpus under `fixtures/traces/` plus `tests/fixtures.test.ts`, which loads the frozen cassettes and asserts every core invariant against them — schema version, hash chain, **frozen expected hashes**, provider neutrality, offline replay, terminal-error verification, fork-prefix hash identity, and a frozen first-divergence index. This turns the loop's guarantees into a version-controlled baseline so a future change cannot silently break cassette compatibility
-
-## Trace fixture corpus
-
-`fixtures/traces/` holds a small **committed** set of deterministic, fake/offline v2 cassettes used as a
-regression baseline (distinct from `traces/`, the git-ignored output of `record`/`fork`/`check`). Every fixture is
-generated only from the fake model + fixture tools — no Anthropic/live/provider data — and is timestamp-normalized
-so it is byte-reproducible.
-
-Regenerate deliberately (only when a v2 change is intentional and audited):
+The whole offline loop verifies in four commands, no API key required:
 
 ```sh
-npm run fixtures:generate            # check mode: verify the corpus is in sync (writes nothing)
-npm run fixtures:generate -- --write # rewrite the corpus; then update the frozen hashes in tests/fixtures.test.ts
+npm install                 # no build step needed to run the offline loop
+npm test -- --run           # 360 tests, fully offline, zero live calls
+npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
+npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
-
-See `docs/20_week_five_a_plan.md` §7 for the regeneration policy.
-
-## Not Current Focus
-
-- Web UI / Dashboard / Metrics charts
-- LangChain / Agent framework / MCP
-- Figma / design polish
-- Hosted backend / Auth / Sharing
 
 ## Quick Start
 
@@ -94,4 +104,58 @@ npm run cli -- check
 npm run fixtures:generate
 ```
 
-See [DEMO.md](DEMO.md) for annotated expected output and explanation of each step.
+See [DEMO.md](DEMO.md) for annotated expected output and an explanation of each step.
+
+## Trace fixture corpus
+
+`fixtures/traces/` holds a small **committed** set of deterministic, fake/offline v2 cassettes used as a
+regression baseline (distinct from `traces/`, the git-ignored output of `record`/`fork`/`check`). Every fixture is
+generated only from the fake model + fixture tools — no Anthropic/live/provider data — and is timestamp-normalized
+so it is byte-reproducible.
+
+Regenerate deliberately (only when a v2 change is intentional and audited):
+
+```sh
+npm run fixtures:generate            # check mode: verify the corpus is in sync (writes nothing)
+npm run fixtures:generate -- --write # rewrite the corpus; then update the frozen hashes in tests/fixtures.test.ts
+```
+
+See `docs/20_week_five_a_plan.md` §7 for the regeneration policy.
+
+---
+
+## Build history
+
+Blackbox was built in weekly milestones. Each is complete and tagged; the sections below are the accurate build
+record, not the project's current headline (see **Status** above for that).
+
+### Week-One Proof ✓ (`week-one-cli-proof`)
+
+- Record one multi-step tool-using agent run; save an append-only hash-chained trace
+- Replay the run fully offline from cassette
+- Fork at step `k` with a mutated prompt; verify the child shares a canonical-hash-identical prefix
+- Print a terminal diff showing the first divergence
+
+### Week-Two Hardening ✓ (`week-two-core-hardening`)
+
+- **W2-A** — Cassette schema versioning: `loadTrace` rejects stale or unsupported cassettes
+- **W2-B** — Tool-result mutation: inject a different result at any prefix step, re-chain from that point onward
+- **W2-C** — Fork-point semantics: defined and documented for every step type; `metadata` steps rejected as fork points
+- **W2-D** — Richer demos: success path (search → calendar → booking) and error path (unknown tool); `example:fork` demonstrates tool-result mutation
+
+### Week-Three CLI ✓ (`week-three-cli-packaging`)
+
+- **W3-A** — Unified `npm run cli --` entry point with `record`, `replay`, `fork`, `diff`; hand-rolled arg parser; flag validation
+- **W3-B** — `list` and `inspect`; `list` validates hash chains before counting files as valid
+- **W3-C** — Terminal output polish: consistent section headers, human-readable divergence summary, `[blackbox]` prefixes
+- **W3-D** — Demo walkthrough ([DEMO.md](DEMO.md))
+
+### Week-Four Hardening ✓ (`week-four-*`)
+
+- **W4-A…E** — Provider-neutral adapter boundary; optional opt-in Anthropic proof scripts (never in `npm test`, no CLI wiring); structured v2 transcript; full live `record → replay → fork → mutate → continue → diff` loop proven against Anthropic
+- **W4-F** — Cassette verification + trace hygiene: `npm run cli -- verify --trace <path>` checks schema version, hash chain, provider-neutrality, and offline replayability, reporting PASS/FAIL and the first failing invariant. Reusable core: `verifyTrace` / `verifyTraceFile` (`src/trace/verifyTrace.ts`) and the neutrality audit (`src/trace/neutrality.ts`)
+- **W4-G** — Fork/verify workflow polish: `npm run cli -- check` runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict (in-memory by default; `--out-dir <dir>` persists the parent + child cassettes). Reusable core: `runSelfCheck` (`src/workflow/selfCheck.ts`). `fork` refuses to overwrite its own parent trace
+
+### Week-Five Regression Hardening ✓ (`week-five-trace-fixture-corpus`)
+
+- **W5-A** — Trace fixture corpus + regression harness: a small committed, fake/offline v2 corpus under `fixtures/traces/` plus `tests/fixtures.test.ts`, which loads the frozen cassettes and asserts every core invariant against them — schema version, hash chain, **frozen expected hashes**, provider neutrality, offline replay, terminal-error verification, fork-prefix hash identity, and a frozen first-divergence index. This turns the loop's guarantees into a version-controlled baseline so a future change cannot silently break cassette compatibility

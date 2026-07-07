@@ -71,15 +71,21 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W5-A implemented — awaiting Codex audit before tag
+## Current State: W5-B docs/repo-readiness (W5-A closed and tagged)
 
-**W5-A (trace fixture corpus + regression harness) is implemented** per `docs/20_week_five_a_plan.md`: a committed
-fake/offline v2 corpus under `fixtures/traces/`, a deterministic check-by-default generator
-(`scripts/generateFixtures.ts`, `npm run fixtures:generate`), and `tests/fixtures.test.ts` asserting every core
-invariant (schema, hash chain, frozen hashes, neutrality, replay, terminal-error verify, fork-prefix identity,
-frozen first divergence) against the frozen artifacts. Tests: 360/360 offline, zero live calls. This is local
-regression hardening only — it consumes/freezes the existing core and changes no runtime semantics. **Not yet
-tagged**; awaiting Codex audit before push/tag.
+**W5-A (trace fixture corpus + regression harness) is complete and tagged (`week-five-trace-fixture-corpus`)** per
+`docs/20_week_five_a_plan.md`: a committed fake/offline v2 corpus under `fixtures/traces/`, a deterministic
+check-by-default generator (`scripts/generateFixtures.ts`, `npm run fixtures:generate`), and
+`tests/fixtures.test.ts` asserting every core invariant (schema, hash chain, frozen hashes, neutrality, replay,
+terminal-error verify, fork-prefix identity, frozen first divergence) against the frozen artifacts. Tests: 360/360
+offline, zero live calls. This is local regression hardening only — it consumes/freezes the existing core and
+changes no runtime semantics.
+
+**W5-B (public demo narrative + repo readiness) is the current milestone** per `docs/21_week_five_b_plan.md`:
+documentation / repo-readiness polish only — re-narrating README, tightening DEMO, consolidating the "is / is not"
+boundary and "proof status", adding a "for reviewers" path, and refreshing the current-state pointers in this file
+and `CLAUDE.md`. **Docs-only: no source, test, fixture, `package.json`, `.gitignore`, runtime, CLI, or provider
+changes.** Test total unchanged at 360/360.
 
 **W4-G is complete and tagged (`week-four-fork-verify-workflow`).** All Week Four work is closed through this
 tag. The current core loop is `record → replay → fork → mutate → continue → diff → verify → check`.

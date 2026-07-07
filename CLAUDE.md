@@ -8,11 +8,13 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W4-G. Ready for W5-A planning.** The week-one CLI proof is long complete and the local loop has been hardened through Week Four. Do not start W5-A implementation until it is explicitly scoped and audited.
+**Post-W5-A. W5-B (docs/repo-readiness) in progress.** The week-one CLI proof is long complete, the local loop has
+been hardened through Week Four, and W5-A froze it against a committed regression corpus. W5-B is
+documentation/repo-readiness polish only — no source, test, fixture, config, runtime, CLI, or provider changes.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 321/321 passing, fully offline, zero live calls.
-- **Closed tags (all Week Four work landed):**
+- **Tests:** 360/360 passing, fully offline, zero live calls.
+- **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
   - `week-three-cli-packaging`
@@ -21,7 +23,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
   - `week-four-structured-transcript-migration`
   - `week-four-real-fork-proof`
   - `week-four-cassette-verification`
-  - `week-four-fork-verify-workflow` (W4-G, current HEAD)
+  - `week-four-fork-verify-workflow` (W4-G)
+  - `week-five-trace-fixture-corpus` (W5-A, current tagged HEAD)
 
 ## Hard Guardrails
 
@@ -40,7 +43,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W5-A **planning** is the next allowed step. W5-A **implementation** happens only after the plan is scoped and Codex-audited.
+- **Sequencing:** W5-B (docs/repo-readiness) is the current milestone; its plan is scoped and Codex-accepted. Any milestone beyond W5-B is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -57,7 +60,8 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Docs cleanup commit → Codex re-audit → W5-A plan. No W5-A implementation until scoped and audited.
+Complete W5-B docs/repo-readiness (README/DEMO/AGENTS/CLAUDE/build-log) → Codex closeout audit → tag. No new
+milestone or product-surface work until it is explicitly scoped and Codex-audited.
 
 ## Response Format
 

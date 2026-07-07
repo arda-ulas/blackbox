@@ -10,7 +10,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 321 tests; all should pass
+npm test -- --run     # 360 tests; all should pass
 ```
 
 ---
@@ -361,6 +361,39 @@ adds a `persisted (--out-dir …)` mode line plus `Parent:` / `Child:` paths, an
 
 ---
 
+### 9. Fixtures (committed regression corpus)
+
+```sh
+npm run fixtures:generate
+```
+
+**What it does:** regenerates the committed fake/offline v2 corpus **in memory** and compares it byte-for-byte to
+the checked-in files under `fixtures/traces/`. This is the default **check mode** — it writes nothing and exits
+non-zero if the corpus has drifted. It confirms that the frozen regression baseline (five deterministic cassettes
++ frozen hashes, asserted by `tests/fixtures.test.ts`) is still in sync with the generator.
+
+**Files read:** `fixtures/traces/*.json` (committed). **Files written:** none in check mode.
+
+**Expected output shape:**
+
+```
+[fixtures] corpus in sync (5 fixture(s) match).
+```
+
+The contract is: **check mode writes nothing and exits non-zero on any drift.** Regenerate deliberately with
+`npm run fixtures:generate -- --write` **only** when a v2 change is intentional and audited, then update the frozen
+hashes in `tests/fixtures.test.ts` in the same commit (see `docs/20_week_five_a_plan.md` §7).
+
+**Key proof points:**
+
+- The corpus is **committed** (unlike `traces/`, which is git-ignored) so a future change that would silently break
+  cassette compatibility, canonical hashing, replay, or fork geometry trips a red test against a frozen artifact.
+- It is fake/offline only — every fixture is generated from `FakeDeterministicModelClient` + fixture tools, is
+  provider-neutral by construction, and is timestamp-normalized so it is byte-reproducible. No Anthropic/live data
+  is ever committed.
+
+---
+
 ## What Is Real vs. Mocked
 
 | Component | Status |
@@ -404,8 +437,9 @@ npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 npm run cli -- verify --trace traces/example-trace.json
 npm run cli -- check
+npm run fixtures:generate
 ```
 
-All commands exit 0 (a clean cassette passes `verify`, and `check` runs the whole loop to a PASS verdict). The
-diff command confirms the first divergence at index 3 with a `tool_result differs` summary and raw hash/payload
-details for both sides.
+All commands exit 0 (a clean cassette passes `verify`, `check` runs the whole loop to a PASS verdict, and
+`fixtures:generate` in check mode confirms the committed corpus is in sync). The diff command confirms the first
+divergence at index 3 with a `tool_result differs` summary and raw hash/payload details for both sides.

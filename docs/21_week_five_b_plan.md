@@ -1,16 +1,17 @@
 # W5-B Plan — Public Demo Narrative + Repo Readiness
 
-**Status:** PLANNED (not implemented). Plan-only document.
-**Predecessor:** W5-A complete, pushed, tagged `week-five-trace-fixture-corpus`. Current HEAD/origin/master
-`d1b11a8 feat: add trace fixture regression corpus`. Full core loop proven, polished, and now protected by a
-committed regression baseline: `record → replay → fork → mutate → continue → diff → verify → check`. Tests:
-360/360 offline, zero live calls.
+**Status:** IMPLEMENTED (in closeout — awaiting Codex closeout audit before tag). This document is preserved as the
+accepted plan and historical record; the sections below describe what was planned and were carried out in the
+implementation slice (`docs: polish public demo readiness`).
+**Predecessor:** W5-A complete, pushed, tagged `week-five-trace-fixture-corpus`. Full core loop proven, polished,
+and now protected by a committed regression baseline: `record → replay → fork → mutate → continue → diff → verify →
+check`. Tests: 360/360 offline, zero live calls.
 **Mode:** documentation / repo-readiness polish only. **No source, test, fixture, `package.json`, or `.gitignore`
 changes.** No live calls, no CLI Anthropic wiring, no new provider adapter, no product-surface expansion.
 
-> This is the accepted-plan document for W5-B. Nothing here is implemented yet. Implementation happens in a later
-> slice under the first-implementation prompt in §8. Writing this plan file is the *only* change in the current
-> commit.
+> This is the accepted-plan document for W5-B, retained as a historical record. Implementation landed in the
+> docs-only slice under the §8 first-implementation prompt, touching exactly `README.md`, `DEMO.md`,
+> `docs/08_build_log.md`, `AGENTS.md`, `CLAUDE.md`, and this doc's status header. The plan body below is unchanged.
 
 ---
 
