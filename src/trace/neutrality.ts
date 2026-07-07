@@ -111,6 +111,11 @@ const VALUE_FORM_MARKERS: readonly NeutralityMarker[] = [
  *   flagged when they appear inside any string value.
  * - the literal `apiKey` value (when supplied) is flagged in any string value and
  *   reported as `<api-key-value>` — the key itself is never echoed.
+ *
+ * Object KEYS are persisted trace data too, so they are audited as well: a key is
+ * flagged for the key-form markers (exact match), for value-form markers appearing
+ * anywhere in the key, and for the literal `apiKey` value — this catches a secret
+ * or provider id smuggled in as a JSON key (e.g. `{ "<key>": "x" }`).
  */
 export function auditTraceNeutrality(trace: Trace, apiKey?: string): NeutralityResult {
   const found = new Set<string>();
@@ -134,9 +139,18 @@ export function auditTraceNeutrality(trace: Trace, apiKey?: string): NeutralityR
 
     if (typeof value === "object") {
       for (const [k, v] of Object.entries(value)) {
+        // Key-form markers are exact provider-response keys.
         for (const marker of KEY_FORM_MARKERS) {
           if (k === marker) found.add(marker);
         }
+        // Object keys are persisted data too — audit them for value-form leakage
+        // (an id/key prefix or the env-var name) and for a literal secret used as
+        // a key (e.g. `{ "<api-key>": "x" }`), which would otherwise slip past a
+        // value-only scan.
+        for (const marker of VALUE_FORM_MARKERS) {
+          if (k.includes(marker)) found.add(marker);
+        }
+        if (key && k.includes(key)) found.add("<api-key-value>");
         visit(v);
       }
     }

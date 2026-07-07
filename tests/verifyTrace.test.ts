@@ -266,6 +266,30 @@ describe("verifyTrace — provider_neutrality", () => {
     expect(report.firstFailure?.detail).not.toContain(secret);
   });
 
+  it("flags a literal key value smuggled in as an OBJECT KEY without echoing it", () => {
+    const secret = "super-secret-key-value-123";
+    const report = verifyTrace(recordLeakTrace({ [secret]: "x" }), { apiKey: secret });
+    expect(report.pass).toBe(false);
+    expect(report.firstFailure?.name).toBe("provider_neutrality");
+    expect(report.firstFailure?.detail).toContain("<api-key-value>");
+    expect(report.firstFailure?.detail).not.toContain(secret);
+  });
+
+  it("flags an sk-ant prefix appearing as an object key", () => {
+    const report = verifyTrace(recordLeakTrace({ "sk-ant-api03-xyz": "x" }));
+    expect(report.pass).toBe(false);
+    expect(report.firstFailure?.name).toBe("provider_neutrality");
+    expect(report.firstFailure?.detail).toContain("sk-ant");
+  });
+
+  it("flags provider id prefixes (toolu_ / msg_) appearing as object keys", () => {
+    const report = verifyTrace(recordLeakTrace({ "toolu_01ABC": {}, "msg_02DEF": {} }));
+    expect(report.pass).toBe(false);
+    expect(report.firstFailure?.name).toBe("provider_neutrality");
+    expect(report.firstFailure?.detail).toContain("toolu_");
+    expect(report.firstFailure?.detail).toContain("msg_");
+  });
+
   it("does NOT flag benign prose containing the word 'usage' as a value", () => {
     const trace = recordLeakTrace({ text: "What is the usage of this endpoint?" });
     const report = verifyTrace(trace);
