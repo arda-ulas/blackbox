@@ -1,7 +1,12 @@
 # W6-B Plan — Verify / Replay Failure Explanation
 
-**Status:** PLANNED (awaiting Codex audit before implementation). This document is the scoped plan only; no source,
-test, or non-plan doc has changed. Implementation, if accepted, will land in a single slice per §10.
+**Status:** IMPLEMENTED (in closeout — awaiting Codex closeout audit before tag). This document is preserved as the
+accepted plan and historical record; the implementation landed in the slice `feat: explain verify replay failures`,
+adding `src/trace/verifyExplain.ts` (new) and `tests/verifyExplain.test.ts` (new), touching `src/cli.ts`
+(`runVerify` FAIL footer only), `tests/cli.test.ts`, `DEMO.md`, `docs/08_build_log.md`, and this status header.
+Tests: 394/394 offline (381 baseline + 13 new), zero live calls. `verify` PASS output byte-identical; `VerifyReport`
+shape, invariant ordering, exit codes, and `replayTrace`'s Trace-only/offline guarantee all unchanged; no
+schema/hash/fixture/provider/package/CLI-flag change. The plan body below is unchanged.
 **Predecessor:** W6-A complete, pushed, tagged `week-six-diff-inspect-ergonomics` (HEAD `d935a56`). The full core
 loop is implemented, hardened, composed under one self-check, proven live (opt-in), frozen against a committed
 regression corpus, and documented: `record → replay → fork → mutate → continue → diff → verify → check`. Tests:

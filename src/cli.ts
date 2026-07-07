@@ -17,6 +17,7 @@ import {
 import { forkRun } from "./fork/forkRun.ts";
 import { diffTraces, formatFirstDivergence } from "./fork/diffTraces.ts";
 import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
+import { formatVerifyFailure } from "./trace/verifyExplain.ts";
 import { runSelfCheck } from "./workflow/selfCheck.ts";
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 
@@ -472,10 +473,10 @@ async function runVerify(flags: Record<string, string | boolean>): Promise<void>
   }
 
   if (report.firstFailure) {
-    const { name, detail, stepIndex } = report.firstFailure;
-    const where = stepIndex !== undefined ? ` (step ${stepIndex})` : "";
     console.log();
-    console.log(`First failing invariant: ${name}${where} — ${detail}`);
+    for (const line of formatVerifyFailure(report)) {
+      console.log(line);
+    }
   }
 
   // Exit non-zero on FAIL so `verify` is scriptable.

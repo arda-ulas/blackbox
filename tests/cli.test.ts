@@ -358,14 +358,20 @@ describe("cli verify", () => {
     expect(result.stdout).toContain("PASS");
     expect(result.stdout).toContain("schema_version");
     expect(result.stdout).toContain("replayability");
+    // PASS prints no failure block.
+    expect(result.stdout).not.toContain("Failure");
+    expect(result.stdout).not.toContain("action:");
   }, 15_000);
 
-  it("verify on a hash-tampered trace exits 1 and reports the first failing invariant", async () => {
+  it("verify on a hash-tampered trace exits 1 and explains the failed invariant", async () => {
     const result = await runCli(["verify", "--trace", verifyTamperedPath]);
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("FAIL");
-    expect(result.stdout).toContain("First failing invariant");
-    expect(result.stdout).toContain("hash_chain");
+    // W6-B: labelled failure block with a suggested action.
+    expect(result.stdout).toContain("Failure");
+    expect(result.stdout).toMatch(/invariant:\s+hash_chain/);
+    expect(result.stdout).toMatch(/action:/);
+    expect(result.stdout).toMatch(/re-record/i);
   }, 15_000);
 
   it("verify on a missing trace exits 1", async () => {

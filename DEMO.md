@@ -307,7 +307,20 @@ Result:        PASS
   replayability        pass  status=success
 ```
 
-**On failure**, the exit code is 1 and the report names the first failing invariant (with a step index when the failure is step-localized), e.g. `First failing invariant: hash_chain (step 3) — step 3 hash mismatch …`. A leaked API key value is reported as `<api-key-value>` and never echoed.
+**On failure**, the exit code is 1 and, below the invariant table, `verify` prints a labelled block that names the failed invariant, the step (when the failure is step-localized), the underlying detail (including the expected-vs-actual hash for a `hash_chain` failure, or the offending provider marker for a `provider_neutrality` failure), and a plain-language suggested next action:
+
+```
+Failure
+  invariant:  hash_chain
+  at:         step 3
+  detail:     step 3 hash mismatch — stored "0000…", recomputed "1479…"
+  action:     A step's stored hash no longer matches its contents, or the
+              chain links are broken — the cassette was edited or corrupted
+              after recording. Do not hand-edit cassettes; re-record to
+              regenerate a valid chain.
+```
+
+A leaked API key value is reported as `<api-key-value>` and never echoed. The PASS output above is unchanged.
 
 **Key proof points:**
 
