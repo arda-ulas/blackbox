@@ -3,7 +3,7 @@
 // Subcommands: record, replay, fork, diff, list, inspect
 
 import { mkdir, readdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "./agent/modelClient.ts";
 import { defaultToolExecutor } from "./agent/fixtureTools.ts";
@@ -17,6 +17,7 @@ import {
 import { forkRun } from "./fork/forkRun.ts";
 import { diffTraces, formatFirstDivergence } from "./fork/diffTraces.ts";
 import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
+import { runSelfCheck } from "./workflow/selfCheck.ts";
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,7 @@ Commands:
   fork      Fork a trace with a prompt or tool-result mutation
   diff      Load two cassettes and print the first divergence
   verify    Verify a cassette's schema, hash chain, neutrality, and replayability
+  check     Run the full offline loop (record→verify→fork→verify→diff) and report one verdict
   list      List all trace cassettes in a directory
   inspect   Print detailed info and step timeline for a cassette
 
@@ -291,6 +293,14 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   const defaultOut = tracePath.replace(/\.json$/, "-fork.json");
   const outPath    = str(flags["out"], defaultOut);
 
+  // Guardrail: never write the child over its own parent. This catches both an
+  // explicit --out equal to --trace and the footgun where --trace lacks a
+  // ".json" suffix (so the derived default output collides with the input).
+  // Compare normalized absolute paths so "./a.json" and "a.json" resolve alike.
+  if (resolve(outPath) === resolve(tracePath)) {
+    die(`Refusing to overwrite the parent trace at ${resolve(tracePath)}. Pass an explicit --out.`);
+  }
+
   let childTrace: Awaited<ReturnType<typeof forkRun>>["childTrace"];
   let finalAnswer: string;
   let prefixLength: number;
@@ -473,6 +483,55 @@ async function runVerify(flags: Record<string, string | boolean>): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
+// check — run the full offline loop and report one PASS/FAIL verdict
+// ---------------------------------------------------------------------------
+
+const CHECK_ALLOWED     = ["out-dir"];
+const CHECK_VALUE_FLAGS = ["out-dir"];
+
+async function runCheck(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, CHECK_ALLOWED);
+  checkValueFlags(flags, CHECK_VALUE_FLAGS);
+
+  const outDir = typeof flags["out-dir"] === "string" ? flags["out-dir"] : undefined;
+
+  // Fully offline: runSelfCheck only instantiates the fake model and fixture
+  // tools, so no real model/tool/network call is possible here.
+  const report = await runSelfCheck(outDir !== undefined ? { outDir } : {});
+
+  const label = (s: string) => s.padEnd(15);
+
+  console.log("[blackbox] --- check ---");
+  console.log(
+    label("Mode:"),
+    report.persisted
+      ? `persisted (--out-dir ${outDir})`
+      : "in-memory (no files written; pass --out-dir to persist)",
+  );
+  if (report.persisted) {
+    if (report.parentPath) console.log(label("Parent:"), report.parentPath);
+    if (report.childPath)  console.log(label("Child:"),  report.childPath);
+  }
+  console.log();
+
+  for (const stage of report.stages) {
+    const status = stage.status === "fail" ? "FAIL" : stage.status;
+    console.log(`  ${stage.name.padEnd(14)} ${status.padEnd(4)}  ${stage.detail}`);
+  }
+
+  console.log();
+  console.log(label("Result:"), report.pass ? "PASS" : "FAIL");
+
+  if (report.firstFailure) {
+    console.log();
+    console.log(`First failing stage: ${report.firstFailure.name} — ${report.firstFailure.detail}`);
+  }
+
+  // Exit non-zero on FAIL so `check` is scriptable, consistent with `verify`.
+  if (!report.pass) process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // list
 // ---------------------------------------------------------------------------
 
@@ -603,12 +662,13 @@ try {
     case "fork":    await runFork(flags);    break;
     case "diff":    await runDiff(flags);    break;
     case "verify":  await runVerify(flags);  break;
+    case "check":   await runCheck(flags);   break;
     case "list":    await runList(flags);    break;
     case "inspect": await runInspect(flags); break;
     default:
       if (subcommand) {
         console.error(
-          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, list, inspect`,
+          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, check, list, inspect`,
         );
         process.exit(1);
       }

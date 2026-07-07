@@ -356,6 +356,78 @@ describe("cli verify", () => {
 });
 
 // ---------------------------------------------------------------------------
+// W4-G: check command (composed offline self-check)
+// ---------------------------------------------------------------------------
+
+describe("cli check", () => {
+  it("default check exits 0 and prints PASS with all stage names", async () => {
+    const result = await runCli(["check"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("[blackbox] --- check ---");
+    expect(result.stdout).toContain("PASS");
+    for (const stage of ["record", "verify_parent", "fork", "verify_child", "diff"]) {
+      expect(result.stdout).toContain(stage);
+    }
+  }, 30_000);
+
+  it("default check reports in-memory mode and writes no files", async () => {
+    const result = await runCli(["check"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("in-memory");
+    expect(result.stdout).toContain("no files written");
+  }, 30_000);
+
+  it("check --out-dir exits 0 and writes exactly the two cassettes", async () => {
+    const outDir = join(tmpdir(), `blackbox-check-out-${Date.now()}`);
+    try {
+      const result = await runCli(["check", "--out-dir", outDir]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("persisted");
+
+      const parentPath = join(outDir, "check-parent.json");
+      const childPath  = join(outDir, "check-child.json");
+      expect(result.stdout).toContain(parentPath);
+      expect(result.stdout).toContain(childPath);
+
+      // Both persisted cassettes load and validate.
+      const parent = await loadTrace(parentPath);
+      const child  = await loadTrace(childPath);
+      expect(() => validateTrace(parent)).not.toThrow();
+      expect(() => validateTrace(child)).not.toThrow();
+      expect(child.parentId).toBe(parent.id);
+    } finally {
+      await rm(outDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("check --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["check", "--bogus"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Unknown flag: --bogus");
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// W4-G: fork overwrite guardrail
+// ---------------------------------------------------------------------------
+
+describe("cli fork overwrite guard", () => {
+  it("fork --trace X --out X exits 1 and leaves the parent unchanged", async () => {
+    const before = await import("node:fs/promises").then((m) => m.readFile(SUCCESS_PATH, "utf8"));
+    const result = await runCli([
+      "fork",
+      "--trace", SUCCESS_PATH,
+      "--out",   SUCCESS_PATH,
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Refusing to overwrite the parent trace");
+
+    const after = await import("node:fs/promises").then((m) => m.readFile(SUCCESS_PATH, "utf8"));
+    expect(after).toBe(before);
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
 // W3-B: list command
 // ---------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 - **Replay** — replays a saved trace entirely offline; no model or tool calls are made
 - **Fork** — branches from any step with a mutated prompt or injected tool result; prefix hashes are provably identical to the parent up to the first divergent step (the fork point for prompt forks, the mutation target step for tool-result forks)
 - **Diff** — finds the first divergence between two traces and prints it to the terminal
+- **Check** — runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict
 
 ## Week-One Proof ✓
 
@@ -48,6 +49,7 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough.
 
 - **W4-A…E** — Provider-neutral adapter boundary; optional opt-in Anthropic proof scripts (never in `npm test`, no CLI wiring); structured v2 transcript; full live `record → replay → fork → mutate → continue → diff` loop proven against Anthropic
 - **W4-F** — Cassette verification + trace hygiene: `npm run cli -- verify --trace <path>` checks schema version, hash chain, provider-neutrality (no `toolu_`/`msg_`/`usage`/`stop_reason`/`stop_sequence`/`ANTHROPIC_API_KEY`/`sk-ant`/key leakage), and offline replayability, reporting PASS/FAIL and the first failing invariant. Reusable core: `verifyTrace` / `verifyTraceFile` (`src/trace/verifyTrace.ts`) and the neutrality audit (`src/trace/neutrality.ts`)
+- **W4-G** — Fork/verify workflow polish: `npm run cli -- check` runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict (in-memory by default; `--out-dir <dir>` persists the parent + child cassettes). Reusable core: `runSelfCheck` (`src/workflow/selfCheck.ts`), composing the existing checks over the fake model + fixture tools. `fork` now refuses to overwrite its own parent trace
 
 ## Not Current Focus
 
@@ -68,6 +70,7 @@ npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 npm run cli -- verify --trace traces/example-trace.json
+npm run cli -- check
 ```
 
 See [DEMO.md](DEMO.md) for annotated expected output and explanation of each step.

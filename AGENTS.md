@@ -71,7 +71,30 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current Milestone: W4-F Cassette Verification + Trace Hygiene (implementation)
+## Current Milestone: W4-G Fork/Verify Workflow Polish (implementation)
+
+W4-F is complete and tagged (`week-four-cassette-verification`): reusable cassette verification core + `verify`
+CLI landed per `docs/18_week_four_f_plan.md`.
+
+**W4-G (implemented)** polishes the local workflow per `docs/19_week_four_g_plan.md` — composition, output, and
+guardrails only, no product-surface expansion:
+
+- **Composed self-check** — `runSelfCheck(opts?)` (`src/workflow/selfCheck.ts`) runs the full offline loop
+  **record → verify → fork → verify → diff** by *composing* `runAgentLoop` / `verifyTrace` / `forkRun` /
+  `diffTraces` over the fake model + fixture tools, returning one structured PASS/FAIL verdict. It cannot make a
+  live call by construction. Persistence is opt-in via `outDir` only (no `--keep`). No change to
+  hash/replay/load/fork/diff/verify semantics.
+- **CLI** — `npm run cli -- check` (`--out-dir <dir>` optional; exit 0 PASS / 1 FAIL). No change to
+  `record`/`replay`/`fork`/`diff`/`verify`/`list`/`inspect`.
+- **Fork overwrite guardrail** — `fork` refuses to write the child over its own parent (resolved-absolute-path
+  equality of `--out` and `--trace`), preventing accidental parent-trace loss.
+
+Scope guard: W4-G is workflow polish only — no UI/backend, no Anthropic CLI wiring, no new provider adapter, no
+live tests, no new dependency, no observability platform.
+
+---
+
+## Prior Milestone: W4-F Cassette Verification + Trace Hygiene (implementation)
 
 W4-E is complete and tagged (`week-four-real-fork-proof`): the full active-debugging loop — **record → replay → fork → mutate → continue → diff** — is proven against the live provider via opt-in proof scripts (E1 `ed1628a`, E2/E3 `d4d01f8`). Details in `docs/16_week_four_e_plan.md`, `docs/17_week_four_e2e3_plan.md`, and the W4-E build-log entries.
 

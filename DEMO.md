@@ -10,7 +10,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 274 tests; all should pass
+npm test -- --run     # 321 tests; all should pass
 ```
 
 ---
@@ -186,6 +186,11 @@ npm run cli -- fork
 **Files read:** `traces/example-trace.json`  
 **Files written:** `traces/example-trace-fork.json`
 
+> **Guardrail:** `fork` refuses to write the child over its own parent. If the resolved `--out` path equals the
+> resolved `--trace` path (including the case where `--trace` has no `.json` suffix, so the derived default
+> output would collide with the input), the command exits 1 with `Refusing to overwrite the parent trace …` and
+> the parent cassette is left untouched. Pass an explicit `--out` to a distinct path.
+
 **Expected output shape:**
 
 ```
@@ -305,6 +310,57 @@ Result:        PASS
 
 ---
 
+### 8. Check (one-shot self-check of the whole loop)
+
+```sh
+npm run cli -- check
+```
+
+**What it does:** runs the entire canonical loop — **record → verify(parent) → fork → verify(child) → diff** —
+in one command and prints a single PASS/FAIL verdict. It composes the same offline functions the individual
+commands use (`runAgentLoop`, `verifyTrace`, `forkRun`, `diffTraces`) over the deterministic fake model and
+fixture tools. No real model, tool, or network call is made.
+
+By default `check` is **in-memory and self-contained — it writes no trace files.** Pass `--out-dir <dir>` to
+persist the parent and child cassettes under that directory (then they are verified/diffed and their paths
+printed). There is no `--keep` flag; `--out-dir` is the only persistence control.
+
+**Files read/written:** none by default; with `--out-dir <dir>` it writes `<dir>/check-parent.json` and
+`<dir>/check-child.json`.
+
+**Expected output shape (PASS, default in-memory):**
+
+```
+[blackbox] --- check ---
+Mode:           in-memory (no files written; pass --out-dir to persist)
+
+  record         pass  success trace, 15 step(s)
+  verify_parent  pass  4/4 invariants
+  fork           pass  child valid, 7 step(s), tool_result mutation at step 3
+  verify_child   pass  4/4 invariants
+  diff           pass  first divergence at index 3, shared prefix 3 step(s)
+
+Result:         PASS
+```
+
+**With `--out-dir`:**
+
+```sh
+npm run cli -- check --out-dir traces/selfcheck
+```
+
+adds a `persisted (--out-dir …)` mode line plus `Parent:` / `Child:` paths, and writes the two cassettes.
+
+**Key proof points:**
+
+- `check` is fully offline — it only ever instantiates `FakeDeterministicModelClient` and `defaultToolExecutor()`,
+  so it cannot make a live call by construction. It composes the existing checks; it does not reimplement
+  hashing, replay, fork, diff, or verify.
+- On any stage failure the exit code is 1 and the report names the first failing stage. This makes `check` a
+  scriptable smoke test of the whole active-debugging loop, consistent with `verify`'s exit-code contract.
+
+---
+
 ## What Is Real vs. Mocked
 
 | Component | Status |
@@ -317,6 +373,7 @@ Result:        PASS
 | Tool-result mutation + chain continuation | Real |
 | First-divergence diff | Real |
 | Cassette verification (`verifyTrace` / neutrality audit) | Real — offline, composes existing checks |
+| Composed self-check (`runSelfCheck` / `check`) | Real — offline, composes record/verify/fork/diff |
 | Model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
 | Fixture tools (search, calendar, booking) | Fake — in-memory, no network |
 
@@ -346,6 +403,9 @@ npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 npm run cli -- verify --trace traces/example-trace.json
+npm run cli -- check
 ```
 
-All commands exit 0 (a clean cassette passes `verify`). The diff command confirms the first divergence at index 3 with a `tool_result differs` summary and raw hash/payload details for both sides.
+All commands exit 0 (a clean cassette passes `verify`, and `check` runs the whole loop to a PASS verdict). The
+diff command confirms the first divergence at index 3 with a `tool_result differs` summary and raw hash/payload
+details for both sides.
