@@ -22,8 +22,10 @@ import type { JsonObject, JsonValue } from "../trace/TraceTypes.ts";
  * `MessagePart[]` histories, and `AnthropicModelClient` consumes them on its
  * structured translation path. The legacy `[tool_call:<name>]` / stringified
  * result encoding survives only as a narrow fallback for plain-string content.
- * Whether a live provider accepts a synthetic `toolCallId` as its `tool_use.id`
- * is not proven here and remains deferred to W4-E.
+ * W4-E proved live that the real Anthropic API accepts a synthetic `toolCallId`
+ * as its `tool_use.id` / `tool_result.tool_use_id` (including fresh-adapter fork
+ * continuation). Trace ids remain provider-neutral `call-N`; provider-native ids
+ * are never persisted.
  */
 export type MessagePart =
   | { type: "text"; text: string }

@@ -16,7 +16,7 @@ E1 proved the real Anthropic Messages API accepts Blackbox's synthetic `call-0` 
 
 **Core question:** can a fresh Anthropic adapter continue from a *mutated* structured v2 fork point using only cassette data and neutral `toolCallId` correlation?
 
-E3's continuation request is structurally the same shape E1 already validated (assistant `tool_use` `call-0` + user `tool_result` `call-0`), so live acceptance is *likely*. What is genuinely new and unproven is that **`forkRun`'s structured reconstruction plus a stateless fresh adapter** produce a live-accepted request, and that **prefix-hash-identity and first-divergence** hold on a real parent/child pair.
+E3's continuation request is structurally the same shape E1 already validated (assistant `tool_use` `call-0` + user `tool_result` `call-0`), so live acceptance was *likely*. What was genuinely new — and is now **proven** — is that **`forkRun`'s structured reconstruction plus a stateless fresh adapter** produce a live-accepted request, and that **prefix-hash-identity and first-divergence** hold on a real parent/child pair.
 
 **Key scoping fact:** E2/E3 needs **no product-runtime change**. `forkRun` already accepts any `ModelClient` and reconstructs structured histories (W4-D3); `AnthropicModelClient` already translates structured parts statelessly (W4-D4). E2/E3 is a **proof script + one offline test + docs** only.
 
@@ -27,9 +27,9 @@ E3's continuation request is structurally the same shape E1 already validated (a
 - The real Anthropic Messages API (`claude-haiku-4-5-20251001`) accepted Blackbox's synthetic `call-0` as the request-local `tool_use.id` and matching `tool_result.tool_use_id` on **one real tool-use record**.
 - Proof: `npm run example:real-tooluse-proof`, commit `ed1628a`; 2 requests, 1 tool round; saved v2 cassette (7 steps) replayed offline, neutrality-clean.
 
-## 3. What remains unproven (the E2/E3 target)
+## 3. The E2/E3 target (previously unproven — now PROVEN)
 
-- **Live fork continuation with a fresh adapter after mutation.** A newly constructed `AnthropicModelClient` (empty pending state) continuing from a *mutated* fork point, with the continuation request assembled entirely from cassette data, has not been run against the live API. E3 settles this.
+- **Live fork continuation with a fresh adapter after mutation.** A newly constructed `AnthropicModelClient` (empty pending state) continuing from a *mutated* fork point, with the continuation request assembled entirely from cassette data. This was the open question at planning time; the E2/E3 live proof (2026-07-06, `example:real-fork-proof`) **settled it — PROVEN** (see the top-of-document status).
 
 ---
 

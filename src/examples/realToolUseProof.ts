@@ -190,5 +190,5 @@ console.log(label("Status:"), summary.status);
 
 const ok = summary.status === "success";
 console.log(`\n[blackbox] ${ok ? "PASS" : "FAIL"} — real Anthropic accepted synthetic toolCallId "call-0"`);
-console.log("[blackbox] E1 gate only. E2/E3 (fork → mutate → continue → diff) not started.");
+console.log("[blackbox] E1 gate complete; W4-E E2/E3 fork-continuation proof is covered by example:real-fork-proof.");
 if (!ok) process.exit(1);

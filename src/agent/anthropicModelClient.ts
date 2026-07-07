@@ -7,12 +7,13 @@
 // tool_result block whose `tool_use_id` is that same toolCallId. Correlation
 // therefore lives entirely in the cassette data — a FRESH adapter instance can
 // translate a saved multi-turn history with no prior in-memory state. This
-// removes the adapter-memory dependency for mocked structured translation;
-// live provider acceptance of synthetic ids is deferred to W4-E.
+// removes the adapter-memory dependency for structured translation.
 //
-// NOTE: The synthetic `call-N` ids are self-consistent within the request we
-// build (tool_use.id === matching tool_result.tool_use_id). These mocked tests do
-// not assert that a live Anthropic endpoint accepts such synthetic ids.
+// W4-E proved live: the real Anthropic Messages API accepts these synthetic
+// `call-N` ids as `tool_use.id` / `tool_result.tool_use_id` — both on a single
+// real tool-use record (E1) and on a fresh-adapter fork continuation from a
+// mutated v2 cassette (E2/E3). Provider-native ids (`toolu_…`) still must never
+// enter a trace; only the neutral `call-N` ids are persisted.
 //
 // LEGACY STRING FALLBACK (pre-v2):
 // Plain-string content still passes through, and the legacy

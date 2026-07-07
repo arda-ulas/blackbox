@@ -6,7 +6,7 @@
 
 > **Full-loop result (2026-07-06):** E2/E3 (`example:real-fork-proof`, script `d4d01f8`) PASSED — a fresh `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data; the live API accepted it, and the diff/prefix-identity invariants held on a real parent/child pair. The complete active-debugging loop **record → replay → fork → mutate → continue → diff** is proven against the live provider. See `docs/17_week_four_e2e3_plan.md`.
 
-> **E1 result (2026-07-06):** the with-key proof (`npm run example:real-tooluse-proof`, commit `ed1628a`) **PASSED**. The real Anthropic Messages API (`claude-haiku-4-5-20251001`) accepted Blackbox's synthetic `call-0` as the turn-2 `tool_use.id` and `tool_result.tool_use_id`; the run completed to a final answer and the saved v2 cassette replayed offline, neutrality-clean. The core §2 assumption is proven for a single real record. **Real fork continuation (E2/E3) remains unproven** — a fresh adapter continuing from a mutated fork point has not yet been run live.
+> **E1 result (2026-07-06):** the with-key proof (`npm run example:real-tooluse-proof`, commit `ed1628a`) **PASSED**. The real Anthropic Messages API (`claude-haiku-4-5-20251001`) accepted Blackbox's synthetic `call-0` as the turn-2 `tool_use.id` and `tool_result.tool_use_id`; the run completed to a final answer and the saved v2 cassette replayed offline, neutrality-clean. The core §2 assumption is proven for a single real record. **Real fork continuation (E2/E3) is now also proven** — see the full-loop result below.
 
 ---
 
@@ -133,7 +133,7 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## 10. Acceptance criteria
 
-1. `npm test -- --run` stays green (**267/267** after E1 added offline helper tests), with **zero live calls** — `npm test` remains fully offline; only mocked/pure unit tests were added, no live/key-gated tests.
+1. `npm test -- --run` stays green (**274/274** after E1 + E2/E3 added offline helper/integration tests), with **zero live calls** — `npm test` remains fully offline; only mocked/pure unit tests were added, no live/key-gated tests.
 2. With key: real record where the turn-2 request sends `call-0` as `tool_use.id` / `tool_use_id` and the API **accepts** it (run completes). ← core assumption proven.
 3. Parent cassette validates (hash chain) and replays fully offline (no provider calls in replay).
 4. Fork + mutate continues with a **fresh** adapter (no shared state); continuation call succeeds.
@@ -148,8 +148,8 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 - **E0 — research (no code):** ✅ Context7 confirmation (§4) + record the verified assumption. Installed types confirmed (§3).
 - **E1 — go/no-go record proof:** ✅ **PASSED** (commit `ed1628a`; live run 2026-07-06). Synthetic `call-0` accepted by the real API; parent cassette saved; neutrality clean.
-- **E2 — offline replay phase** of the parent cassette. *(not started; a minimal offline replay is already folded into the E1 script)*
-- **E3 — fork → mutate → fresh-adapter continue → diff phase**; save child; assert first divergence at the mutation step. *(not started)*
+- **E2 — offline replay phase** of the parent cassette. *(✅ done — in `example:real-fork-proof`, commit `d4d01f8`)*
+- **E3 — fork → mutate → fresh-adapter continue → diff phase**; save child; assert first divergence at the mutation step. *(✅ PASSED live — `example:real-fork-proof`, 2026-07-06)*
 - **E4 — docs + build log + tag decision** (§13, §16). *(E1 docs recorded; tag decision deferred until E3)*
 
 ---
@@ -211,7 +211,7 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 
 ## 17. Change / safety statement
 
-*(Original planning-artifact statement — superseded by the E1 result above.)* As of E1 closeout: the E1 proof script and helpers shipped in `ed1628a`; a single authorized live call was run manually and passed (§5). The saved cassette is git-ignored and not committed. E2/E3 (fork → mutate → continue → diff) have not started.
+*(Original planning-artifact statement — superseded by the results above.)* As of W4-E closeout: E1 shipped in `ed1628a` and E2/E3 in `d4d01f8`; both authorized live runs were performed manually and passed. The saved cassettes are git-ignored and not committed. The full loop (fork → mutate → continue → diff) is proven live — see `docs/17_week_four_e2e3_plan.md`.
 
 ---
 
