@@ -378,17 +378,21 @@ Target: baseline **394/394**, unchanged, all green, zero live calls. W6-C adds n
 
 ## 10. Rollback plan
 
-- **Isolated blast radius.** Changes are confined to documentation files (`README.md`, `DEMO.md`,
-  `docs/08_build_log.md`, this plan's status header, optional `AGENTS.md`/`CLAUDE.md` pointer refresh). No source,
-  test, fixture, hash, schema, or on-disk cassette is affected.
+- **Isolated blast radius.** Changes are confined to the required W6-C docs-scope files (`README.md`, `DEMO.md`,
+  `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`, and this plan's status header) — including the **required**
+  narrow current-state pointer refresh in `AGENTS.md` and `CLAUDE.md` (§3.6). No source, test, fixture, hash,
+  schema, or on-disk cassette is affected, so rollback stays docs-only and safe.
 - **Single-commit revert.** The reconciliation lands as one commit (the plan lands as its own prior commit);
   `git revert <sha>` restores the previous docs verbatim. Because no code, hash, schema, or fixture changed, revert
   is total — no regeneration needed.
 - **Tripwires.** `tests/fixtures.test.ts` (frozen hashes) and `npm run fixtures:generate` (check mode) fail loudly
-  if the change accidentally touches hashing or a fixture. `git diff --name-only` showing any non-doc file is an
-  immediate signal to stop — criterion §4.11 forbids it.
-- **No external state.** Nothing is pushed, tagged, deployed, or sent to any provider by this milestone, so rollback
-  is purely local.
+  if the change accidentally touches hashing or a fixture. `git diff --name-only` showing any file outside the
+  allowed docs set is an immediate signal to stop — criterion §4.12 forbids it.
+- **No external state before local acceptance.** The local W6-C implementation commit is **not pushed, tagged,
+  deployed, or sent to any provider before the Codex closeout audit**, so pre-acceptance rollback is purely local
+  (a plain `git reset`/`git revert`, nothing to un-push). Push and the `week-six-release-freeze` tag happen only
+  *after* local acceptance; that post-push/tag closeout — and any rollback of it — is governed by the §6-B
+  checklist.
 
 ---
 
