@@ -150,7 +150,7 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 - **E1 — go/no-go record proof:** ✅ **PASSED** (commit `ed1628a`; live run 2026-07-06). Synthetic `call-0` accepted by the real API; parent cassette saved; neutrality clean.
 - **E2 — offline replay phase** of the parent cassette. *(✅ done — in `example:real-fork-proof`, commit `d4d01f8`)*
 - **E3 — fork → mutate → fresh-adapter continue → diff phase**; save child; assert first divergence at the mutation step. *(✅ PASSED live — `example:real-fork-proof`, 2026-07-06)*
-- **E4 — docs + build log + tag decision** (§13, §16). *(E1 docs recorded; tag decision deferred until E3)*
+- **E4 — docs + build log + tag decision** (§13, §16). *(E1 + E2/E3 docs recorded; E3 PASSED — closeout audit is the remaining step; tag after Codex acceptance)*
 
 ---
 
@@ -193,7 +193,7 @@ Either way: record the empirical result (pass or fail) in the build log, and **d
 ## 15. CLI wiring & tag recommendations
 
 - **CLI wiring:** remain **proof-script only**. CLI wiring is productization, expands surface, and risks accidental live calls; it is not needed to answer the core question. Defer any `--adapter anthropic` flag to a later, explicitly-scoped milestone contingent on E1 passing.
-- **Tag:** create a new tag **only on a clean PASS + Codex acceptance**, e.g. `week-four-real-tooluse-proof`. On failure, no proof tag — document the negative result and the chosen contingency in the build log.
+- **Tag:** create a new tag **only on a clean PASS + Codex acceptance**, e.g. `week-four-real-fork-proof`. E1 and E2/E3 have PASSED; the closeout audit is the remaining step before tagging. On failure, no proof tag — document the negative result and the chosen contingency in the build log.
 
 ---
 
