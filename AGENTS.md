@@ -71,13 +71,17 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current Milestone: W4-G Fork/Verify Workflow Polish (implementation)
+## Current State: post-W4-G — ready for W5-A planning
+
+**W4-G is complete and tagged (`week-four-fork-verify-workflow`).** All Week Four work is closed through this
+tag. The current core loop is `record → replay → fork → mutate → continue → diff → verify → check`. The next
+allowed step is **W5-A planning only** — no W5-A implementation until it is explicitly scoped and Codex-audited.
 
 W4-F is complete and tagged (`week-four-cassette-verification`): reusable cassette verification core + `verify`
 CLI landed per `docs/18_week_four_f_plan.md`.
 
-**W4-G (implemented)** polishes the local workflow per `docs/19_week_four_g_plan.md` — composition, output, and
-guardrails only, no product-surface expansion:
+**W4-G (implemented, tagged `week-four-fork-verify-workflow`)** polished the local workflow per
+`docs/19_week_four_g_plan.md` — composition, output, and guardrails only, no product-surface expansion:
 
 - **Composed self-check** — `runSelfCheck(opts?)` (`src/workflow/selfCheck.ts`) runs the full offline loop
   **record → verify → fork → verify → diff** by *composing* `runAgentLoop` / `verifyTrace` / `forkRun` /

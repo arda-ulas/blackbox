@@ -425,7 +425,7 @@ In priority order — do not expand scope without explicit decision:
 - One authorized live call, run manually by the human; no live tests in `npm test` (`npm test -- --run`: 274/274, zero live calls). No CLI Anthropic wiring. Replay stayed offline (Trace-only). No provider-native ids/usage/message-ids/content-arrays/`stop_reason`/key in either cassette. Both git-ignored cassettes were not committed.
 
 ### W4-E status
-- E1 (single-record synthetic-id acceptance) and E2/E3 (fresh-adapter fork continuation) both proven live. Remaining: Codex closeout audit, then tag `week-four-real-fork-proof`.
+- E1 (single-record synthetic-id acceptance) and E2/E3 (fresh-adapter fork continuation) both proven live. Codex closeout audit completed and tagged `week-four-real-fork-proof`.
 
 ---
 

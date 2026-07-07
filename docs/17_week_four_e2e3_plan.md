@@ -196,10 +196,10 @@ Only neutral `call-N` ids and neutral `MessagePart[]` / step payloads are permit
 
 ## 18. Tag recommendation
 
-**Tag only after E3 live PASS + Codex closeout audit**, likely `week-four-real-fork-proof`. This completes W4-E: the full active-debugging loop proven live. On failure: no tag — apply the §9 rollback (on-wire id reshape) and re-run.
+**Tagged `week-four-real-fork-proof` after E3 live PASS + Codex closeout audit.** This completed W4-E: the full active-debugging loop proven live. (On failure the plan called for no tag — apply the §9 rollback (on-wire id reshape) and re-run — but the run passed.)
 
 ---
 
 ## Verdict
 
-**E2/E3 PASSED — full live loop proven.** A fresh, stateless `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data and neutral `call-0` correlation; the real API accepted it, and the diff/prefix-identity invariants held on a real parent/child pair. This completes the W4-E thesis: `record → replay → fork → mutate → continue → diff` works end-to-end against the live provider. Remaining W4-E closeout: docs (this slice) + Codex closeout audit, then tag `week-four-real-fork-proof`.
+**E2/E3 PASSED — full live loop proven.** A fresh, stateless `AnthropicModelClient` continued from a mutated structured v2 fork point using only cassette data and neutral `call-0` correlation; the real API accepted it, and the diff/prefix-identity invariants held on a real parent/child pair. This completes the W4-E thesis: `record → replay → fork → mutate → continue → diff` works end-to-end against the live provider. W4-E closeout (docs + Codex closeout audit) completed and tagged `week-four-real-fork-proof`.

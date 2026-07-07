@@ -1,14 +1,16 @@
 # W4-G Plan — Fork/Verify Workflow Polish
 
-**Status:** PLANNED (not implemented). Plan-only document.
+**Status:** IMPLEMENTED and tagged `week-four-fork-verify-workflow`. The plan sections below are preserved as
+historical record.
 **Predecessor:** W4-F complete, pushed, tagged `week-four-cassette-verification` (`793384b` feat,
 `a8580e4` secret-key audit hardening). Full core loop proven:
-`record → replay → fork → mutate → continue → diff → verify`. Tests: 307/307 offline, zero live calls.
+`record → replay → fork → mutate → continue → diff → verify`. Tests: 307/307 offline at plan time (321/321 after
+W4-G landed), zero live calls.
 **Mode:** local TypeScript CLI/core only. No live calls, no CLI Anthropic wiring, no new provider adapter,
 no product-surface expansion.
 
-> This is the accepted-plan document for W4-G. Nothing here is implemented yet. Implementation happens in a
-> later slice under the first-implementation prompt in §9.
+> This was the accepted-plan document for W4-G. W4-G is now implemented and tagged
+> (`week-four-fork-verify-workflow`); the sections below are retained as the historical plan of record.
 
 ---
 
