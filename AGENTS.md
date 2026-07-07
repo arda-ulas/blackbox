@@ -71,21 +71,35 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W5-B docs/repo-readiness (W5-A closed and tagged)
+## Current State: W6-C release-freeze / docs verification (W6-B closed and tagged)
 
-**W5-A (trace fixture corpus + regression harness) is complete and tagged (`week-five-trace-fixture-corpus`)** per
-`docs/20_week_five_a_plan.md`: a committed fake/offline v2 corpus under `fixtures/traces/`, a deterministic
-check-by-default generator (`scripts/generateFixtures.ts`, `npm run fixtures:generate`), and
-`tests/fixtures.test.ts` asserting every core invariant (schema, hash chain, frozen hashes, neutrality, replay,
-terminal-error verify, fork-prefix identity, frozen first divergence) against the frozen artifacts. Tests: 360/360
-offline, zero live calls. This is local regression hardening only — it consumes/freezes the existing core and
-changes no runtime semantics.
+**W6-C (release freeze + README/DEMO verification) is the current milestone** per `docs/24_week_six_c_plan.md`:
+documentation / repo-readiness verification only — verify every command shown in README/DEMO against `package.json`
+and `src/cli.ts`, reconcile the public docs to the true repo state (current test count, status/tag wording, build
+history, core-loop string), refresh the current-state pointers in this file and `CLAUDE.md`, and apply a two-phase
+release-freeze checklist. **Docs-only: no source, test, fixture, `package.json`, `.gitignore`, runtime, CLI, or
+provider changes.** Current baseline: **394/394** offline, zero live calls. The intended release-freeze tag is
+`week-six-release-freeze`.
 
-**W5-B (public demo narrative + repo readiness) is the current milestone** per `docs/21_week_five_b_plan.md`:
-documentation / repo-readiness polish only — re-narrating README, tightening DEMO, consolidating the "is / is not"
-boundary and "proof status", adding a "for reviewers" path, and refreshing the current-state pointers in this file
-and `CLAUDE.md`. **Docs-only: no source, test, fixture, `package.json`, `.gitignore`, runtime, CLI, or provider
-changes.** Test total unchanged at 360/360.
+**W6-B is complete and tagged (`week-six-verify-replay-explanations`).** Verify/replay failure explanation:
+`src/trace/verifyExplain.ts` renders a labelled `verify` FAIL block (invariant / at / detail / plain-language
+action) per invariant class, secrets still masked; PASS output and the `VerifyReport` shape unchanged.
+Presentation-only. See the W6-B build-log entry.
+
+**W6-A is complete and tagged (`week-six-diff-inspect-ergonomics`).** Diff/inspect legibility via the shared pure
+helper `src/trace/stepLabels.ts` (`changed value (<field>):` at a divergence); replay output byte-identical.
+Presentation-only. See the W6-A build-log entry.
+
+**W5-B is complete and tagged (`week-five-public-demo-readiness`).** Public demo narrative + repo readiness
+(docs-only): README re-authored as the repo front door, DEMO tightened, `AGENTS.md`/`CLAUDE.md` current-state
+pointers refreshed. See the W5-B build-log entry.
+
+**W5-A is complete and tagged (`week-five-trace-fixture-corpus`)** per `docs/20_week_five_a_plan.md`: a committed
+fake/offline v2 corpus under `fixtures/traces/`, a deterministic check-by-default generator
+(`scripts/generateFixtures.ts`, `npm run fixtures:generate`), and `tests/fixtures.test.ts` asserting every core
+invariant (schema, hash chain, frozen hashes, neutrality, replay, terminal-error verify, fork-prefix identity,
+frozen first divergence) against the frozen artifacts. Local regression hardening only — it consumes/freezes the
+existing core and changes no runtime semantics.
 
 **W4-G is complete and tagged (`week-four-fork-verify-workflow`).** All Week Four work is closed through this
 tag. The current core loop is `record → replay → fork → mutate → continue → diff → verify → check`.

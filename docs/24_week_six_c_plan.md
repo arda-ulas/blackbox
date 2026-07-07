@@ -1,7 +1,13 @@
 # W6-C Plan — Release Freeze + README/DEMO Verification
 
-**Status:** PLANNED (awaiting Codex audit before implementation). This document is the scoped, plan-only
-deliverable. No source, test, fixture, config, runtime, CLI, or provider change is made by writing it.
+**Status:** IMPLEMENTED (in closeout — awaiting Codex closeout audit before push/tag). This document is preserved as
+the accepted plan and historical record; the reconciliation landed in the slice `docs: freeze week six demo surface`,
+editing `README.md`, `DEMO.md`, `AGENTS.md`, `CLAUDE.md`, `docs/08_build_log.md`, and this status header. Docs-only:
+no source, test, fixture, config, runtime, CLI, or provider change. Phase A verified every README/DEMO command
+against `package.json` and `src/cli.ts` (all present); Phase B reconciled the public docs to the true repo state
+(current test count 394/394, W6-C release-freeze status with durable tag wording, complete build history, consistent
+core-loop string, refreshed `AGENTS.md`/`CLAUDE.md` pointers). The §6-A local pre-push checklist passed; the §6-B
+post-push/tag checklist is applied after local Codex acceptance. The plan body below is unchanged.
 **Predecessor:** W6-B complete, pushed, tagged `week-six-verify-replay-explanations` (HEAD `7edfb29`). The full
 core loop is implemented, hardened, composed under one self-check, proven live (opt-in), frozen against a committed
 regression corpus, and documented: `record → replay → fork → mutate → continue → diff → verify → check`. Tests:

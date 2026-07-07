@@ -38,11 +38,15 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Post-W5-A. Ready for W5-B (docs/repo-readiness).** The local loop is complete, hardened, composed under one
-self-check, proven live via opt-in scripts, and protected by a committed regression corpus.
+**Week Six release-frozen (W6-C). Post-W6-B: the demo surface is verified command-by-command against the repo and
+frozen.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts, and
+protected by a committed regression corpus.
 
-- **Latest tag:** `week-five-trace-fixture-corpus` (W5-A — trace fixture corpus + regression harness).
-- **Tests:** 360/360 passing, fully offline, zero live calls, no API key required.
+- **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
+  verification).
+- **Latest technical-capability tag before release-freeze:** `week-six-verify-replay-explanations` (W6-B —
+  verify/replay failure explanations).
+- **Tests:** 394/394 passing, fully offline, zero live calls, no API key required.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
@@ -83,7 +87,7 @@ The whole offline loop verifies in four commands, no API key required:
 
 ```sh
 npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 360 tests, fully offline, zero live calls
+npm test -- --run           # 394 tests, fully offline, zero live calls
 npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
 npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
@@ -159,3 +163,19 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Five Regression Hardening ✓ (`week-five-trace-fixture-corpus`)
 
 - **W5-A** — Trace fixture corpus + regression harness: a small committed, fake/offline v2 corpus under `fixtures/traces/` plus `tests/fixtures.test.ts`, which loads the frozen cassettes and asserts every core invariant against them — schema version, hash chain, **frozen expected hashes**, provider neutrality, offline replay, terminal-error verification, fork-prefix hash identity, and a frozen first-divergence index. This turns the loop's guarantees into a version-controlled baseline so a future change cannot silently break cassette compatibility
+
+### Week-Five Public Demo Readiness ✓ (`week-five-public-demo-readiness`)
+
+- **W5-B** — Public demo narrative + repo readiness (docs-only): re-authored README as the repo front door (what Blackbox is / is not, "What it proves", "Proof status", a four-command "For reviewers" path), tightened DEMO, and refreshed the current-state pointers in `AGENTS.md` / `CLAUDE.md`. No source, test, fixture, config, runtime, CLI, or provider change
+
+### Week-Six Diff/Inspect Ergonomics ✓ (`week-six-diff-inspect-ergonomics`)
+
+- **W6-A** — Diff/inspect legibility: a shared, pure presentation helper (`src/trace/stepLabels.ts`) makes `diff`/`fork` show the value that actually changed at a divergence in human words (`changed value (<field>):`) instead of a truncated JSON dump. Replay output is byte-identical (verbatim lift); no schema, hash, fixture, or CLI-surface change
+
+### Week-Six Verify/Replay Explanations ✓ (`week-six-verify-replay-explanations`)
+
+- **W6-B** — Verify failure explanations: a pure presentation helper (`src/trace/verifyExplain.ts`) renders a labelled `verify` FAIL block (`invariant:` / `at:` / `detail:` / plain-language `action:`) per invariant class, with leaked secrets still masked as `<api-key-value>`. The `verify` PASS path and the `VerifyReport` shape are unchanged; no schema, hash, fixture, or CLI-surface change
+
+### Week-Six Release Freeze ✓ (`week-six-release-freeze`)
+
+- **W6-C** — Release freeze + README/DEMO verification (docs-only): verified every command in README/DEMO against `package.json` and `src/cli.ts`, reconciled the public docs to the true repo state (test count 394/394, current status/tag wording, complete build history, consistent core-loop string), and refreshed the `AGENTS.md` / `CLAUDE.md` current-state pointers. No source, test, fixture, config, runtime, CLI, or provider change

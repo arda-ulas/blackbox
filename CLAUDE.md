@@ -8,12 +8,14 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W5-A. W5-B (docs/repo-readiness) in progress.** The week-one CLI proof is long complete, the local loop has
-been hardened through Week Four, and W5-A froze it against a committed regression corpus. W5-B is
-documentation/repo-readiness polish only — no source, test, fixture, config, runtime, CLI, or provider changes.
+**Post-W6-B. W6-C (release-freeze / docs verification) in progress.** The week-one CLI proof is long complete, the
+local loop has been hardened through Week Four, W5-A froze it against a committed regression corpus, W5-B made the
+public surface reviewer-ready, and W6-A/W6-B made divergence and verify-failure output legible. W6-C is
+documentation / repo-readiness verification only — no source, test, fixture, config, runtime, CLI, or provider
+changes.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 360/360 passing, fully offline, zero live calls.
+- **Tests:** 394/394 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -24,7 +26,11 @@ documentation/repo-readiness polish only — no source, test, fixture, config, r
   - `week-four-real-fork-proof`
   - `week-four-cassette-verification`
   - `week-four-fork-verify-workflow` (W4-G)
-  - `week-five-trace-fixture-corpus` (W5-A, current tagged HEAD)
+  - `week-five-trace-fixture-corpus` (W5-A)
+  - `week-five-public-demo-readiness` (W5-B)
+  - `week-six-diff-inspect-ergonomics` (W6-A)
+  - `week-six-verify-replay-explanations` (W6-B, current tagged HEAD)
+- **In progress:** W6-C release freeze; intended tag `week-six-release-freeze`.
 
 ## Hard Guardrails
 
@@ -43,7 +49,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W5-B (docs/repo-readiness) is the current milestone; its plan is scoped and Codex-accepted. Any milestone beyond W5-B is planned and Codex-audited before implementation.
+- **Sequencing:** W6-C (release-freeze / docs verification) is the current milestone; its plan is scoped and Codex-accepted. Any milestone beyond W6-C is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -60,8 +66,10 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Complete W5-B docs/repo-readiness (README/DEMO/AGENTS/CLAUDE/build-log) → Codex closeout audit → tag. No new
-milestone or product-surface work until it is explicitly scoped and Codex-audited.
+Complete W6-C release freeze (verify README/DEMO commands against `package.json`/`src/cli.ts`; reconcile
+README/DEMO/AGENTS/CLAUDE/build-log to the true repo state; run the §6-A local checklist) → Codex closeout audit →
+push → tag `week-six-release-freeze` (§6-B). No new milestone or product-surface work until it is explicitly scoped
+and Codex-audited.
 
 ## Response Format
 

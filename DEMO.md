@@ -1,6 +1,6 @@
 # Blackbox — CLI Demo Walkthrough
 
-Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at any step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff**.
+Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at any step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff → verify → check**.
 
 This walkthrough covers the local CLI demo. Everything runs entirely on your machine with no external API calls. Traces are recorded in **schema v2** — tool rounds carry a deterministic, provider-neutral `toolCallId` (see [docs/03_trace_schema.md](docs/03_trace_schema.md)).
 
@@ -10,7 +10,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 360 tests; all should pass
+npm test -- --run     # 394 tests; all should pass
 ```
 
 ---
