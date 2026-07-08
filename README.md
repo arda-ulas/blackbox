@@ -38,15 +38,18 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Week Six release-frozen (W6-C). Post-W6-B: the demo surface is verified command-by-command against the repo and
-frozen.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts, and
-protected by a committed regression corpus.
+**Week Seven reactive fake model (W7-A) — implemented / in closeout. Post-W6-C release freeze.** The local loop is
+complete, hardened, composed under one self-check, proven live via opt-in scripts, and protected by a committed
+regression corpus. W7-A makes the offline fork/`check` continuation *derive* the child's answer from the mutated
+`tool_result` (via `ReactiveDemoModelClient`) instead of returning a hardcoded string — still fake/offline,
+deterministic, zero live calls, no real model in the default CLI.
 
+- **Current milestone:** W7-A (reactive deterministic fake model); intended tag `week-seven-reactive-fake-model`.
 - **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
   verification).
 - **Latest technical-capability tag before release-freeze:** `week-six-verify-replay-explanations` (W6-B —
   verify/replay failure explanations).
-- **Tests:** 394/394 passing, fully offline, zero live calls, no API key required.
+- **Tests:** 417/417 passing, fully offline, zero live calls, no API key required.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
@@ -87,7 +90,7 @@ The whole offline loop verifies in four commands, no API key required:
 
 ```sh
 npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 394 tests, fully offline, zero live calls
+npm test -- --run           # 417 tests, fully offline, zero live calls
 npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
 npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
@@ -179,3 +182,7 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Six Release Freeze ✓ (`week-six-release-freeze`)
 
 - **W6-C** — Release freeze + README/DEMO verification (docs-only): verified every command in README/DEMO against `package.json` and `src/cli.ts`, reconciled the public docs to the true repo state (test count 394/394, current status/tag wording, complete build history, consistent core-loop string), and refreshed the `AGENTS.md` / `CLAUDE.md` current-state pointers. No source, test, fixture, config, runtime, CLI, or provider change
+
+### Week-Seven Reactive Fake Model ✓ (`week-seven-reactive-fake-model`)
+
+- **W7-A** — Reactive deterministic fake model: the offline fork/`check` continuation now *derives* the child's answer from the mutated `tool_result` via a new pure, deterministic `ReactiveDemoModelClient` (`src/agent/reactiveDemoModel.ts`) that reads the reconstructed transcript and embeds the mutated payload's field — so changing the mutation changes the answer — replacing the former hardcoded continuation strings at the `cli fork` and `check` injection sites. Still fake/offline, deterministic, zero live calls, no real model in the default CLI. `FakeDeterministicModelClient`, `forkRun`, the trace schema, canonical hashing, replay/diff/verify, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (417/417 offline, 394 + 23 new tests)

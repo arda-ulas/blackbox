@@ -128,7 +128,7 @@ Loads a parent cassette, forks at a given step with either a prompt mutation or 
 
 **Validation of `--payload-json`:** Parse with `JSON.parse`; print `Invalid JSON for --payload-json: <err>` and exit 1 on failure.
 
-**Prompt-mode model behavior:** When `--mode prompt` is used, the child run needs a scripted model response. The CLI supplies a single hardcoded `FakeDeterministicModelClient` response: `{ type: "final_answer", text: "Prompt-mode fork complete." }`. This is a placeholder for W3-A; a richer scripted response or `--response-json` flag can be added in a later phase. The default demo (no flags) always uses the tool-result path and is unaffected.
+**Prompt-mode model behavior (W7-A):** When `--mode prompt` is used, the continuation model is `ReactiveDemoModelClient` — the same fake, offline, deterministic model the tool-result path uses. A prompt-mode fork carries **no** tool-result mutations, so `forkRun` passes no reconstructed tool-result history into the continuation (it only rebuilds tool rounds when tool-result mutations are present). The reactive model therefore finds no `tool_result` in its transcript and applies its prompt-derived fallback rule: the child's final answer is **derived from the mutated prompt text**, not from the parent's tool-result history and not from a hardcoded scripted string. Output stays deterministic, fake/offline, and zero-live-call. The default demo (no flags) always uses the tool-result path and is unaffected.
 
 **Exit codes:** 0 on success, 1 on any error (load, validation, fork, save).
 
