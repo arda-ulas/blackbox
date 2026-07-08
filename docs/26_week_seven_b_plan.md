@@ -67,9 +67,10 @@ the two runs' terminal outcomes.
 | Site | Role | W7-B treatment |
 |---|---|---|
 | `src/fork/diffTraces.ts` `diffTraces()` | Structural hash-chain divergence computation | **Unchanged** (computation frozen) |
-| `src/fork/diffTraces.ts` `formatFirstDivergence()` | Renders the divergence block for both `diff` and `fork` | **Append** an `Outcome:` block (additive; existing lines unchanged) |
-| `src/replay/CassetteReplay.ts` `replayTrace()` | Inline parse of the last `metadata` step for status/result | **Refactor** to consume shared `terminalOutcome()` — output byte-identical (§4.4) |
-| `src/cli.ts` `runDiff` / `runFork` | Call `formatFirstDivergence` | **Unchanged** — they inherit the new `Outcome:` block for free |
+| `src/fork/diffTraces.ts` `formatFirstDivergence()` | Renders the structural divergence block from a `TraceDiff` | **Unchanged** — it receives only a `TraceDiff` (no full traces, no terminal outcomes), so it *cannot* compute the behavioral verdict and stays structural (§4.3) |
+| `src/fork/diffTraces.ts` `formatDiffReport()` *(new)* | Wrapper: structural block + behavioral `Outcome:` block from the two full traces | **Added** — composes `diffTraces` → `formatFirstDivergence` → `diffOutcome` → `formatOutcomeDiff` (§4.3) |
+| `src/replay/CassetteReplay.ts` `replayTrace()` | Inline parse of the last `metadata` step for status/result | **Refactor** to consume shared `terminalOutcome()` — returned fields byte-identical (§4.4) |
+| `src/cli.ts` `runDiff` / `runFork` | Call `formatFirstDivergence(diff)` directly | **Switch** the call to `formatDiffReport(parentTrace, childTrace)` — a formatter-call change only; no command, flag, or exit-code change (§4.3) |
 | `src/workflow/selfCheck.ts` / `check` | Composed self-check report | **Unchanged** — `check` stdout stays byte-identical (§4.5) |
 
 Load-bearing fact for scope: the behavioral verdict is a **pure function of the two `Trace` objects**. It needs no
@@ -115,25 +116,43 @@ Two pure functions, no IO, no clock, no input mutation:
 - `formatOutcomeDiff(diff: OutcomeDiff): string` — returns the one-line `Outcome:` verdict, followed by the two
   tool sequences only when they differ. Provider-neutral text (no provider markers).
 
-### 4.3 Wire the verdict into the shared formatter (`src/fork/diffTraces.ts`)
+### 4.3 Wire the verdict via a new wrapper formatter: `formatDiffReport` (`src/fork/diffTraces.ts`)
 
-Append an `Outcome:` block produced by `formatOutcomeDiff` to the **end** of `formatFirstDivergence`. The append is
-**purely additive** — no existing line is removed or reordered — so the existing `diffTraces.test.ts` `toContain`
-assertions survive unedited. Because `formatFirstDivergence` is the single formatter behind both `runDiff` (the
-standalone `diff` command) and `runFork` (the inline `--- trace diff ---` block), **one edit lights up both
-surfaces** (DRY). `diffTraces()` — `hasDivergence` / `firstDivergenceIndex` / `sharedPrefixLength` and the
-`Summary:` humanSummary — is unchanged. `record`, `replay`, `verify`, `list`, `inspect` are untouched.
+**Wiring constraint (per Codex audit):** `formatFirstDivergence(diff)` receives only a `TraceDiff`, and `TraceDiff`
+carries no full traces and no terminal outcomes — so `formatFirstDivergence` **cannot** compute the behavioral
+verdict by itself. `diffOutcome(parentTrace, childTrace)` needs the two full `Trace` objects. The chosen design
+resolves this without touching the structural layer:
+
+- **`diffTraces()` stays structural and unchanged.** `hasDivergence` / `firstDivergenceIndex` /
+  `sharedPrefixLength` and the `Summary:` humanSummary are untouched.
+- **The `TraceDiff` shape is unchanged.** No outcome fields are added to it.
+- **`formatFirstDivergence(diff)` stays structural and unchanged.** It keeps its `TraceDiff`-only signature; its
+  existing `diffTraces.test.ts` assertions pass unedited.
+- **New wrapper:** `formatDiffReport(parentTrace: Trace, childTrace: Trace): string`, which
+  1. calls `diffTraces(parentTrace, childTrace)`,
+  2. calls `formatFirstDivergence(traceDiff)`,
+  3. calls `diffOutcome(parentTrace, childTrace)`, and
+  4. appends `formatOutcomeDiff(outcome)`.
+
+`runDiff` and `runFork` in `src/cli.ts` **switch from calling `formatFirstDivergence(diff)` directly to calling
+`formatDiffReport(parentTrace, childTrace)`**. Both call sites already hold the two full traces, so this is **only
+a formatter-call change** — no command, flag, allow-list, exit-code, schema, hash, replay-semantic, `forkRun`,
+provider, package, or fixture change. One wrapper serves both surfaces (DRY): the standalone `diff` command and the
+inline `--- trace diff ---` block in `fork` both gain the `Outcome:` block. `record`, `replay`, `verify`, `list`,
+`inspect`, and `check` are untouched (`check` stdout remains byte-identical, §4.5).
 
 ### 4.4 Replay DRY refactor (in scope, byte-identical) (`src/replay/CassetteReplay.ts`)
 
 **Decision (locked): the replay refactor is in scope.** `replayTrace` currently parses the last `metadata` step
 inline to derive `status` / `result` / `failureReason` for its `ReplaySummary`. That is the same parse
 `terminalOutcome` performs. `replayTrace` is refactored to call `terminalOutcome()` and map its result onto
-`ReplaySummary` so the two do not carry separate terminal-status parsing logic. **`ReplaySummary`'s fields and
-`replayTrace`'s stdout must remain byte-identical**; the refactor is internal only. A corpus parity test guards
-this: over every committed fixture, `replayTrace(t)` output is unchanged, and its `status`/`result` equal
-`terminalOutcome(t).status`/`finalAnswer`. If any drift appears, the refactor is wrong (not the test) — stop and
-re-examine. `replayTrace`'s Trace-only signature and offline guarantee are intact.
+`ReplaySummary` so the two do not carry separate terminal-status parsing logic. **Replay parity means: the
+`ReplaySummary` return fields stay byte-identical, and the CLI `replay` command's stdout stays byte-identical.
+(`replayTrace` itself writes no stdout — it returns a summary that the CLI's `runReplay` renders.)** The refactor
+is internal only. A corpus parity test guards this: over every committed fixture, `replayTrace(t)`'s returned
+fields are unchanged, and its `status`/`result` equal `terminalOutcome(t).status`/`finalAnswer`. If any drift
+appears, the refactor is wrong (not the test) — stop and re-examine. `replayTrace`'s Trace-only signature and
+offline guarantee are intact.
 
 ### 4.5 `check` and `verify`: unchanged, byte-identical
 
@@ -145,7 +164,8 @@ untouched.
 ### 4.6 What is deliberately untouched
 
 `hash.ts`, `TraceStepHashInput`, `CURRENT_TRACE_VERSION`, `Trace`/`TraceStep`/`TraceStepType`, `TraceRecorder`,
-`validateTrace`, `replayTrace`'s **signature/output**, `forkRun`, the `diffTraces()` **computation**,
+`validateTrace`, `replayTrace`'s **signature/returned fields**, `forkRun`, the `diffTraces()` **computation**, the
+`TraceDiff` **shape**, `formatFirstDivergence` (stays structural, `TraceDiff`-only),
 `verifyTrace`/`verifyExplain`, `neutrality.ts`, `stepLabels.ts`, `agentLoop.ts`, `fixtureTools.ts`,
 `modelClient.ts`, `reactiveDemoModel.ts`, `anthropicModelClient.ts`, all proof scripts,
 `scripts/generateFixtures.ts`, everything under `fixtures/`, `package.json`/`package-lock.json`, `.gitignore`.
@@ -163,15 +183,20 @@ An implementation of W7-B is accepted only if **all** of the following hold:
    case, each test-asserted, with `behaviorallyEquivalent` set correctly.
 3. **Tool sequence source is `tool_call` steps**, ordered, documented in `traceOutcome.ts`; `tool_result` steps are
    **not** used for the sequence. Test-asserted.
-4. **Both diff surfaces show the verdict.** `npm run cli -- diff` and the inline diff in `npm run cli -- fork` each
-   print an `Outcome:` line; existing divergence / `Summary:` / `changed value (result):` assertions pass unedited.
-5. **Replay is byte-identical after the DRY refactor.** `replayTrace`'s stdout and `ReplaySummary` fields are
-   unchanged; existing replay tests pass unedited; a corpus parity test asserts `terminalOutcome` agrees with
-   `replayTrace`.
+4. **Both diff surfaces show the verdict via the wrapper.** `runDiff` and `runFork` switch from calling
+   `formatFirstDivergence(diff)` directly to calling the new `formatDiffReport(parentTrace, childTrace)` — a
+   formatter-call change only (no command, flag, allow-list, or exit-code change) — and `npm run cli -- diff` and
+   the inline diff in `npm run cli -- fork` each print an `Outcome:` line; existing divergence / `Summary:` /
+   `changed value (result):` assertions pass unedited.
+5. **Replay is byte-identical after the DRY refactor.** `replayTrace`'s returned `ReplaySummary` fields are
+   unchanged and the CLI `replay` command's stdout is unchanged (`replayTrace` itself writes no stdout — it returns
+   a summary the CLI renders); existing replay tests pass unedited; a corpus parity test asserts `terminalOutcome`
+   agrees with `replayTrace`.
 6. **`check` output byte-identical.** `npm run cli -- check` stdout is unchanged and its existing tests pass
    unedited. Exit codes everywhere unchanged.
-7. **`diffTraces()` computation unchanged.** `hasDivergence` / `firstDivergenceIndex` / `sharedPrefixLength` and the
-   `Summary:` line are untouched; the `Outcome:` block is strictly additive.
+7. **Structural diff layer unchanged.** `diffTraces()` (`hasDivergence` / `firstDivergenceIndex` /
+   `sharedPrefixLength`), the `TraceDiff` shape, and `formatFirstDivergence` (structural, `TraceDiff`-only) are all
+   untouched; the `Outcome:` block is produced only by the new `formatDiffReport` wrapper.
 8. **Fixture corpus untouched.** Zero byte changes under `fixtures/`; no frozen-hash constant in
    `tests/fixtures.test.ts` edited; `npm run fixtures:generate` (check mode) reports the corpus in sync.
 9. **No new CLI surface.** No new flag, command, or exit code; all allow-lists unchanged.
@@ -202,19 +227,25 @@ All offline, deterministic, zero live calls, no new fixtures on disk (in-memory 
    - fully equal → case 4, `behaviorallyEquivalent === true`, verdict names "no behavioral change".
    - no-divergence pair (identical traces) → case 4.
    - determinism: identical inputs twice → identical `OutcomeDiff`; input traces not mutated.
-4. **Integration (extend `tests/fork.test.ts` or a focused new block).** Fork the demo parent with the default
+4. **`formatDiffReport` composition unit (in `tests/diffOutcome.test.ts` or `tests/diffTraces.test.ts`).** Over an
+   in-memory parent/child pair: `formatDiffReport(parent, child)` contains the full
+   `formatFirstDivergence(diffTraces(parent, child))` output verbatim as a prefix, followed by the `Outcome:`
+   block; `formatFirstDivergence` itself is unchanged and its existing tests pass unedited.
+5. **Integration (extend `tests/fork.test.ts` or a focused new block).** Fork the demo parent with the default
    no-availability mutation using `ReactiveDemoModelClient`; assert `diffOutcome(parent, child)` classifies case 2
    (same `success` status, final answer changed), naming both facts. (The reactive model always returns
    `final_answer`, so the demo exercises the answer-changed branch, not a status flip — assert that explicitly.)
-5. **CLI end-to-end (extend `tests/cli.test.ts`).** `diff` and `fork` over the **frozen corpus fork pair**
-   (`fixtures/traces/fork-parent.v2.json` / `fork-child.v2.json`) print an `Outcome:` line with the expected
-   verdict; existing fork/diff assertions (divergence, `Summary:`, `changed value (result):`) pass unedited.
-6. **Replay byte-identical (extend `tests/replay.test.ts`).** Existing replay assertions pass unedited; add a corpus
-   parity assertion that `replayTrace` output is unchanged after the refactor and agrees with `terminalOutcome`.
-7. **Corpus tripwires.** `tests/fixtures.test.ts` unmodified and green; `npm run fixtures:generate` (check mode) in
+6. **CLI end-to-end (extend `tests/cli.test.ts`).** `diff` and `fork` (now rendering via `formatDiffReport`) over
+   the **frozen corpus fork pair** (`fixtures/traces/fork-parent.v2.json` / `fork-child.v2.json`) print an
+   `Outcome:` line with the expected verdict; existing fork/diff assertions (divergence, `Summary:`, `changed
+   value (result):`) pass unedited.
+7. **Replay byte-identical (extend `tests/replay.test.ts`).** Existing replay assertions pass unedited; add a corpus
+   parity assertion that `replayTrace`'s returned `ReplaySummary` fields are unchanged after the refactor and agree
+   with `terminalOutcome` (CLI `replay` stdout is covered by the existing unedited CLI replay assertions).
+8. **Corpus tripwires.** `tests/fixtures.test.ts` unmodified and green; `npm run fixtures:generate` (check mode) in
    sync — proving the corpus was not dragged along.
 
-Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
+Target: 417 baseline + roughly 15–20 new tests, all green, zero live calls.
 
 ---
 
@@ -237,8 +268,8 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
      bullet is added stating the behavioral delta (status / final answer / tool path) is **computed offline from
      the two traces** by a pure function — change the mutation, the verdict can change — still zero live calls,
      exact-string comparison (no semantic judge).
-  2. **Fork section (step 5):** the inline `--- trace diff ---` block gains the same `Outcome:` line, since it
-     shares `formatFirstDivergence`.
+  2. **Fork section (step 5):** the inline `--- trace diff ---` block gains the same `Outcome:` line, since both
+     surfaces render via the shared `formatDiffReport` wrapper.
   The `record`, `replay`, `list`, `inspect`, `verify`, `check`, and fixtures sections are otherwise unchanged.
 - **`README.md`** — at closeout: Status advanced to W7-B; test count updated to the new true suite total; a
   **Week-Seven Behavioral Outcome Diff** (`week-seven-behavioral-outcome-diff`) build-history entry noting that
@@ -264,10 +295,14 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
   scoped decision.
 - **No minimal-mutation root-cause search.** Delta-debugging to find the single mutation that flips an outcome is a
   separate, larger, scoped decision (it builds *on* this outcome oracle).
-- **No `diffTraces()` computation change.** `hasDivergence` / `firstDivergenceIndex` / `sharedPrefixLength`
-  untouched. Only additive formatting plus new pure modules.
-- **No schema/hash/replay-semantics/`forkRun`/provider change.** `replayTrace` output stays byte-identical; the
-  only edit to existing runtime is the additive formatter block and the internal, byte-identical replay refactor.
+- **No `diffTraces()` computation, `TraceDiff` shape, or `formatFirstDivergence` change.** `hasDivergence` /
+  `firstDivergenceIndex` / `sharedPrefixLength` untouched; `formatFirstDivergence` stays structural
+  (`TraceDiff`-only). Only new pure modules, the `formatDiffReport` wrapper, and the two formatter-call switches in
+  `src/cli.ts`.
+- **No schema/hash/replay-semantics/`forkRun`/provider change.** `replayTrace`'s returned fields and the CLI
+  `replay` stdout stay byte-identical (`replayTrace` writes no stdout itself); the only edits to existing runtime
+  are the `formatDiffReport` wrapper, the two `runDiff`/`runFork` formatter-call switches, and the internal,
+  byte-identical replay refactor.
 - **No fixture rewrite** and no `scripts/generateFixtures.ts` change (§7).
 - **No new CLI flags/commands/exit codes; no new dependency; no `package.json`/`.gitignore` change.**
 - **No UI, backend, dashboard, observability, eval platform, prompt management, or multi-agent work.**
@@ -277,16 +312,17 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
 
 ## 10. Rollback plan
 
-- **Isolated blast radius.** Two new modules (`src/trace/traceOutcome.ts`, `src/fork/diffOutcome.ts`), one additive
-  formatter block (`src/fork/diffTraces.ts`), one internal byte-identical refactor (`src/replay/CassetteReplay.ts`),
-  new tests, and the DEMO/build-log/plan-header doc edits. No data model, hashing, schema, fixture, or provider
-  file is touched.
+- **Isolated blast radius.** Two new modules (`src/trace/traceOutcome.ts`, `src/fork/diffOutcome.ts`), one new
+  wrapper formatter (`formatDiffReport` in `src/fork/diffTraces.ts` — existing functions unchanged), two
+  formatter-call switches (`src/cli.ts` `runDiff`/`runFork`), one internal byte-identical refactor
+  (`src/replay/CassetteReplay.ts`), new tests, and the DEMO/build-log/plan-header doc edits. No data model,
+  hashing, schema, fixture, or provider file is touched.
 - **Single-commit revert.** The slice lands as one commit; `git revert <sha>` restores the prior diff/replay output
   verbatim. Because no cassette, hash, schema, or fixture changed, revert is total — no regeneration needed.
 - **Tripwires.** `tests/fixtures.test.ts` (frozen hashes) and `npm run fixtures:generate` (check mode) fail loudly
   if the corpus is accidentally dragged along; unedited `selfCheck.test.ts`/`check` and replay assertions fail
-  loudly if `check` or replay output drifted; the unedited existing `diffTraces` assertions fail loudly if the
-  formatter change removed or reordered a line instead of appending.
+  loudly if `check` or replay output drifted; the unedited existing `diffTraces`/`formatFirstDivergence` assertions
+  fail loudly if the structural formatter was modified instead of wrapped.
 - **No external state before local acceptance.** The implementation commit is not pushed or tagged before the Codex
   closeout audit; pre-acceptance rollback is purely local. Push/tag follow only after acceptance, per house
   workflow.
@@ -315,19 +351,29 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
 >    sequence differs → same answer, different tool path; else no behavioral change. Add `formatOutcomeDiff(diff):
 >    string` returning the one-line `Outcome:` verdict plus the two tool sequences when they differ. Provider-neutral
 >    text; does not mutate inputs; runs independently of `diffTraces`.
-> 3. In `src/fork/diffTraces.ts`, append an `Outcome:` block from `formatOutcomeDiff` to the **end** of
->    `formatFirstDivergence`. Additive only — do not change `diffTraces()` or any existing line. This lights up both
->    `cli diff` and `cli fork`.
+> 3. In `src/fork/diffTraces.ts`, add a new wrapper `formatDiffReport(parentTrace: Trace, childTrace: Trace):
+>    string` that (a) calls `diffTraces(parentTrace, childTrace)`, (b) calls `formatFirstDivergence(traceDiff)`,
+>    (c) calls `diffOutcome(parentTrace, childTrace)`, and (d) appends `formatOutcomeDiff(outcome)`. Do **not**
+>    modify `diffTraces()`, the `TraceDiff` shape, or `formatFirstDivergence` — it receives only a `TraceDiff` (no
+>    full traces, no terminal outcomes), so it cannot compute the verdict and stays structural. In `src/cli.ts`,
+>    switch `runDiff` and `runFork` from calling `formatFirstDivergence(diff)` directly to calling
+>    `formatDiffReport(parentTrace, childTrace)` — a formatter-call change only; no command, flag, allow-list,
+>    exit-code, schema, hash, replay-semantic, `forkRun`, provider, package, or fixture change. This lights up both
+>    `cli diff` and `cli fork`, and `check` stdout must remain byte-identical.
 > 4. Refactor `src/replay/CassetteReplay.ts` `replayTrace` to consume `terminalOutcome()` instead of its inline
->    last-`metadata` parse. `ReplaySummary` fields and `replayTrace` stdout must stay **byte-identical**; guard with
->    a corpus parity test. If any check/replay assertion would need editing, stop and report instead.
+>    last-`metadata` parse. Replay parity means: the returned `ReplaySummary` fields stay **byte-identical**, and
+>    the CLI `replay` command's stdout stays byte-identical (`replayTrace` itself writes no stdout — it returns a
+>    summary the CLI renders); guard with a corpus parity test. If any check/replay assertion would need editing,
+>    stop and report instead.
 > 5. Add offline tests per plan §6: `traceOutcome` unit + corpus parity vs `replayTrace`; `toolCallSequence` unit
 >    (asserting the `tool_call`-not-`tool_result` source); `diffOutcome` unit (one per precedence branch, including
->    the "no behavioral change" case and determinism / no-input-mutation); integration over the reactive demo fork
->    (case 2 verdict, naming status stayed success and the answer changed); CLI e2e (`diff` + `fork` print the
->    expected `Outcome:` line over the frozen corpus fork pair); replay byte-identical. Keep `tests/fixtures.test.ts`,
->    `tests/selfCheck.test.ts`, and all existing fork/diff/check/replay assertions passing **unedited**; do not edit
->    any frozen hash constant.
+>    the "no behavioral change" case and determinism / no-input-mutation); a `formatDiffReport` composition unit
+>    (its output contains the full `formatFirstDivergence(diffTraces(p, c))` output verbatim as a prefix, followed
+>    by the `Outcome:` block); integration over the reactive demo fork (case 2 verdict, naming status stayed
+>    success and the answer changed); CLI e2e (`diff` + `fork` print the expected `Outcome:` line over the frozen
+>    corpus fork pair); replay parity (returned fields unchanged; CLI replay stdout covered by existing unedited
+>    assertions). Keep `tests/fixtures.test.ts`, `tests/selfCheck.test.ts`, and all existing fork/diff/check/replay
+>    assertions passing **unedited**; do not edit any frozen hash constant.
 > 6. Update the docs per plan §8: `DEMO.md` step 6 (Diff) and step 5 (Fork) gain the new `Outcome:` line + a
 >    derivation proof point (behavioral delta computed offline from the two traces, exact-string, no live call);
 >    append the W7-B build-log entry; set this plan's status header to IMPLEMENTED/in-closeout. `check` stdout must
@@ -350,13 +396,18 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
 >    randomness, IO, network, or provider import; identical input → identical output; input traces are not mutated;
 >    the classification follows the four-branch precedence exactly.
 > 2. **Tool sequence source is `tool_call` steps**, ordered, documented; `tool_result` is not used. Test-asserted.
-> 3. **Both diff surfaces show the verdict.** `diff` and `fork` print an `Outcome:` line; the append is additive and
+> 3. **Wrapper wiring is correct.** `formatDiffReport(parentTrace, childTrace)` composes `diffTraces` →
+>    `formatFirstDivergence` → `diffOutcome` → `formatOutcomeDiff` in that order; `runDiff` and `runFork` switched
+>    from direct `formatFirstDivergence(diff)` calls to `formatDiffReport(parentTrace, childTrace)` (a
+>    formatter-call change only — no command/flag/exit-code change); `diff` and `fork` print an `Outcome:` line;
 >    the existing `diffTraces` `Summary:` / `changed value` / divergence assertions pass unedited.
-> 4. **`diffTraces()` computation unchanged.** `hasDivergence` / `firstDivergenceIndex` / `sharedPrefixLength`
->    untouched; only the formatter appended.
-> 5. **Replay byte-identical after the DRY refactor.** `replayTrace` stdout and `ReplaySummary` fields unchanged;
->    replay tests pass unedited; the corpus parity test exists and passes (`terminalOutcome` agrees with
->    `replayTrace`) — flag its absence as a blocker.
+> 4. **Structural diff layer unchanged.** `diffTraces()` (`hasDivergence` / `firstDivergenceIndex` /
+>    `sharedPrefixLength`), the `TraceDiff` shape, and `formatFirstDivergence` (structural, `TraceDiff`-only) are
+>    all untouched — the behavioral block is produced only by the new wrapper.
+> 5. **Replay byte-identical after the DRY refactor.** `replayTrace`'s returned `ReplaySummary` fields unchanged
+>    and the CLI `replay` command's stdout unchanged (`replayTrace` itself writes no stdout — it returns a summary
+>    the CLI renders); replay tests pass unedited; the corpus parity test exists and passes (`terminalOutcome`
+>    agrees with `replayTrace`) — flag its absence as a blocker.
 > 6. **`check` byte-identical.** `npm run cli -- check` stdout unchanged; `selfCheck.test.ts` and the cli check
 >    assertions pass unedited; exit codes unchanged everywhere.
 > 7. **Fixtures frozen.** Zero byte changes under `fixtures/`; no frozen-hash edit in `tests/fixtures.test.ts`;
@@ -364,12 +415,13 @@ Target: 417 baseline + roughly 14–18 new tests, all green, zero live calls.
 > 8. **No surface growth.** No new CLI flag/command/exit code; allow-lists unchanged; no new dependency;
 >    `package.json`/`package-lock.json`/`.gitignore` byte-identical; no UI/backend/dashboard/observability; no
 >    Anthropic CLI wiring; no live call anywhere in the diff; proof scripts untouched.
-> 9. **Not a framework.** Two pure functions plus one formatter block and one byte-identical refactor — no
->    configuration/plugin/DSL surface, no `sweep`/assertion/root-cause scope creep. Flag any generalization as scope
->    creep.
+> 9. **Not a framework.** Two pure modules plus one wrapper formatter, two formatter-call switches, and one
+>    byte-identical refactor — no configuration/plugin/DSL surface, no `sweep`/assertion/root-cause scope creep.
+>    Flag any generalization as scope creep.
 > 10. **Honesty of the claim.** After this change, is it fair to say `diff` reports *behavioral* difference (not
 >     semantic understanding)? Confirm the exact-string / offline / deterministic framing is preserved in DEMO.md
 >     and the build-log entry, with no overclaim of semantic judgment.
 >
-> Report any scope creep (fixture regeneration, `diffTraces()` computation edits, new flags, generator changes,
-> replay output drift, a semantic judge) as a blocker.
+> Report any scope creep (fixture regeneration, `diffTraces()` computation or `TraceDiff` shape edits,
+> `formatFirstDivergence` modifications, new flags, generator changes, replay parity drift, a semantic judge) as a
+> blocker.
