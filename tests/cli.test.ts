@@ -448,12 +448,22 @@ describe("cli check", () => {
   it("default check exits 0 and prints PASS with all stage names", async () => {
     const result = await runCli(["check"]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("[blackbox] --- check ---");
+    // W8-A: banner is the shared header grammar (`◼ blackbox · check`); the
+    // brand and command are the semantic anchors, the wordmark is decoration.
+    expect(result.stdout).toMatch(/blackbox\b.*\bcheck\b/);
     expect(result.stdout).toContain("PASS");
     for (const stage of ["record", "verify_parent", "fork", "verify_child", "diff"]) {
       expect(result.stdout).toContain(stage);
     }
   }, 30_000);
+
+  it("check output is byte-identical run-to-run (deterministic after re-baseline)", async () => {
+    const a = await runCli(["check"]);
+    const b = await runCli(["check"]);
+    expect(a.exitCode).toBe(0);
+    expect(b.exitCode).toBe(0);
+    expect(a.stdout).toBe(b.stdout);
+  }, 45_000);
 
   it("default check reports in-memory mode and writes no files", async () => {
     const result = await runCli(["check"]);

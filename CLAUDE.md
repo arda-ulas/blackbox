@@ -8,17 +8,29 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W7-A (reactive fake model, tagged). W7-B (behavioral outcome diff) implemented / in closeout.** The week-one
-CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a committed
-regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and verify-failure output
-legible, W6-C release-froze the repo with truthful docs, and W7-A made the offline fork/`check` continuation derive
-the child's answer from the mutated `tool_result`. W7-B adds a behavioral outcome diff: `diff` and `fork` now report
-an `Outcome:` verdict describing how the two runs' terminal behavior differs (status, final answer, tool-call path),
-computed offline from the two traces (no schema/hash/`diffTraces`-computation/`forkRun`/provider/fixture/CLI-surface
-change; `check` and `replay` output byte-identical).
+**Post-W7-B (behavioral outcome diff, tagged). W8-A (terminal experience polish) implemented / in closeout.** The
+week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
+committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
+verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
+continuation derive the child's answer from the mutated `tool_result`, and W7-B added a behavioral `Outcome:` verdict
+to `diff`/`fork`. W8-A is a presentation-only slice across the whole CLI: a new pure, dependency-free module
+`src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `errorPrefix` / `colorEnabled` /
+`GLYPH`) supplies one shared terminal grammar, and `src/cli.ts` restyles all eight command surfaces through it
+(banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated
+per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗`).
+Color is gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)` —
+computed **once per output stream** (independent stdout and stderr decisions, so a redirected stderr stays
+escape-free even when stdout is a color TTY), so non-TTY / piped / CI output on both streams is escape-free; glyphs
+are decorative, text carries the meaning (the header's `·` is punctuation, not a glyph). `check` stdout was re-baselined once, deliberately (before/after in `docs/27_week_eight_a_plan.md` §4.1 and
+the build log); its exit code and the `runSelfCheck` return shape are unchanged and its output is byte-identical
+run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return / `forkRun` /
+`runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider /
+fixture / generator / `package.json` / `package-lock.json` / `.gitignore` change; no new command, flag, or exit code;
+no stdout↔stderr movement. The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`,
+`stepLabels`) are byte-identical.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 442/442 passing, fully offline, zero live calls.
+- **Tests:** 489/489 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -34,8 +46,9 @@ change; `check` and `replay` output byte-identical).
   - `week-six-diff-inspect-ergonomics` (W6-A)
   - `week-six-verify-replay-explanations` (W6-B)
   - `week-six-release-freeze` (W6-C)
-  - `week-seven-reactive-fake-model` (W7-A, current tagged HEAD)
-- **In progress:** W7-B behavioral outcome diff; intended tag `week-seven-behavioral-outcome-diff`.
+  - `week-seven-reactive-fake-model` (W7-A)
+  - `week-seven-behavioral-outcome-diff` (W7-B, current tagged HEAD)
+- **In progress:** W8-A terminal experience polish; intended tag `week-eight-terminal-polish`.
 
 ## Hard Guardrails
 
@@ -54,7 +67,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W7-B (behavioral outcome diff) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W7-B is planned and Codex-audited before implementation.
+- **Sequencing:** W8-A (terminal experience polish) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W8-A is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -71,9 +84,10 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W7-B (behavioral outcome diff): the slice is implemented and green (442/442 offline, `check` and `replay`
-byte-identical, fixtures in sync, frozen paths untouched) → Codex closeout audit → push → tag
-`week-seven-behavioral-outcome-diff`. No new milestone or product-surface work until it is explicitly scoped and
+Close out W8-A (terminal experience polish): the slice is implemented and green (489/489 offline, `check` output
+byte-identical run-to-run, per-stream color gates so non-TTY stdout/stderr are both escape-free, fixtures in sync,
+frozen paths untouched; Codex per-stream-stderr closeout patch applied) → Codex re-audit → push → tag
+`week-eight-terminal-polish`. No new milestone or product-surface work until it is explicitly scoped and
 Codex-audited.
 
 ## Response Format

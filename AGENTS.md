@@ -71,19 +71,34 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W7-B behavioral outcome diff (W7-A reactive fake model closed and tagged)
+## Current State: W8-A terminal experience polish (W7-B behavioral outcome diff closed and tagged)
 
-**W7-B (behavioral outcome diff) is the current milestone** per `docs/26_week_seven_b_plan.md`, implemented and in
-closeout: an analysis/presentation slice on the **diff** step. Two new pure modules — `src/trace/traceOutcome.ts`
-(`terminalOutcome` / `toolCallSequence`) and `src/fork/diffOutcome.ts` (`diffOutcome` / `formatOutcomeDiff`) —
-classify how a parent and forked child differ in *terminal behavior* (final status, final answer / failure reason,
-tool-call path) by exact-string comparison (offline, deterministic, no model call, no semantic judge). A new
-`formatDiffReport` wrapper appends the `Outcome:` verdict to the unchanged structural divergence block, and `runDiff`
-/ `runFork` switch to it (formatter-call change only). `replayTrace` now derives its terminal fields from the shared
-`terminalOutcome`. **No schema, canonical-hash, `diffTraces()` computation, `TraceDiff` shape, `formatFirstDivergence`,
-`forkRun`, provider, fixture, `package.json`, `.gitignore`, or CLI-surface change; `check` stdout and `replayTrace`
-returned fields / CLI `replay` output are byte-identical.** Current baseline: **442/442** offline (417 + 25 new),
-zero live calls. The intended tag is `week-seven-behavioral-outcome-diff`.
+**W8-A (terminal experience polish) is the current milestone** per `docs/27_week_eight_a_plan.md`, implemented and
+in closeout: a presentation-only slice across the whole CLI. A new pure, dependency-free module
+`src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `errorPrefix` / `colorEnabled` /
+`GLYPH`) supplies one shared terminal grammar, and `src/cli.ts` restyles all eight command surfaces through it:
+banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated
+per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗`.
+Color is gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)`, a
+deliberate Blackbox-local presence check — computed **once per output stream** (an independent stdout and stderr
+decision, so a redirected stderr stays escape-free even when stdout is a color TTY), so non-TTY / piped / CI output
+on **both** streams is escape-free (a structural no-ANSI test guards it). Glyphs are decorative; the text labels
+carry the meaning (the header's `·` is punctuation, not a glyph). The
+four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) were left
+**byte-identical** to keep every frozen behavioral-diff spacing assertion green. `check` stdout was re-baselined
+**once**, deliberately (before/after captured in the plan doc §4.1 and the build log); its exit code and the
+`runSelfCheck` return shape are unchanged and its output is byte-identical run-to-run. **No schema, canonical-hash,
+replay-semantics, `replayTrace`-return, `forkRun`, `runSelfCheck`-logic, `diffTraces()`-computation,
+`TraceDiff`/`OutcomeDiff`/`VerifyReport`-shape, provider, fixture, generator, `package.json`, `package-lock.json`, or
+`.gitignore` change; no new command, flag, or exit code; no stdout↔stderr movement.** Current baseline: **489/489**
+offline (442 + 47 new), zero live calls. The intended tag is `week-eight-terminal-polish`.
+
+**W7-B is complete and tagged (`week-seven-behavioral-outcome-diff`).** Behavioral outcome diff: two pure modules
+(`src/trace/traceOutcome.ts`, `src/fork/diffOutcome.ts`) classify how a parent and forked child differ in *terminal
+behavior* (final status, final answer / failure reason, tool-call path) by exact-string comparison; a
+`formatDiffReport` wrapper appends the `Outcome:` verdict to the unchanged structural divergence block. `replayTrace`
+derives its terminal fields from the shared `terminalOutcome`; schema, hashing, `diffTraces()`, `TraceDiff`,
+`forkRun`, fixtures, and the CLI surface unchanged; `check` stdout byte-identical. See the W7-B build-log entry.
 
 **W7-A is complete and tagged (`week-seven-reactive-fake-model`).** Reactive deterministic fake model: the offline
 fork/`check` continuation derives the child's answer from the mutated `tool_result` via `ReactiveDemoModelClient`,

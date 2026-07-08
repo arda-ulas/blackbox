@@ -4,13 +4,15 @@ Blackbox is a local time-travel debugger for AI agents. It records a multi-step 
 
 This walkthrough covers the local CLI demo. Everything runs entirely on your machine with no external API calls. Traces are recorded in **schema v2** — tool rounds carry a deterministic, provider-neutral `toolCallId` (see [docs/03_trace_schema.md](docs/03_trace_schema.md)).
 
+> **Terminal output.** Every command shares one grammar: a `◼ blackbox · <command>` banner, aligned key/value rows, dimmed section labels, and `✓`/`✗` markers on PASS/FAIL. In an interactive terminal the output carries restrained color; when piped, redirected, or run under `NO_COLOR`/`CI`, it is exactly the plain, escape-free text shown below (the glyphs are decorative — the text labels always carry the meaning). The output blocks below are shown in their plain, non-TTY form.
+
 ---
 
 ## Prerequisites
 
 ```sh
 npm install
-npm test -- --run     # 417 tests; all should pass
+npm test -- --run     # 489 tests; all should pass
 ```
 
 ---
@@ -37,24 +39,24 @@ npm run cli -- record
 **Expected output shape:**
 
 ```
-[blackbox] record — generating demo traces
+◼ blackbox · record  — generating demo traces
 
-[blackbox] --- success trace ---
-Scenario:      Book a hotel for Alice this weekend.
-Trace ID:      example-run-001
-Output:        traces/example-trace.json
-Steps:         15
-Validation:    passed
-Result:        Hotel booked for Alice on 2024-03-15 at 14:00.
+success trace
+Scenario:       Book a hotel for Alice this weekend.
+Trace ID:       example-run-001
+Output:         traces/example-trace.json
+Steps:          15
+Validation:     passed
+Result:         Hotel booked for Alice on 2024-03-15 at 14:00.
 
-[blackbox] --- error trace ---
-Scenario:      Find the cheapest flight to Tokyo this weekend.
-Trace ID:      example-error-run
-Output:        traces/example-error-trace.json
-Steps:         5
-Validation:    passed
-Status:        error
-Reason:        unknown_tool
+error trace
+Scenario:       Find the cheapest flight to Tokyo this weekend.
+Trace ID:       example-error-run
+Output:         traces/example-error-trace.json
+Steps:          5
+Validation:     passed
+Status:         error
+Reason:         unknown_tool
 ```
 
 **Look for:** `Validation: passed` — both traces are hash-chain verified before the run exits. `Steps: 15` for the success path (model_input + model_output + tool_call + tool_result per tool round, plus a final model_input/model_output and a terminal metadata step).
@@ -74,15 +76,15 @@ npm run cli -- list
 **Expected output shape:**
 
 ```
-[blackbox] --- list (traces) ---
+◼ blackbox · list  traces
 
-  traces/example-error-trace.json
+  ✓  traces/example-error-trace.json
     id=example-error-run  v=2  steps=5  status=error/unknown_tool  created=YYYY-MM-DD
 
-  traces/example-trace.json
+  ✓  traces/example-trace.json
     id=example-run-001  v=2  steps=15  status=success  created=YYYY-MM-DD
 
-[blackbox] 2 of 2 trace(s) valid, 0 warning(s).
+2 of 2 trace(s) valid, 0 warning(s).
 ```
 
 **Look for:** `status=success` and `status=error/unknown_tool` side-by-side — the list distinguishes run outcomes without re-running anything. `0 warning(s)` confirms no hash-chain corruption.
@@ -102,20 +104,20 @@ npm run cli -- inspect
 **Expected output shape:**
 
 ```
-[blackbox] --- inspect ---
+◼ blackbox · inspect
 
---- trace ---
+trace
 Path:                traces/example-trace.json
 Trace ID:            example-run-001
 Version:             2
 Created:             <ISO timestamp>
 Steps:               15
 
---- status ---
+status
 Status:              success
 Result:              Hotel booked for Alice on 2024-03-15 at 14:00.
 
-[blackbox] --- steps ---
+steps
    0  model_input     <hash>  Model called with 1 message(s)
    1  model_output    <hash>  Model → tool_call: search
    2  tool_call       <hash>  Tool called: search
@@ -152,13 +154,13 @@ npm run cli -- replay
 **Expected output shape:**
 
 ```
-[blackbox] --- replay ---
-Path:          traces/example-trace.json
-Trace ID:      example-run-001
-Steps:         15
-Validation:    passed
+◼ blackbox · replay
+Path:           traces/example-trace.json
+Trace ID:       example-run-001
+Steps:          15
+Validation:     passed
 
---- events ---
+events
    0  model_input     Model called with 1 message(s)
    1  model_output    Model → tool_call: search
    2  tool_call       Tool called: search
@@ -166,9 +168,9 @@ Validation:    passed
    ...
   14  metadata        Run completed: "Hotel booked for Alice on 2024-03-15 at 14:00."
 
---- summary ---
-Status:        success
-Result:        Hotel booked for Alice on 2024-03-15 at 14:00.
+summary
+Status:         success
+Result:         Hotel booked for Alice on 2024-03-15 at 14:00.
 ```
 
 **Key proof point:** replay is a structural guarantee, not a convention. The `replayTrace` function takes only a `Trace` — no `ModelClient` parameter, no `FixtureTool` parameter. It is impossible to make a model or tool call from inside replay. Every event is read from the cassette.
@@ -194,14 +196,14 @@ npm run cli -- fork
 **Expected output shape:**
 
 ```
-[blackbox] --- fork ---
+◼ blackbox · fork
 
---- parent ---
+parent
 Path:           traces/example-trace.json
 Trace ID:       example-run-001
 Steps:          15
 
---- mutation ---
+mutation
 Mode:           tool-result
 Mutation step:  3
 Fork index:     4
@@ -209,7 +211,7 @@ Verbatim:       steps 0–2  (3 step(s), hashes identical to parent)
 Mutated:        step 3  tool_result → new hash
 Prefix len:     4 step(s)
 
---- child ---
+child
 Path:           traces/example-trace-fork.json
 Trace ID:       example-run-001-fork
 Steps:          7
@@ -258,9 +260,9 @@ npm run cli -- diff --parent traces/example-trace.json --child traces/example-tr
 **Expected output shape:**
 
 ```
-[blackbox] --- diff ---
-Parent:  traces/example-trace.json
-Child:   traces/example-trace-fork.json
+◼ blackbox · diff
+Parent:         traces/example-trace.json
+Child:          traces/example-trace-fork.json
 
 --- trace diff ---
 Parent:         example-run-001
@@ -308,9 +310,9 @@ npm run cli -- verify --trace traces/example-trace.json
 **Expected output shape (PASS):**
 
 ```
-[blackbox] --- verify ---
-Path:          traces/example-trace.json
-Result:        PASS
+◼ blackbox · verify
+Path:           traces/example-trace.json
+Result:         ✓ PASS
 
   schema_version       pass  version 2
   hash_chain           pass  15 step(s), chain intact
@@ -361,16 +363,16 @@ printed). There is no `--keep` flag; `--out-dir` is the only persistence control
 **Expected output shape (PASS, default in-memory):**
 
 ```
-[blackbox] --- check ---
+◼ blackbox · check
 Mode:           in-memory (no files written; pass --out-dir to persist)
 
-  record         pass  success trace, 15 step(s)
-  verify_parent  pass  4/4 invariants
-  fork           pass  child valid, 7 step(s), tool_result mutation at step 3
-  verify_child   pass  4/4 invariants
-  diff           pass  first divergence at index 3, shared prefix 3 step(s)
+  ✓  record          pass  success trace, 15 step(s)
+  ✓  verify_parent   pass  4/4 invariants
+  ✓  fork            pass  child valid, 7 step(s), tool_result mutation at step 3
+  ✓  verify_child    pass  4/4 invariants
+  ✓  diff            pass  first divergence at index 3, shared prefix 3 step(s)
 
-Result:         PASS
+Result:         ✓ PASS
 ```
 
 **With `--out-dir`:**

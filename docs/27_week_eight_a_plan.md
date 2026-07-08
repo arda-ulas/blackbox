@@ -1,7 +1,23 @@
 # W8-A Plan — Terminal Experience Polish
 
-**Status:** PLANNED (plan-only commit; awaiting Codex plan audit before any implementation). No source, test,
-fixture, or package change accompanies this document.
+**Status:** IMPLEMENTED / in closeout (Codex closeout patch applied — see §3.1a below; awaiting re-audit before
+push/tag). A new pure module `src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` /
+`errorPrefix` / `colorEnabled` / `GLYPH`) supplies one shared terminal grammar; `src/cli.ts` restyles all eight
+command surfaces through it (banners → `header`, `--- x ---` sub-rules → `section`, per-command `label()` closures →
+`kv`, PASS/FAIL emphasized with color + `✓`/`✗`). The four pure formatters (`formatFirstDivergence`,
+`formatOutcomeDiff`, `verifyExplain`, `stepLabels`) were left **byte-identical** — the polish is delivered at the
+command frame, so every frozen behavioral-diff spacing assertion stays green with zero formatter churn. `check`
+stdout was re-baselined **once** (before/after captured in §4.1 and the build log); its exit code and the
+`runSelfCheck` return shape are unchanged, and its output is byte-identical run-to-run. Color is gated by
+`colorEnabled({ isTTY, env })` (on only for `isTTY && !("NO_COLOR" in env) && !("CI" in env)`), called **once per
+output stream** — a stdout decision governs `console.log` content and an independent stderr decision governs
+`console.error`/`die()` — so a redirected stderr stays escape-free even when stdout is a color TTY (and vice versa),
+and non-TTY / piped / CI output on **both** streams is escape-free. Tests: **489/489** offline (442 baseline +
+47 new), zero live calls. No schema / canonical-hash / replay-semantics / `replayTrace` return / `forkRun` /
+`runSelfCheck`-logic / `diffTraces()` computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport` shape / provider /
+fixture / generator / `package.json` / `package-lock.json` / `.gitignore` change; no new command, flag, or exit code;
+no stdout↔stderr movement. The plan body below is unchanged from the accepted version except the added §3.1a closeout
+note.
 
 **Predecessor:** W7-B complete, pushed, tagged `week-seven-behavioral-outcome-diff` (HEAD `7db2258`). The full core
 loop is implemented, hardened, composed under one self-check, proven live (opt-in), frozen against a committed
@@ -120,8 +136,28 @@ Dependency-free, pure, fully testable. No I/O, no `process.env` read at module s
 - `colorEnabled` is a pure function of its injected inputs — it never reads `process.stdout` or `process.env`
   itself, so tests exercise the truth table by passing values, never by mutating the environment.
 - The color helpers accept an `enabled` decision (threaded from the caller's `colorEnabled(...)` result) and emit
-  plain text when disabled, so a single upstream decision governs the whole render. The default test capture path
-  (non-TTY) therefore always produces plain, escape-free output.
+  plain text when disabled, so an upstream decision governs each render surface. **The decision is made per output
+  stream** (see §3.1a): a stdout `colorEnabled(...)` result governs `console.log` content and an independent stderr
+  result governs error output, so the two streams never share one global flag. The default test capture path
+  (non-TTY) therefore always produces plain, escape-free output on both streams.
+
+### 3.1a Per-stream color gate (Codex closeout patch)
+
+The first implementation derived one global color decision from `process.stdout.isTTY` and reused that palette for
+stderr errors too. Codex flagged that when stdout is a TTY but stderr is redirected, stderr would receive ANSI bytes.
+Fix (presentation-only, no behavior change): compute **two** decisions at the CLI boundary —
+
+- `stdoutColorOn = colorEnabled({ isTTY: Boolean(process.stdout.isTTY), env: process.env })` — governs every
+  `console.log` render helper (`header` / `section` / `kv` / `verdict` and the stdout palette `c`).
+- `stderrColorOn = colorEnabled({ isTTY: Boolean(process.stderr.isTTY), env: process.env })` — governs the stderr
+  palette `cErr`, used **only** by `console.error` / `die()` / the top-level error handler.
+
+The error prefix is rendered through one new pure seam, `errorPrefix(palette): string` (`[blackbox error]`, bold-red
+when its palette has color on), built from `cErr` at all three stderr sites. Both `NO_COLOR`/`CI` presence semantics
+are preserved on each stream. No stdout↔stderr movement, no exit-code or command change, no new flag (still no
+`--color`/`--no-color`), no dependency. A pure `termStyle` test proves the split (stdout TTY color-on + stderr
+non-TTY → error prefix escape-free, and would have carried ANSI under the old global gate), and the subprocess
+no-ANSI guard gains CI-present stderr cases.
 
 **ASCII / portability fallback**
 
@@ -176,13 +212,40 @@ shared banner/label grammar necessarily reshapes `check`'s output like every oth
 
 ### 4.1 Before/after capture (fill during implementation)
 
-```
-### BEFORE (pre-W8-A `npm run cli -- check`, non-TTY)
-<PLACEHOLDER — paste the exact current output during implementation, before any edit>
+BEFORE (pre-W8-A `npm run cli -- check`, non-TTY):
 
-### AFTER (post-W8-A `npm run cli -- check`, non-TTY)
-<PLACEHOLDER — paste the exact new output during implementation>
 ```
+[blackbox] --- check ---
+Mode:           in-memory (no files written; pass --out-dir to persist)
+
+  record         pass  success trace, 15 step(s)
+  verify_parent  pass  4/4 invariants
+  fork           pass  child valid, 7 step(s), tool_result mutation at step 3
+  verify_child   pass  4/4 invariants
+  diff           pass  first divergence at index 3, shared prefix 3 step(s)
+
+Result:         PASS
+```
+
+AFTER (post-W8-A `npm run cli -- check`, non-TTY — glyphs shown, zero ANSI escapes):
+
+```
+◼ blackbox · check
+Mode:           in-memory (no files written; pass --out-dir to persist)
+
+  ✓  record          pass  success trace, 15 step(s)
+  ✓  verify_parent   pass  4/4 invariants
+  ✓  fork            pass  child valid, 7 step(s), tool_result mutation at step 3
+  ✓  verify_child    pass  4/4 invariants
+  ✓  diff            pass  first divergence at index 3, shared prefix 3 step(s)
+
+Result:         ✓ PASS
+```
+
+The banner adopts the shared `header` grammar, each stage gains a `✓`/`✗` status glyph, and the final verdict is
+`✓ PASS`. Exit code (`0`) and the `runSelfCheck` return shape are unchanged; the output is byte-identical run-to-run
+(guarded by a test). In an interactive TTY the same output additionally carries restrained color; in non-TTY / piped
+/ CI runs it is exactly the escape-free text above.
 
 Both captures also go into `docs/08_build_log.md` under the W8-A entry.
 

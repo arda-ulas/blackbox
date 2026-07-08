@@ -581,3 +581,59 @@ In priority order — do not expand scope without explicit decision:
 
 ### Guardrails Held
 - Analysis/presentation only — no change to `src/trace/hash.ts`, `TraceStepHashInput`, `CURRENT_TRACE_VERSION`, `Trace`/`TraceStep`/`TraceStepType`, `validateTrace`, `replayTrace`'s **signature/returned fields**, `forkRun`, the `diffTraces()` **computation**, the `TraceDiff` **shape**, `formatFirstDivergence` (stays structural, `TraceDiff`-only), `verifyTrace`/`verifyExplain`, `neutrality.ts`, `stepLabels.ts`, `agentLoop.ts`, `fixtureTools.ts`, `modelClient.ts`, `reactiveDemoModel.ts`, any provider/adapter or proof-script code, `scripts/generateFixtures.ts`, or anything under `fixtures/`. No fixture rewrite, no frozen-hash update. No new CLI flag/command/exit code; allow-lists unchanged; `check` and CLI `replay` output byte-identical; exit codes unchanged. No new dependency; `package.json`/`package-lock.json`/`.gitignore` byte-identical. No UI/backend/dashboard/observability, no Anthropic CLI wiring, no live call anywhere in the diff, no new provider adapter. The outcome diff is two pure functions + one wrapper + two formatter-call switches — no configuration/plugin/DSL surface, and comparison is exact-string (no semantic judge).
+
+## 2026-07-08 — Week Eight W8-A (terminal experience polish)
+
+### What Was Built
+- **Plan** (`a03d6a0` + patches `0bfaf93`, `d730812`) — `docs/27_week_eight_a_plan.md`, Codex-accepted. Presentation-only slice across the whole CLI surface: one shared, restrained, premium terminal grammar; zero behavior change.
+- **New pure module** — `src/render/termStyle.ts`: dependency-free, no I/O, no module-scope `process.env` read. Structural helpers `header(command)` (the shared `◼ blackbox · <command>` banner), `section(name)` (a dimmed subsection label replacing ad-hoc `--- x ---` sub-rules), and `kv(label, value, width?)` (one aligned key/value renderer replacing the three duplicated per-command `label()` closures). Hand-rolled ANSI helpers (`dim` / `bold` / `green` / `red` / `yellow` / `cyan`, ~15 lines, no `chalk`) plus `verdict` / `palette` / `GLYPH`. The single gate `colorEnabled({ isTTY, env })` returns `true` **only** when `isTTY === true` AND `"NO_COLOR"` is not a key in `env` AND `"CI"` is not a key in `env` (presence check via `"x" in env`, not truthiness — `NO_COLOR: ""` still disables). Pure function of injected inputs; never reads `process.env`/`process.stdout`. Glyphs limited to the five allowed (`✓ ✗ → ▸ ◼`), decorative only — text labels carry the meaning. No literal ESC byte in source (represented as `\x1b`).
+- **CLI restyle** — `src/cli.ts` routes all eight command surfaces (record / replay / fork / diff / verify / check / list / inspect) through `header` / `section` / `kv` and the color helpers; the duplicated local `label()` closures are deleted. `PASS`/`FAIL`, the first-divergence line, and the `Outcome:` verdict gain subtle emphasis (color + `✓`/`✗`) with their text content unchanged — `PASS`, `FAIL`, `Outcome:`, `First divergence` remain plain substrings. Flag parsing, exit codes, `die()` control flow, and every computed value are untouched; no stdout↔stderr movement.
+- **Formatters byte-identical** — the four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) were **not** edited; the polish is delivered at the command frame, so every frozen behavioral-diff spacing assertion stays green.
+- **Tests** — new `tests/termStyle.test.ts` (the `colorEnabled` 8-row truth table over `isTTY × NO_COLOR-present × CI-present` including the `NO_COLOR: ""` empty-present case, `kv` alignment, forced-color via injected `enabled: true` asserting SGR pairs, forced-plain no-escape; no `process.env` mutation). New `tests/cliNoAnsi.test.ts` — the structural no-ANSI guard asserting zero `/\x1b\[/` escapes on non-TTY **stdout** for every command success path and on non-TTY **stderr** for error/`die()` paths, under plain non-TTY, `NO_COLOR`-present, and `CI`-present, plus a `check`-run-twice byte-identity guard. `tests/cli.test.ts` assertions hand-migrated to the new grammar, keeping the semantic anchors. `tests/fixtures.test.ts` passes **unmodified**.
+- **`check` stdout re-baseline (the one deliberate deviation)** — adopting the shared grammar reshapes `check`'s output once, on purpose. `runSelfCheck` logic and return shape are untouched; exit code stays `0` PASS / `1` FAIL; the new output is deterministic and byte-identical run-to-run. Before/after captured below and in `docs/27_week_eight_a_plan.md` §4.1.
+
+  BEFORE (pre-W8-A `npm run cli -- check`, non-TTY):
+
+  ```
+  [blackbox] --- check ---
+  Mode:           in-memory (no files written; pass --out-dir to persist)
+
+    record         pass  success trace, 15 step(s)
+    verify_parent  pass  4/4 invariants
+    fork           pass  child valid, 7 step(s), tool_result mutation at step 3
+    verify_child   pass  4/4 invariants
+    diff           pass  first divergence at index 3, shared prefix 3 step(s)
+
+  Result:         PASS
+  ```
+
+  AFTER (post-W8-A `npm run cli -- check`, non-TTY — glyphs shown, zero ANSI escapes; byte-identical run-to-run):
+
+  ```
+  ◼ blackbox · check
+  Mode:           in-memory (no files written; pass --out-dir to persist)
+
+    ✓  record          pass  success trace, 15 step(s)
+    ✓  verify_parent   pass  4/4 invariants
+    ✓  fork            pass  child valid, 7 step(s), tool_result mutation at step 3
+    ✓  verify_child    pass  4/4 invariants
+    ✓  diff            pass  first divergence at index 3, shared prefix 3 step(s)
+
+  Result:         ✓ PASS
+  ```
+
+- **Docs** — every `DEMO.md` expected-output block regenerated from real non-TTY runs to the new grammar; `README.md` Status advanced to W8-A (test count 442 → 481, current milestone `week-eight-terminal-polish`, `week-seven-behavioral-outcome-diff` the latest capability tag) + a **Week-Eight Terminal Experience Polish** build-history entry; `AGENTS.md` / `CLAUDE.md` current-state pointers advanced to W8-A (W7-B closed and tagged; baseline 481/481); `docs/27_week_eight_a_plan.md` status header at IMPLEMENTED / in closeout with the before/after capture filled.
+
+### Outcome
+- **Pass.** `npm test -- --run`: **481/481** (442 pre-W8-A baseline + 39 new), zero live calls, no API key required. `npm run cli -- check` PASS (exit 0), stdout **byte-identical run-to-run** (captured twice, `diff` clean). All eight commands' non-TTY stdout and error-path stderr are **escape-free** (verified for `record`/`list`/`inspect`/`replay`/`fork`/`verify`/`check`/`diff` and the `die()`/missing-flag/unknown-command paths). `npm run fixtures:generate` (check mode) reports the corpus in sync (5 fixtures match; no fixture byte or frozen-hash change). `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof` exits at the key guard (no live call). `git ls-files traces` empty; `git ls-files fixtures/traces` lists the five committed fixtures unchanged. `git diff --name-only HEAD -- scripts/generateFixtures.ts fixtures package.json package-lock.json .gitignore` empty; `git diff --name-only HEAD -- src/trace/hash.ts src/fork/forkRun.ts src/replay/CassetteReplay.ts` empty; `git diff --check` clean.
+
+### Guardrails Held
+- Presentation only — no change to `src/trace/hash.ts`, the trace schema/`CURRENT_TRACE_VERSION`, `replayTrace` semantics or returned fields, `forkRun`, `runSelfCheck` **logic or return shape** (`src/workflow/selfCheck.ts` unmodified), the `diffTraces()` computation, or the `TraceDiff` / `OutcomeDiff` / `VerifyReport` shapes. The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) are byte-identical. No provider/adapter or proof-script change; no fixture rewrite; `scripts/generateFixtures.ts`, everything under `fixtures/`, `package.json`, `package-lock.json`, and `.gitignore` byte-identical; **no new dependency** (ANSI is hand-rolled). No new CLI command or flag (deliberately no `--color`/`--no-color`; `NO_COLOR` env is the only opt-out); no exit-code change; no stdout↔stderr stream movement; no machine-readable/JSON mode. No animation, spinner, mascot, emoji, box-drawing, or timeline/branch-graph rendering; glyphs limited to the five allowed (`✓ ✗ → ▸ ◼`, wordmark header-only), decorative with text carrying the meaning. No literal ESC byte in source or tests; no `process.env` mutation in tests. `check` stdout changed exactly once, deliberately, with before/after captured. The one changed source file is `src/cli.ts` (call-site restyle) plus the new `src/render/termStyle.ts`.
+
+### Closeout patch — per-stream color gates (Codex "needs patch" → resolved; presentation-only)
+- **Blocker.** Codex closeout audit returned *needs patch*: `src/cli.ts` derived **one** global color decision from `process.stdout.isTTY` and reused that palette for stderr errors, so when stdout is a TTY but stderr is redirected, the `[blackbox error]` prefix would emit ANSI bytes onto the redirected stderr.
+- **Fix (no behavior change).** The color gate is now computed **once per output stream** at the CLI boundary: `stdoutColorOn = colorEnabled({ isTTY: Boolean(process.stdout.isTTY), env: process.env })` governs every `console.log` render (the stdout palette `c` + `header`/`section`/`kv`/`verdict`), and an independent `stderrColorOn = colorEnabled({ isTTY: Boolean(process.stderr.isTTY), env: process.env })` governs a new stderr palette `cErr` used **only** by `console.error` / `die()` / the top-level error handler. So a redirected stderr stays escape-free even when stdout is an interactive color TTY (and vice versa). `NO_COLOR`/`CI` presence semantics are preserved on both streams.
+- **New rendering seam.** `src/render/termStyle.ts` gains one pure helper `errorPrefix(palette): string` (renders `[blackbox error]` bold-red when its palette has color on) — the single seam for the three stderr error sites, built from `cErr`. The glyph-policy comment/docstrings now clarify the header's middle dot `·` is **punctuation** (a separator), not one of the five decorative glyphs (`✓ ✗ → ▸ ◼`); no emoji/mascot/box-drawing/timeline reaffirmed.
+- **Tests (+8, 481 → 489).** `tests/termStyle.test.ts` adds an `errorPrefix` + per-stream block that proves the split conceptually equal to the blocker — stdout TTY color-on + stderr non-TTY → the error prefix is escape-free, **and would have carried ANSI under the old global gate** (regression guard) — plus the inverse split and a `·`-is-punctuation assertion. `tests/cliNoAnsi.test.ts` adds CI-present stderr-specific cases (unknown-subcommand and `die()` paths) while keeping the non-TTY stdout/stderr guards. No `process.env` mutation; no literal ESC byte.
+- **Manual reproduction.** With `process.stdout.isTTY` forced true and `process.stderr.isTTY` false (`NO_COLOR`/`CI` unset), the redirected stderr for `cli badcmd` contains **zero `1b 5b` bytes** (`od -An -tx1` shows it begins with `5b` = `[`); the inverse (stderr forced TTY) shows the prefix correctly colored, confirming the stderr gate governs it.
+- **Verification (unchanged frozen surface).** `npm test -- --run` **489/489**; `npm run cli -- check` PASS (exit 0), stdout byte-identical run-to-run (matches the committed AFTER capture); `npm run fixtures:generate` corpus in sync; `env -u ANTHROPIC_API_KEY npm run example:real-fork-proof` exits at the key guard; `git diff --check` clean; `git diff --name-only HEAD` on `scripts/generateFixtures.ts fixtures package.json package-lock.json .gitignore`, on `src/trace/hash.ts src/fork/forkRun.ts src/replay/CassetteReplay.ts src/workflow/selfCheck.ts`, and on `src/fork/diffTraces.ts src/fork/diffOutcome.ts src/trace/verifyExplain.ts src/trace/stepLabels.ts` all empty. The only source files touched by the patch are `src/cli.ts` (two decisions + `cErr` + `errorPrefix` at the three stderr sites) and `src/render/termStyle.ts` (the `errorPrefix` helper + comments). Amended into the W8-A implementation commit.

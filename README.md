@@ -38,18 +38,19 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Week Seven behavioral outcome diff (W7-B) — implemented / in closeout. W7-A (reactive fake model) closed and
-tagged.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts, and
-protected by a committed regression corpus. W7-A made the offline fork/`check` continuation *derive* the child's
-answer from the mutated `tool_result`; W7-B makes `diff` and `fork` report how the two runs' *terminal behavior*
-differs (final status, final answer, tool-call path), computed offline from the two traces — still fake/offline,
-deterministic, zero live calls, no real model in the default CLI.
+**Week Eight terminal experience polish (W8-A) — implemented / in closeout. W7-B (behavioral outcome diff) closed
+and tagged.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts,
+and protected by a committed regression corpus. W7-A made the offline fork/`check` continuation *derive* the child's
+answer from the mutated `tool_result`; W7-B added a behavioral `Outcome:` verdict to `diff`/`fork`; W8-A gives the
+whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners, aligned key/value rows, `✓`/`✗`
+verdict markers, restrained color in a TTY only) — presentation only, with every core behavior, exit code, and
+return value unchanged.
 
-- **Current milestone:** W7-B (behavioral outcome diff); intended tag `week-seven-behavioral-outcome-diff`.
-- **Latest technical-capability tag:** `week-seven-reactive-fake-model` (W7-A — reactive deterministic fake model).
+- **Current milestone:** W8-A (terminal experience polish); intended tag `week-eight-terminal-polish`.
+- **Latest technical-capability tag:** `week-seven-behavioral-outcome-diff` (W7-B — behavioral outcome diff).
 - **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
   verification).
-- **Tests:** 442/442 passing, fully offline, zero live calls, no API key required.
+- **Tests:** 489/489 passing, fully offline, zero live calls, no API key required.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
@@ -90,7 +91,7 @@ The whole offline loop verifies in four commands, no API key required:
 
 ```sh
 npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 442 tests, fully offline, zero live calls
+npm test -- --run           # 489 tests, fully offline, zero live calls
 npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
 npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
@@ -190,3 +191,7 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Seven Behavioral Outcome Diff ✓ (`week-seven-behavioral-outcome-diff`)
 
 - **W7-B** — Behavioral outcome diff: `diff` and `fork` now report an `Outcome:` verdict describing how the two runs' *terminal behavior* differs — final status, final answer (or failure reason), and tool-call path — computed offline from the two traces by exact-string comparison (no model call, no semantic judge). New pure modules `src/trace/traceOutcome.ts` (`terminalOutcome` / `toolCallSequence`) and `src/fork/diffOutcome.ts` (`diffOutcome` / `formatOutcomeDiff`), plus a `formatDiffReport` wrapper that appends the verdict to the unchanged structural divergence block. `replayTrace` now derives its terminal fields from the shared `terminalOutcome` (returned fields and CLI `replay` output byte-identical). The `diffTraces()` computation, the `TraceDiff` shape, `formatFirstDivergence`, `forkRun`, the schema, canonical hashing, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (442/442 offline, 417 + 25 new tests)
+
+### Week-Eight Terminal Experience Polish ✓ (`week-eight-terminal-polish`)
+
+- **W8-A** — Terminal experience polish: one shared, premium terminal grammar across all eight commands via a new pure, dependency-free module `src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `colorEnabled` / `GLYPH`). Banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗` glyphs. Color is optional sugar gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)`, computed **independently per output stream** so a redirected stderr stays escape-free even when stdout is a color TTY — so piped / `NO_COLOR` / `CI` output on **both** stdout and stderr is escape-free (a structural no-ANSI test guards it). Glyphs (`✓ ✗ → ▸ ◼`) are decorative; the text labels always carry the meaning (the header's `·` is punctuation, not a glyph). The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) are byte-identical, so every frozen behavioral-diff spacing assertion holds. `check` stdout was re-baselined once, deliberately (before/after captured in `docs/27_week_eight_a_plan.md` and the build log); its exit code and the `runSelfCheck` return shape are unchanged and its output is byte-identical run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return / `forkRun` / `runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider / fixture / generator / `package.json` / `.gitignore` change; no new command, flag, or exit code (489/489 offline, 442 + 47 new tests)

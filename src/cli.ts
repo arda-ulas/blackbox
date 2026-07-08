@@ -20,7 +20,43 @@ import { formatDiffReport } from "./fork/diffTraces.ts";
 import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
 import { formatVerifyFailure } from "./trace/verifyExplain.ts";
 import { runSelfCheck } from "./workflow/selfCheck.ts";
+import {
+  colorEnabled,
+  header,
+  section,
+  kv,
+  verdict,
+  palette,
+  errorPrefix,
+  GLYPH,
+} from "./render/termStyle.ts";
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
+
+// ---------------------------------------------------------------------------
+// Color decisions — computed at the CLI boundary and threaded into every render
+// helper. termStyle itself never reads process; the guardrail is that only this
+// entry module does. Each output stream gets its OWN gate: stdout content is
+// colored only when stdout is a color TTY, and stderr content (errors / die())
+// only when stderr is a color TTY. This keeps a redirected stderr escape-free
+// even when stdout is an interactive TTY (and vice versa). In non-TTY /
+// NO_COLOR / CI runs both are false, so every command emits plain text.
+// ---------------------------------------------------------------------------
+
+const stdoutColorOn = colorEnabled({
+  isTTY: Boolean(process.stdout.isTTY),
+  env: process.env,
+});
+const stderrColorOn = colorEnabled({
+  isTTY: Boolean(process.stderr.isTTY),
+  env: process.env,
+});
+
+// `colorOn` / `c` are the STDOUT decision + palette, used for every
+// console.log render. `cErr` is the STDERR palette, used ONLY for
+// console.error / die() / top-level error output.
+const colorOn = stdoutColorOn;
+const c = palette(stdoutColorOn);
+const cErr = palette(stderrColorOn);
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -92,7 +128,7 @@ function parseIntFlag(
 }
 
 function die(msg: string): never {
-  console.error(`[blackbox error] ${msg}`);
+  console.error(`${errorPrefix(cErr)} ${msg}`);
   process.exit(1);
 }
 
@@ -101,7 +137,9 @@ function die(msg: string): never {
 // ---------------------------------------------------------------------------
 
 function printUsage(): void {
-  console.log(`[blackbox] Usage: npm run cli -- <command> [flags]
+  console.log(`${header("usage", colorOn)}
+
+Usage: npm run cli -- <command> [flags]
 
 Commands:
   record    Run demo agent traces and save cassettes to disk
@@ -137,9 +175,7 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
 
   await mkdir(outDir, { recursive: true });
 
-  const label = (s: string) => s.padEnd(14);
-
-  console.log("[blackbox] record — generating demo traces\n");
+  console.log(`${header("record", colorOn)}  ${c.dim("— generating demo traces")}\n`);
 
   if (scenario === "success" || scenario === "all") {
     const successScenario = "Book a hotel for Alice this weekend.";
@@ -163,13 +199,13 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
     const successPath = join(outDir, "example-trace.json");
     await saveTrace(successResult.trace, successPath);
 
-    console.log("[blackbox] --- success trace ---");
-    console.log(label("Scenario:"),   successScenario);
-    console.log(label("Trace ID:"),   successResult.trace.id);
-    console.log(label("Output:"),     successPath);
-    console.log(label("Steps:"),      successResult.trace.steps.length);
-    console.log(label("Validation:"), "passed");
-    console.log(label("Result:"),     successResult.finalAnswer);
+    console.log(section("success trace", colorOn));
+    console.log(kv("Scenario:",   successScenario, colorOn));
+    console.log(kv("Trace ID:",   successResult.trace.id, colorOn));
+    console.log(kv("Output:",     successPath, colorOn));
+    console.log(kv("Steps:",      String(successResult.trace.steps.length), colorOn));
+    console.log(kv("Validation:", "passed", colorOn));
+    console.log(kv("Result:",     successResult.finalAnswer, colorOn));
     console.log();
   }
 
@@ -200,14 +236,14 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
     const errorMeta    = errorTrace.steps.at(-1);
     const errorPayload = errorMeta?.payload as { reason?: string } | undefined;
 
-    console.log("[blackbox] --- error trace ---");
-    console.log(label("Scenario:"),   errorScenario);
-    console.log(label("Trace ID:"),   errorTrace.id);
-    console.log(label("Output:"),     errorPath);
-    console.log(label("Steps:"),      errorTrace.steps.length);
-    console.log(label("Validation:"), "passed");
-    console.log(label("Status:"),     "error");
-    console.log(label("Reason:"),     errorPayload?.reason ?? "unknown_tool");
+    console.log(section("error trace", colorOn));
+    console.log(kv("Scenario:",   errorScenario, colorOn));
+    console.log(kv("Trace ID:",   errorTrace.id, colorOn));
+    console.log(kv("Output:",     errorPath, colorOn));
+    console.log(kv("Steps:",      String(errorTrace.steps.length), colorOn));
+    console.log(kv("Validation:", "passed", colorOn));
+    console.log(kv("Status:",     "error", colorOn));
+    console.log(kv("Reason:",     errorPayload?.reason ?? "unknown_tool", colorOn));
     console.log();
   }
 }
@@ -229,25 +265,23 @@ async function runReplay(flags: Record<string, string | boolean>): Promise<void>
   validateTrace(trace);
   const summary = replayTrace(trace);
 
-  const label = (s: string) => s.padEnd(14);
-
-  console.log("[blackbox] --- replay ---");
-  console.log(label("Path:"),       tracePath);
-  console.log(label("Trace ID:"),   trace.id);
-  console.log(label("Steps:"),      trace.steps.length);
-  console.log(label("Validation:"), "passed");
+  console.log(header("replay", colorOn));
+  console.log(kv("Path:",       tracePath, colorOn));
+  console.log(kv("Trace ID:",   trace.id, colorOn));
+  console.log(kv("Steps:",      String(trace.steps.length), colorOn));
+  console.log(kv("Validation:", "passed", colorOn));
   console.log();
 
-  console.log("--- events ---");
+  console.log(section("events", colorOn));
   for (const event of summary.events) {
-    console.log(`  ${String(event.index).padStart(2)}  ${event.type.padEnd(14)}  ${event.summary}`);
+    console.log(`  ${c.dim(String(event.index).padStart(2))}  ${event.type.padEnd(14)}  ${event.summary}`);
   }
 
   console.log();
-  console.log("--- summary ---");
-  console.log(label("Status:"), summary.status);
-  if (summary.result !== undefined)        console.log(label("Result:"),  summary.result);
-  if (summary.failureReason !== undefined) console.log(label("Reason:"),  summary.failureReason);
+  console.log(section("summary", colorOn));
+  console.log(kv("Status:", summary.status, colorOn));
+  if (summary.result !== undefined)        console.log(kv("Result:", summary.result, colorOn));
+  if (summary.failureReason !== undefined) console.log(kv("Reason:", summary.failureReason, colorOn));
 }
 
 // ---------------------------------------------------------------------------
@@ -361,46 +395,42 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
 
   const formatted = formatDiffReport(parentTrace, childTrace);
 
-  const label = (s: string) => s.padEnd(15);
+  console.log(`${header("fork", colorOn)}\n`);
 
-  console.log("[blackbox] --- fork ---\n");
-
-  console.log("--- parent ---");
-  console.log(label("Path:"),     tracePath);
-  console.log(label("Trace ID:"), parentTrace.id);
-  console.log(label("Steps:"),    parentTrace.steps.length);
+  console.log(section("parent", colorOn));
+  console.log(kv("Path:",     tracePath, colorOn));
+  console.log(kv("Trace ID:", parentTrace.id, colorOn));
+  console.log(kv("Steps:",    String(parentTrace.steps.length), colorOn));
   console.log();
 
-  console.log("--- mutation ---");
-  console.log(label("Mode:"), mode);
+  console.log(section("mutation", colorOn));
+  console.log(kv("Mode:", mode, colorOn));
   if (mutationStep !== undefined) {
     const verbatimCount = mutationStep; // steps 0..(mutationStep-1) are hash-identical to parent
-    console.log(label("Mutation step:"), mutationStep);
-    console.log(label("Fork index:"),    forkIndex);
+    console.log(kv("Mutation step:", String(mutationStep), colorOn));
+    console.log(kv("Fork index:",    String(forkIndex), colorOn));
     if (verbatimCount > 0) {
       console.log(
-        label("Verbatim:"),
-        `steps 0–${verbatimCount - 1}  (${verbatimCount} step(s), hashes identical to parent)`,
+        kv("Verbatim:", `steps 0–${verbatimCount - 1}  (${verbatimCount} step(s), hashes identical to parent)`, colorOn),
       );
     }
-    console.log(label("Mutated:"), `step ${mutationStep}  tool_result → new hash`);
+    console.log(kv("Mutated:", `step ${mutationStep}  tool_result ${GLYPH.arrow} new hash`, colorOn));
   } else {
-    console.log(label("Prompt:"),     str(flags["prompt"], ""));
-    console.log(label("Fork index:"), forkIndex);
+    console.log(kv("Prompt:",     str(flags["prompt"], ""), colorOn));
+    console.log(kv("Fork index:", String(forkIndex), colorOn));
     console.log(
-      label("Verbatim:"),
-      `steps 0–${forkIndex - 1}  (${forkIndex} step(s), hashes identical to parent)`,
+      kv("Verbatim:", `steps 0–${forkIndex - 1}  (${forkIndex} step(s), hashes identical to parent)`, colorOn),
     );
   }
-  console.log(label("Prefix len:"), `${prefixLength} step(s)`);
+  console.log(kv("Prefix len:", `${prefixLength} step(s)`, colorOn));
   console.log();
 
-  console.log("--- child ---");
-  console.log(label("Path:"),       outPath);
-  console.log(label("Trace ID:"),   childTrace.id);
-  console.log(label("Steps:"),      childTrace.steps.length);
-  console.log(label("Result:"),     finalAnswer);
-  console.log(label("Validation:"), "passed");
+  console.log(section("child", colorOn));
+  console.log(kv("Path:",       outPath, colorOn));
+  console.log(kv("Trace ID:",   childTrace.id, colorOn));
+  console.log(kv("Steps:",      String(childTrace.steps.length), colorOn));
+  console.log(kv("Result:",     finalAnswer, colorOn));
+  console.log(kv("Validation:", "passed", colorOn));
   console.log();
 
   console.log(formatted);
@@ -428,9 +458,9 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
   const parentPath = flags["parent"] as string;
   const childPath  = flags["child"]  as string;
 
-  console.log("[blackbox] --- diff ---");
-  console.log(`Parent:  ${parentPath}`);
-  console.log(`Child:   ${childPath}`);
+  console.log(header("diff", colorOn));
+  console.log(kv("Parent:", parentPath, colorOn));
+  console.log(kv("Child:",  childPath, colorOn));
   console.log();
   console.log(formatDiffReport(parentTrace, childTrace));
 }
@@ -460,11 +490,9 @@ async function runVerify(flags: Record<string, string | boolean>): Promise<void>
   // is reported as a schema_version FAIL, keeping the verdict honest.
   const report = await verifyTraceFile(tracePath);
 
-  const label = (s: string) => s.padEnd(14);
-
-  console.log("[blackbox] --- verify ---");
-  console.log(label("Path:"),   tracePath);
-  console.log(label("Result:"), report.pass ? "PASS" : "FAIL");
+  console.log(header("verify", colorOn));
+  console.log(kv("Path:",   tracePath, colorOn));
+  console.log(kv("Result:", verdict(report.pass, colorOn), colorOn));
   console.log();
 
   for (const inv of report.invariants) {
@@ -499,32 +527,37 @@ async function runCheck(flags: Record<string, string | boolean>): Promise<void> 
   // tools, so no real model/tool/network call is possible here.
   const report = await runSelfCheck(outDir !== undefined ? { outDir } : {});
 
-  const label = (s: string) => s.padEnd(15);
-
-  console.log("[blackbox] --- check ---");
+  console.log(header("check", colorOn));
   console.log(
-    label("Mode:"),
-    report.persisted
-      ? `persisted (--out-dir ${outDir})`
-      : "in-memory (no files written; pass --out-dir to persist)",
+    kv(
+      "Mode:",
+      report.persisted
+        ? `persisted (--out-dir ${outDir})`
+        : "in-memory (no files written; pass --out-dir to persist)",
+      colorOn,
+    ),
   );
   if (report.persisted) {
-    if (report.parentPath) console.log(label("Parent:"), report.parentPath);
-    if (report.childPath)  console.log(label("Child:"),  report.childPath);
+    if (report.parentPath) console.log(kv("Parent:", report.parentPath, colorOn));
+    if (report.childPath)  console.log(kv("Child:",  report.childPath, colorOn));
   }
   console.log();
 
   for (const stage of report.stages) {
-    const status = stage.status === "fail" ? "FAIL" : stage.status;
-    console.log(`  ${stage.name.padEnd(14)} ${status.padEnd(4)}  ${stage.detail}`);
+    const ok = stage.status === "pass";
+    const glyph = ok ? c.green(GLYPH.pass) : c.red(GLYPH.fail);
+    // Pad the plain status text BEFORE coloring so ANSI bytes never skew width.
+    const statusText = (ok ? "pass" : stage.status === "fail" ? "FAIL" : stage.status).padEnd(4);
+    const status = ok ? c.green(statusText) : c.red(statusText);
+    console.log(`  ${glyph}  ${c.bold(stage.name.padEnd(14))}  ${status}  ${c.dim(stage.detail)}`);
   }
 
   console.log();
-  console.log(label("Result:"), report.pass ? "PASS" : "FAIL");
+  console.log(kv("Result:", verdict(report.pass, colorOn), colorOn));
 
   if (report.firstFailure) {
     console.log();
-    console.log(`First failing stage: ${report.firstFailure.name} — ${report.firstFailure.detail}`);
+    console.log(`First failing stage: ${report.firstFailure.name} ${GLYPH.arrow} ${report.firstFailure.detail}`);
   }
 
   // Exit non-zero on FAIL so `check` is scriptable, consistent with `verify`.
@@ -558,18 +591,20 @@ async function runList(flags: Record<string, string | boolean>): Promise<void> {
   try {
     entries = await readdir(dir);
   } catch {
-    console.log(`[blackbox] No traces found — directory "${dir}" does not exist.`);
+    console.log(`${header("list", colorOn)}\n`);
+    console.log(c.dim(`No traces found — directory "${dir}" does not exist.`));
     return;
   }
 
   const jsonFiles = entries.filter((f) => f.endsWith(".json")).sort();
 
   if (jsonFiles.length === 0) {
-    console.log(`[blackbox] No trace files found in "${dir}".`);
+    console.log(`${header("list", colorOn)}\n`);
+    console.log(c.dim(`No trace files found in "${dir}".`));
     return;
   }
 
-  console.log(`[blackbox] --- list (${dir}) ---\n`);
+  console.log(`${header("list", colorOn)}  ${c.dim(dir)}\n`);
 
   let validCount = 0;
   for (const file of jsonFiles) {
@@ -581,22 +616,22 @@ async function runList(flags: Record<string, string | boolean>): Promise<void> {
       const created = new Date(trace.createdAt).toISOString().slice(0, 10);
       const parent  = trace.parentId ? `  parent=${trace.parentId}` : "";
 
-      console.log(`  ${filePath}`);
+      console.log(`  ${c.green(GLYPH.pass)}  ${filePath}`);
       console.log(
-        `    id=${trace.id}  v=${trace.version}  steps=${trace.steps.length}  status=${status}  created=${created}${parent}`,
+        c.dim(`    id=${trace.id}  v=${trace.version}  steps=${trace.steps.length}  status=${status}  created=${created}${parent}`),
       );
       validCount++;
     } catch (e) {
       const msg = e instanceof Error ? e.message.split("\n")[0] : String(e);
       const brief = msg.length > 80 ? msg.slice(0, 80) + "…" : msg;
-      console.log(`  ${filePath}`);
-      console.log(`    [warning] not a valid trace — ${brief}`);
+      console.log(`  ${c.yellow(GLYPH.fail)}  ${filePath}`);
+      console.log(c.dim(`    [warning] not a valid trace — ${brief}`));
     }
     console.log();
   }
 
   const warningCount = jsonFiles.length - validCount;
-  console.log(`[blackbox] ${validCount} of ${jsonFiles.length} trace(s) valid, ${warningCount} warning(s).`);
+  console.log(`${validCount} of ${jsonFiles.length} trace(s) valid, ${warningCount} warning(s).`);
 }
 
 // ---------------------------------------------------------------------------
@@ -616,33 +651,33 @@ async function runInspect(flags: Record<string, string | boolean>): Promise<void
   validateTrace(trace);
   const summary = replayTrace(trace);
 
-  const label   = (s: string) => s.padEnd(20);
+  const W = 20; // inspect uses a wider label column for its longer labels
   const created = new Date(trace.createdAt).toISOString();
 
-  console.log("[blackbox] --- inspect ---\n");
+  console.log(`${header("inspect", colorOn)}\n`);
 
-  console.log("--- trace ---");
-  console.log(label("Path:"),     tracePath);
-  console.log(label("Trace ID:"), trace.id);
-  console.log(label("Version:"),  trace.version);
-  if (trace.parentId)         console.log(label("Parent ID:"),   trace.parentId);
-  if (trace.forkedFromStepId) console.log(label("Forked from:"), trace.forkedFromStepId);
-  console.log(label("Created:"),  created);
-  console.log(label("Steps:"),    trace.steps.length);
+  console.log(section("trace", colorOn));
+  console.log(kv("Path:",     tracePath, colorOn, W));
+  console.log(kv("Trace ID:", trace.id, colorOn, W));
+  console.log(kv("Version:",  String(trace.version), colorOn, W));
+  if (trace.parentId)         console.log(kv("Parent ID:",   trace.parentId, colorOn, W));
+  if (trace.forkedFromStepId) console.log(kv("Forked from:", trace.forkedFromStepId, colorOn, W));
+  console.log(kv("Created:",  created, colorOn, W));
+  console.log(kv("Steps:",    String(trace.steps.length), colorOn, W));
   console.log();
 
-  console.log("--- status ---");
-  console.log(label("Status:"), summary.status);
-  if (summary.result !== undefined)        console.log(label("Result:"), summary.result);
-  if (summary.failureReason !== undefined) console.log(label("Reason:"), summary.failureReason);
+  console.log(section("status", colorOn));
+  console.log(kv("Status:", summary.status, colorOn, W));
+  if (summary.result !== undefined)        console.log(kv("Result:", summary.result, colorOn, W));
+  if (summary.failureReason !== undefined) console.log(kv("Reason:", summary.failureReason, colorOn, W));
   console.log();
 
-  console.log("[blackbox] --- steps ---");
+  console.log(section("steps", colorOn));
   for (const event of summary.events) {
     const step      = trace.steps[event.index];
     const shortHash = step.hash.slice(0, 8);
     console.log(
-      `  ${String(event.index).padStart(2)}  ${event.type.padEnd(14)}  ${shortHash}  ${event.summary}`,
+      `  ${c.dim(String(event.index).padStart(2))}  ${event.type.padEnd(14)}  ${c.dim(shortHash)}  ${event.summary}`,
     );
   }
 }
@@ -668,7 +703,7 @@ try {
     default:
       if (subcommand) {
         console.error(
-          `[blackbox error] Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, check, list, inspect`,
+          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, check, list, inspect`,
         );
         process.exit(1);
       }
@@ -676,6 +711,6 @@ try {
   }
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);
-  console.error(`[blackbox error] ${msg}`);
+  console.error(`${errorPrefix(cErr)} ${msg}`);
   process.exit(1);
 }
