@@ -104,11 +104,17 @@ Dependency-free, pure, fully testable. No I/O, no `process.env` read at module s
 - `colorEnabled({ isTTY, env }: { isTTY: boolean; env: NodeJS.ProcessEnv }): boolean` — the single gate. It returns
   `true` **only** when **all** hold:
   - `isTTY === true`, **and**
-  - `NO_COLOR` is **not present** as a key in `env` (presence disables color regardless of its value — even empty
-    string; this is the [NO_COLOR](https://no-color.org) convention, a presence check, **not** a truthiness check),
-    **and**
-  - `CI` is **not present** as a key in `env` (presence disables color regardless of value).
+  - `NO_COLOR` is **not present** as a key in `env` (presence disables color regardless of its value — including an
+    empty string), **and**
+  - `CI` is **not present** as a key in `env` (presence disables color regardless of its value — including an empty
+    string).
   - Presence is tested with `"NO_COLOR" in env` / `"CI" in env`, never `env.NO_COLOR`/`Boolean(env.CI)`.
+- **This is a deliberate Blackbox-local, conservative policy**, not a restatement of an external spec. It is
+  *inspired by* the [NO_COLOR](https://no-color.org)-style opt-out, but is **intentionally stricter** for W8-A: the
+  published NO_COLOR convention disables color when `NO_COLOR` is present **and non-empty**, whereas Blackbox
+  disables color on **key presence alone** (empty string included). The stricter presence-based rule is chosen so
+  that deterministic CI / piped output is escape-free even in the empty-value edge case, and so the gate is a simple,
+  auditable key-presence check. `CI` is treated the same way, by local policy.
 - There is **no `--color` / `--no-color` flag** in W8-A — no new CLI flags are permitted this milestone, so explicit
   color flags are deferred. `NO_COLOR` (env) is the only opt-out.
 - `colorEnabled` is a pure function of its injected inputs — it never reads `process.stdout` or `process.env`
