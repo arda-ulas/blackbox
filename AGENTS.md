@@ -71,10 +71,22 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W8-A terminal experience polish (W7-B behavioral outcome diff closed and tagged)
+## Current State: W8-B README hero polish (W8-A terminal experience polish closed and tagged)
 
-**W8-A (terminal experience polish) is the current milestone** per `docs/27_week_eight_a_plan.md`, implemented and
-in closeout: a presentation-only slice across the whole CLI. A new pure, dependency-free module
+**W8-B (README hero polish) is the current milestone** per `docs/28_week_eight_b_plan.md`, implemented and in
+closeout: a docs/assets-only slice that adds a hand-authored, static SVG README hero
+(`assets/brand/blackbox-readme-hero.svg`) rendering the real `npm run cli -- check` output as **actual SVG text**
+(no raster, no AI-generated text, no external font/image/script/style, no base64) and embeds it at the top of
+`README.md`. The CLI-derived lines (`data-source="cli-check"`) are verified **byte-for-byte** against live `check`
+stdout; the two footer lines (`data-source="footer"`) are verified **separately** against a fixed pair. Palette is
+exactly four inks + background (`#0d1117` bg, base `#c9d1d9`, dim `#6e7681`, cyan `#56d4dd` only on `check`, green
+`#3fb950` only on `✓`/`PASS`; `blackbox` is base color at `font-weight="700"`). Only six docs/assets files change —
+**no** `src/`, `tests/`, `fixtures/`, `scripts/`, `package.json`, `package-lock.json`, `.gitignore`, or `DEMO.md`
+change; no CLI behavior/command/flag/dependency change; no traces committed. Baseline unchanged at **489/489**
+offline. The intended tag is `week-eight-readme-hero`.
+
+W8-A (terminal experience polish) is **closed and tagged** (`week-eight-terminal-polish`) per
+`docs/27_week_eight_a_plan.md`: a presentation-only slice across the whole CLI. A new pure, dependency-free module
 `src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `errorPrefix` / `colorEnabled` /
 `GLYPH`) supplies one shared terminal grammar, and `src/cli.ts` restyles all eight command surfaces through it:
 banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated
@@ -91,7 +103,7 @@ four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExpla
 replay-semantics, `replayTrace`-return, `forkRun`, `runSelfCheck`-logic, `diffTraces()`-computation,
 `TraceDiff`/`OutcomeDiff`/`VerifyReport`-shape, provider, fixture, generator, `package.json`, `package-lock.json`, or
 `.gitignore` change; no new command, flag, or exit code; no stdout↔stderr movement.** Current baseline: **489/489**
-offline (442 + 47 new), zero live calls. The intended tag is `week-eight-terminal-polish`.
+offline (442 + 47 new), zero live calls. Tagged `week-eight-terminal-polish`.
 
 **W7-B is complete and tagged (`week-seven-behavioral-outcome-diff`).** Behavioral outcome diff: two pure modules
 (`src/trace/traceOutcome.ts`, `src/fork/diffOutcome.ts`) classify how a parent and forked child differ in *terminal

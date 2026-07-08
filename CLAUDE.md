@@ -8,7 +8,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W7-B (behavioral outcome diff, tagged). W8-A (terminal experience polish) implemented / in closeout.** The
+**W8-A (terminal experience polish) pushed and tagged (`week-eight-terminal-polish`). W8-B (README hero polish)
+implemented / in closeout.** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -27,7 +28,10 @@ run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return
 `runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider /
 fixture / generator / `package.json` / `package-lock.json` / `.gitignore` change; no new command, flag, or exit code;
 no stdout↔stderr movement. The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`,
-`stepLabels`) are byte-identical.
+`stepLabels`) are byte-identical. W8-B is a docs/assets-only follow-on: a hand-authored, static SVG README hero
+(`assets/brand/blackbox-readme-hero.svg`) that renders the real `check` output as actual SVG text (verified
+byte-for-byte against live stdout; footer verified separately), embedded at the top of `README.md`. No source,
+test, fixture, script, `package.json`, or CLI change.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
 - **Tests:** 489/489 passing, fully offline, zero live calls.
@@ -47,8 +51,9 @@ no stdout↔stderr movement. The four pure formatters (`formatFirstDivergence`, 
   - `week-six-verify-replay-explanations` (W6-B)
   - `week-six-release-freeze` (W6-C)
   - `week-seven-reactive-fake-model` (W7-A)
-  - `week-seven-behavioral-outcome-diff` (W7-B, current tagged HEAD)
-- **In progress:** W8-A terminal experience polish; intended tag `week-eight-terminal-polish`.
+  - `week-seven-behavioral-outcome-diff` (W7-B)
+  - `week-eight-terminal-polish` (W8-A, current tagged HEAD)
+- **In progress:** W8-B README hero polish (docs/assets-only); intended tag `week-eight-readme-hero`.
 
 ## Hard Guardrails
 
@@ -67,7 +72,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W8-A (terminal experience polish) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W8-A is planned and Codex-audited before implementation.
+- **Sequencing:** W8-A (terminal experience polish) is closed and tagged (`week-eight-terminal-polish`); W8-B (README hero polish, docs/assets-only) is the current slice, its plan (`docs/28_week_eight_b_plan.md`) scoped and Codex-accepted and the slice implemented / in closeout. Any milestone beyond W8-B is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -84,11 +89,11 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W8-A (terminal experience polish): the slice is implemented and green (489/489 offline, `check` output
-byte-identical run-to-run, per-stream color gates so non-TTY stdout/stderr are both escape-free, fixtures in sync,
-frozen paths untouched; Codex per-stream-stderr closeout patch applied) → Codex re-audit → push → tag
-`week-eight-terminal-polish`. No new milestone or product-surface work until it is explicitly scoped and
-Codex-audited.
+Close out W8-B (README hero polish, docs/assets-only): the slice is implemented and green (489/489 offline, `check`
+output byte-identical run-to-run, hero SVG text verified byte-for-byte against live `check` stdout with footer
+verified separately, self-contained SVG, only the six allowlisted files changed, no traces committed, frozen paths
+untouched) → Codex audit → push → tag `week-eight-readme-hero`. No source/test/fixture/script/`package.json` change
+this slice. No new milestone or product-surface work until it is explicitly scoped and Codex-audited.
 
 ## Response Format
 

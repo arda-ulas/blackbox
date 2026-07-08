@@ -8,6 +8,10 @@ find the first point where the two runs diverged — then verifies and self-chec
 It is *active debugging*, not passive observability: you don't just watch an agent run, you re-run it from a past
 step under a changed condition and see exactly what changes.
 
+<img src="assets/brand/blackbox-readme-hero.svg"
+     alt="Blackbox check command showing the offline record verify fork diff workflow passing."
+     width="100%">
+
 ## The core loop
 
 ```
@@ -38,15 +42,17 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Week Eight terminal experience polish (W8-A) — implemented / in closeout. W7-B (behavioral outcome diff) closed
-and tagged.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts,
-and protected by a committed regression corpus. W7-A made the offline fork/`check` continuation *derive* the child's
-answer from the mutated `tool_result`; W7-B added a behavioral `Outcome:` verdict to `diff`/`fork`; W8-A gives the
-whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners, aligned key/value rows, `✓`/`✗`
-verdict markers, restrained color in a TTY only) — presentation only, with every core behavior, exit code, and
-return value unchanged.
+**Week Eight README hero polish (W8-B) — implemented / in closeout. W8-A (terminal experience polish) closed and
+tagged (`week-eight-terminal-polish`).** The local loop is complete, hardened, composed under one self-check, proven
+live via opt-in scripts, and protected by a committed regression corpus. W7-A made the offline fork/`check`
+continuation *derive* the child's answer from the mutated `tool_result`; W7-B added a behavioral `Outcome:` verdict
+to `diff`/`fork`; W8-A gave the whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners,
+aligned key/value rows, `✓`/`✗` verdict markers, restrained color in a TTY only); W8-B adds a hand-authored,
+text-accurate SVG README hero rendered from the real `check` output — all presentation/docs only, with every core
+behavior, exit code, and return value unchanged.
 
-- **Current milestone:** W8-A (terminal experience polish); intended tag `week-eight-terminal-polish`.
+- **Current milestone:** W8-B (README hero polish); intended tag `week-eight-readme-hero`.
+- **Latest tag:** `week-eight-terminal-polish` (W8-A — terminal experience polish, presentation-only).
 - **Latest technical-capability tag:** `week-seven-behavioral-outcome-diff` (W7-B — behavioral outcome diff).
 - **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
   verification).

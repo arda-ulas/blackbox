@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 800" width="1600" height="800" role="img" aria-labelledby="bbTitle bbDesc">
+  <title id="bbTitle">Blackbox — offline time-travel debugger for AI agents</title>
+  <desc id="bbDesc">Terminal output of the blackbox check command: record, verify_parent, fork, verify_child, and diff each pass, and the run reports Result PASS.</desc>
+  <rect x="0" y="0" width="1600" height="800" rx="12" fill="#0d1117"/>
+  <g font-family="ui-monospace, &quot;SFMono-Regular&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;, monospace" font-size="22" fill="#c9d1d9">
+    <text x="128" y="150" xml:space="preserve" data-source="cli-check"><tspan fill="#6e7681">◼</tspan> <tspan font-weight="700">blackbox</tspan> <tspan fill="#6e7681">·</tspan> <tspan fill="#56d4dd">check</tspan></text>
+    <text x="128" y="184" xml:space="preserve" data-source="cli-check"><tspan fill="#6e7681">Mode:           </tspan>in-memory (no files written; pass --out-dir to persist)</text>
+    <text x="128" y="218" xml:space="preserve" data-source="cli-check"></text>
+    <text x="128" y="252" xml:space="preserve" data-source="cli-check">  <tspan fill="#3fb950">✓</tspan>  record          <tspan fill="#6e7681">pass</tspan>  success trace, 15 step(s)</text>
+    <text x="128" y="286" xml:space="preserve" data-source="cli-check">  <tspan fill="#3fb950">✓</tspan>  verify_parent   <tspan fill="#6e7681">pass</tspan>  4/4 invariants</text>
+    <text x="128" y="320" xml:space="preserve" data-source="cli-check">  <tspan fill="#3fb950">✓</tspan>  fork            <tspan fill="#6e7681">pass</tspan>  child valid, 7 step(s), tool_result mutation at step 3</text>
+    <text x="128" y="354" xml:space="preserve" data-source="cli-check">  <tspan fill="#3fb950">✓</tspan>  verify_child    <tspan fill="#6e7681">pass</tspan>  4/4 invariants</text>
+    <text x="128" y="388" xml:space="preserve" data-source="cli-check">  <tspan fill="#3fb950">✓</tspan>  diff            <tspan fill="#6e7681">pass</tspan>  first divergence at index 3, shared prefix 3 step(s)</text>
+    <text x="128" y="422" xml:space="preserve" data-source="cli-check"></text>
+    <text x="128" y="456" xml:space="preserve" data-source="cli-check"><tspan fill="#6e7681">Result:         </tspan><tspan fill="#3fb950">✓</tspan> <tspan fill="#3fb950" font-weight="700">PASS</tspan></text>
+    <text x="128" y="524" xml:space="preserve" fill="#6e7681" data-source="footer">Local, offline, deterministic.</text>
+    <text x="128" y="558" xml:space="preserve" fill="#6e7681" data-source="footer">record -&gt; replay -&gt; fork -&gt; mutate -&gt; continue -&gt; diff -&gt; verify -&gt; check</text>
+  </g>
+</svg>
