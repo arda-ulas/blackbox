@@ -45,23 +45,17 @@ invariants + declared exact-match expectations on the replayed outcome) with a s
 
 ## Status
 
-**Week Nine cassette CI harness (W9-A) — implemented / in closeout. W8-B (README hero polish) closed and tagged
-(`week-eight-readme-hero`).** The local loop is complete, hardened, composed under one self-check, proven live via
-opt-in scripts, and protected by a committed regression corpus. W7-B added a behavioral `Outcome:` verdict to
-`diff`/`fork`; W8-A gave the whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners,
-aligned key/value rows, `✓`/`✗` verdict markers, restrained color in a TTY only); W8-B added a hand-authored,
-text-accurate SVG README hero; W9-A adds one new command, `assert`, that turns any committed cassette into a
-deterministic, offline PASS/FAIL CI regression test (`verify` invariants + declared exact-match expectations) — a
-composition of existing offline reads, with no schema, hash, or provider change.
+Blackbox is a **local, deterministic, offline-by-default** time-travel debugger. The full loop is complete,
+hardened, composed under one self-check, proven live via opt-in scripts, and protected by a committed regression
+corpus. **Cassette assertions are complete:** any committed cassette can be pinned as a deterministic offline CI
+regression test.
 
-- **Current milestone:** W9-A (cassette CI harness); intended tag `week-nine-cassette-assert`.
-- **Latest tag:** `week-eight-readme-hero` (W8-B — README hero polish, docs/assets-only).
-- **Latest technical-capability tag:** `week-seven-behavioral-outcome-diff` (W7-B — behavioral outcome diff).
-- **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
-  verification).
-- **Tests:** 522/522 passing, fully offline, zero live calls, no API key required.
+- **What it is:** a local deterministic time-travel debugger for single-agent, tool-using runs — no UI, no backend,
+  no live-by-default calls.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
+- **Tests:** 522/522 passing, fully offline, zero live calls, no API key required.
+- **Most recent technical milestone:** cassette assertions — the `assert` CI harness (`week-nine-cassette-assert`).
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected output.
 
@@ -71,6 +65,8 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 - **Cassette record/replay** with a canonical SHA-256 hash chain.
 - **Fork + mutate + diff** — branch from any step, change one thing, see what diverges.
 - **Offline verify + one-shot check** — hygiene and a full-loop smoke test with PASS/FAIL exit codes.
+- **Cassette assertions** — pin a committed cassette as a deterministic offline CI regression test using exact-match
+  expectations over the replayed outcome, fully offline.
 - A **committed fake/offline regression corpus** that freezes the loop's guarantees under version control.
 - An **opt-in, human-run live proof** against Anthropic — run manually, never by the default CLI or `npm test`.
 
@@ -230,3 +226,11 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Eight Terminal Experience Polish ✓ (`week-eight-terminal-polish`)
 
 - **W8-A** — Terminal experience polish: one shared, premium terminal grammar across all eight commands via a new pure, dependency-free module `src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `colorEnabled` / `GLYPH`). Banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗` glyphs. Color is optional sugar gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)`, computed **independently per output stream** so a redirected stderr stays escape-free even when stdout is a color TTY — so piped / `NO_COLOR` / `CI` output on **both** stdout and stderr is escape-free (a structural no-ANSI test guards it). Glyphs (`✓ ✗ → ▸ ◼`) are decorative; the text labels always carry the meaning (the header's `·` is punctuation, not a glyph). The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) are byte-identical, so every frozen behavioral-diff spacing assertion holds. `check` stdout was re-baselined once, deliberately (before/after captured in `docs/27_week_eight_a_plan.md` and the build log); its exit code and the `runSelfCheck` return shape are unchanged and its output is byte-identical run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return / `forkRun` / `runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider / fixture / generator / `package.json` / `.gitignore` change; no new command, flag, or exit code (489/489 offline, 442 + 47 new tests)
+
+### Week-Eight README Hero ✓ (`week-eight-readme-hero`)
+
+- **W8-B** — README hero polish (docs/assets-only): a hand-authored, static SVG (`assets/brand/blackbox-readme-hero.svg`) that renders the real `npm run cli -- check` output as **actual SVG text** — no raster, no AI-generated text, no external font/image/script/style, no base64 — embedded at the top of `README.md`. The CLI-derived lines are verified byte-for-byte against live `check` stdout; the two footer lines are verified separately against a fixed expected pair. No `src/`, `tests/`, `fixtures/`, `scripts/`, `package.json`, `package-lock.json`, `.gitignore`, or `DEMO.md` change; no CLI behavior/command/flag/exit-code change; no new dependency
+
+### Week-Nine Cassette CI Harness ✓ (`week-nine-cassette-assert`)
+
+- **W9-A** — Cassette CI harness: one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline PASS/FAIL CI regression test. `npm run cli -- assert --trace <path> [expectation flags]` runs the four `verify` invariants and then, for each supplied expectation flag, does an **exact-match** check against the replayed terminal outcome (`terminalOutcome`) and tool-call sequence (`toolCallSequence`). Flags: `--trace` (required, unlike `verify`), `--expect-status <success|error|incomplete>`, `--expect-final-answer`, `--expect-failure-reason`, `--expect-tools` (comma-split, ordered; `""` ⇒ no tool calls). Exit 0 only when verification and every declared expectation pass; exit 1 otherwise. New pure module `src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile`); `src/cli.ts` gains `runAssert` + one dispatch case (add-only). `verify ⊂ assert` — invariants gate expectations, so on invariant failure the expectation checks become `skip` (never a silent pass); expectations come from CLI flags only (no cassette-embedded, no sidecar), exact match only. No schema / hash / `verifyTrace` / `terminalOutcome` / `toolCallSequence` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator / `package.json` change; every other command's output including `check` is byte-identical. The CLI is now **nine commands** (522/522 offline, 489 + 33 new tests)

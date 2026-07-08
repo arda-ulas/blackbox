@@ -71,10 +71,18 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W9-A cassette CI harness (W8-B README hero polish closed and tagged)
+## Current State: W9-B public-readiness refresh (W9-A cassette CI harness closed and tagged)
 
-**W9-A (cassette CI harness) is the current milestone** per `docs/29_week_nine_a_plan.md`, implemented and in
-closeout: one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline
+**W9-B is a documentation-only public-readiness refresh** per `docs/30_week_nine_b_plan.md`, the current slice on top
+of the tagged W9-A: it rewrites the README Status in durable public language, surfaces the `assert` capability in
+"What Blackbox is," appends the W8-B/W9-A build-history entries, and refreshes the `CLAUDE.md`/`AGENTS.md`
+current-state pointers. Allowed files only: `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/30_week_nine_b_plan.md`,
+`docs/08_build_log.md`. No source / test / fixture / `package.json` / `package-lock.json` / `.gitignore` / `DEMO.md` /
+`docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change. After Codex closeout audit and push it
+may be tagged `week-nine-public-readiness`.
+
+**W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`)** per `docs/29_week_nine_a_plan.md`:
+one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline
 PASS/FAIL CI regression test. `npm run cli -- assert --trace <path> [expectation flags]` runs the four existing
 `verifyTrace` invariants and then, for each supplied expectation flag, does an **exact-match** check against the
 replayed terminal outcome (`terminalOutcome`) and tool-call sequence (`toolCallSequence`). Flags: `--trace`
@@ -94,7 +102,7 @@ string / ordered comparison only (no fuzzy or semantic matching, per W7-B). Rend
 `package.json` / `package-lock.json` / `.gitignore` / `assets/brand/` change; `docs/11_cli_spec.md` (historical W3-A
 spec) left untouched by design; no new dependency; every other command's output including `check` is byte-identical.
 The CLI is now **nine commands** (record, replay, fork, diff, verify, assert, check, list, inspect). Baseline
-**522/522** offline (489 + 33 new), zero live calls, no API key. The intended tag is `week-nine-cassette-assert`.
+**522/522** offline (489 + 33 new), zero live calls, no API key. Tagged `week-nine-cassette-assert`.
 
 W8-B (README hero polish) is **closed and tagged** (`week-eight-readme-hero`) per `docs/28_week_eight_b_plan.md`: a
 docs/assets-only slice adding a hand-authored, static SVG README hero (`assets/brand/blackbox-readme-hero.svg`) that
