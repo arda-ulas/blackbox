@@ -8,6 +8,7 @@ import {
   validateTrace,
   replayTrace,
 } from "../src/replay/CassetteReplay.ts";
+import { terminalOutcome } from "../src/trace/traceOutcome.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient, type ModelClient } from "../src/agent/modelClient.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
@@ -231,6 +232,26 @@ describe("replayTrace", () => {
     const summary = replayTrace(recorder.getTrace());
     expect(summary.status).toBe("error");
     expect(summary.failureReason).toBe("max_steps_exceeded");
+  });
+
+  it("W7-B: replayTrace's terminal fields agree with terminalOutcome (shared source of truth)", async () => {
+    // replayTrace now derives status/result/failureReason via terminalOutcome;
+    // this asserts they stay in lockstep for success, error, and incomplete.
+    const success = await recordToolTrace();
+    const sSummary = replayTrace(success);
+    const sOutcome = terminalOutcome(success);
+    expect(sSummary.status).toBe(sOutcome.status);
+    expect(sSummary.result).toBe(sOutcome.finalAnswer);
+    expect(sSummary.failureReason).toBe(sOutcome.failureReason);
+
+    const recorder = new TraceRecorder("run-incomplete-parity", { createdAt: 0 });
+    recorder.append("model_input", { messages: [] });
+    const incomplete = recorder.getTrace();
+    const iSummary = replayTrace(incomplete);
+    expect(iSummary.status).toBe("incomplete");
+    expect(iSummary.status).toBe(terminalOutcome(incomplete).status);
+    expect(iSummary.result).toBeUndefined();
+    expect(iSummary.failureReason).toBeUndefined();
   });
 });
 

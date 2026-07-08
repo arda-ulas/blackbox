@@ -7,6 +7,7 @@ import {
   describeDivergenceField,
   stepTypeLabel,
 } from "../trace/stepLabels.ts";
+import { diffOutcome, formatOutcomeDiff } from "./diffOutcome.ts";
 
 export interface TraceDiff {
   parentTraceId: string;
@@ -133,4 +134,23 @@ export function formatFirstDivergence(diff: TraceDiff): string {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Full diff report: the STRUCTURAL divergence block (verbatim from
+ * `formatFirstDivergence`) followed by the BEHAVIORAL `Outcome:` block.
+ *
+ * This wrapper exists because `formatFirstDivergence` receives only a
+ * `TraceDiff` — which carries no full traces and no terminal outcomes — so it
+ * cannot compute the behavioral verdict itself. `diffOutcome` needs the two
+ * full `Trace` objects. `formatDiffReport` composes them without touching the
+ * structural layer: `diffTraces`, the `TraceDiff` shape, and
+ * `formatFirstDivergence` are all unchanged. Both `runDiff` and `runFork`
+ * render through this one wrapper, so both surfaces gain the outcome verdict.
+ */
+export function formatDiffReport(parentTrace: Trace, childTrace: Trace): string {
+  const traceDiff = diffTraces(parentTrace, childTrace);
+  const structural = formatFirstDivergence(traceDiff);
+  const outcome = diffOutcome(parentTrace, childTrace);
+  return [structural, formatOutcomeDiff(outcome)].join("\n\n");
 }

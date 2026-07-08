@@ -16,7 +16,7 @@ import {
   replayTrace,
 } from "./replay/CassetteReplay.ts";
 import { forkRun } from "./fork/forkRun.ts";
-import { diffTraces, formatFirstDivergence } from "./fork/diffTraces.ts";
+import { formatDiffReport } from "./fork/diffTraces.ts";
 import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
 import { formatVerifyFailure } from "./trace/verifyExplain.ts";
 import { runSelfCheck } from "./workflow/selfCheck.ts";
@@ -359,8 +359,7 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   await mkdir(dirname(outPath) || ".", { recursive: true });
   await saveTrace(childTrace, outPath);
 
-  const diff      = diffTraces(parentTrace, childTrace);
-  const formatted = formatFirstDivergence(diff);
+  const formatted = formatDiffReport(parentTrace, childTrace);
 
   const label = (s: string) => s.padEnd(15);
 
@@ -428,13 +427,12 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
 
   const parentPath = flags["parent"] as string;
   const childPath  = flags["child"]  as string;
-  const diff = diffTraces(parentTrace, childTrace);
 
   console.log("[blackbox] --- diff ---");
   console.log(`Parent:  ${parentPath}`);
   console.log(`Child:   ${childPath}`);
   console.log();
-  console.log(formatFirstDivergence(diff));
+  console.log(formatDiffReport(parentTrace, childTrace));
 }
 
 // ---------------------------------------------------------------------------

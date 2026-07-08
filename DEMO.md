@@ -228,6 +228,10 @@ First divergence at index 3
   changed value (result):
     parent: {"results":[{"title":"Fixture result A for \"weekend hotels\"","snippet":"First deterministic result."},{"title":"Fixture result B for \"weekend hotels\"","snippet":"Second deterministic result."}]}
     child:  {"results":[],"available":false,"message":"No hotels available for that date."}
+
+Outcome:        same final status (success), but the final answer changed
+  parent tools:  search → calendar → booking
+  child tools:   search
 ```
 
 **Key proof points:**
@@ -236,7 +240,8 @@ First divergence at index 3
 - **Tool-result mutation:** the injected payload (`results: [], available: false`) replaces only the `result` field of the `tool_result` step. The `toolName` and the `toolCallId` (`call-0`) are preserved, so call ↔ result correlation survives the mutation. The agent's subsequent reasoning (steps 4 onward) flows from the new result.
 - **Child continues cleanly:** `Validation: passed` confirms the child's full hash chain is intact from prefix through the newly generated steps.
 - **The answer is derived, not scripted:** the continuation runs a reactive fake model (`ReactiveDemoModelClient`) that reads the most recent `tool_result` from the reconstructed transcript and computes its answer from it — here embedding the mutated payload's `message` (`"No hotels available for that date."`) verbatim. Change the mutation (a different `--payload-json message`, or an availability payload), and the child's `Result:` line changes with it. This is still fake/offline and fully deterministic — zero live calls — but the reaction is *computed from the mutated cassette state*, not a hardcoded string.
-- **Diff is immediate:** the fork command runs `diffTraces` and prints the first divergence inline — no separate diff command needed.
+- **The divergence is read behaviorally, not just structurally:** the `Outcome:` line classifies how the two runs' *terminal behavior* differs — final status, final answer, and tool-call path — computed offline from the two traces by exact-string comparison (no model call, no semantic judge). Here the parent booked a hotel while the child, seeing no availability, declined: same `success` status, but a changed final answer, and a shorter tool path (`search → calendar → booking` vs `search`). This turns "hash diverged at step 3" into "the mutation changed what the agent did."
+- **Diff is immediate:** the fork command prints the first divergence and the behavioral outcome inline — no separate diff command needed.
 
 ---
 
@@ -269,6 +274,10 @@ First divergence at index 3
   changed value (result):
     parent: {"results":[{"title":"Fixture result A for \"weekend hotels\"","snippet":"First deterministic result."},{"title":"Fixture result B for \"weekend hotels\"","snippet":"Second deterministic result."}]}
     child:  {"results":[],"available":false,"message":"No hotels available for that date."}
+
+Outcome:        same final status (success), but the final answer changed
+  parent tools:  search → calendar → booking
+  child tools:   search
 ```
 
 **Key proof points:**
@@ -276,6 +285,7 @@ First divergence at index 3
 - `Shared prefix: 3 step(s)` — diff confirms that steps 0, 1, and 2 have hash-identical payloads in both traces. The prefix is verified by hash, not by content comparison.
 - `Summary: tool_result differs at index 3` — human-readable one-liner naming the step type and index.
 - The `changed value (result):` block shows the actual difference in full: the parent received real hotel results; the child received the injected empty/unavailable mutation (`"available":false`, `"No hotels available for that date."`). The value is shown legibly rather than truncated mid-key.
+- The `Outcome:` line reports the **behavioral** delta over the two runs' terminal state — final status, final answer, and tool-call path — computed offline from the two traces by exact-string comparison (no model call, no semantic judge). It distinguishes a divergence that flipped the outcome from one that changed nothing downstream. Its four verdicts: `outcome flipped` (status changed), `same final status … but the final answer/failure reason changed`, `same outcome, but the tool-call path changed`, and `no behavioral change: the divergence did not alter the run outcome`. Structural divergence tells you *where* the traces split; the outcome verdict tells you *whether it mattered*.
 - Diff works on any two cassettes. You can diff the error trace against the success trace, or any two arbitrarily forked runs.
 
 ---

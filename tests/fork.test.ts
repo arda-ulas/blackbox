@@ -7,6 +7,7 @@ import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
 import { validateTrace, replayTrace } from "../src/replay/CassetteReplay.ts";
 import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
+import { diffOutcome } from "../src/fork/diffOutcome.ts";
 import { verifyTrace } from "../src/trace/verifyTrace.ts";
 import { auditTraceNeutrality } from "../src/trace/neutrality.ts";
 import type { Trace, JsonValue } from "../src/trace/TraceTypes.ts";
@@ -892,5 +893,37 @@ describe("forkRun — reactive continuation (W7-A)", () => {
     expect(finalAnswer).toContain("Try a different city instead");
     // Not the tool_result-derived rule-2 wording.
     expect(finalAnswer).not.toContain("no options are available");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W7-B: behavioral outcome diff over a reactive demo fork. The mutation keeps
+// the run a success but changes the final answer — the debugger should say so.
+// ---------------------------------------------------------------------------
+
+describe("forkRun — behavioral outcome (W7-B)", () => {
+  const MUTATION_INDEX = 3; // the search tool_result step
+
+  it("classifies a reactive fork as same success status, final answer changed", async () => {
+    const { childTrace } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-outcome-reactive",
+      promptMutation: "(tool-result mutation — promptMutation unused)",
+      toolResultMutations: {
+        [MUTATION_INDEX]: { results: [], available: false, message: "No hotels available for that date." },
+      },
+      model: new ReactiveDemoModelClient(),
+      toolExecutor: defaultToolExecutor(),
+    });
+
+    const outcome = diffOutcome(parentTrace, childTrace);
+    expect(outcome.parentStatus).toBe("success");
+    expect(outcome.childStatus).toBe("success");
+    expect(outcome.statusChanged).toBe(false);
+    expect(outcome.finalAnswerChanged).toBe(true);
+    expect(outcome.behaviorallyEquivalent).toBe(false);
+    expect(outcome.verdict).toContain("success");
+    expect(outcome.verdict).toContain("final answer changed");
   });
 });

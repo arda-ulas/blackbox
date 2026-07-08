@@ -71,18 +71,25 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W7-A reactive deterministic fake model (W6-C release-freeze closed and tagged)
+## Current State: W7-B behavioral outcome diff (W7-A reactive fake model closed and tagged)
 
-**W7-A (reactive deterministic fake model) is the current milestone** per `docs/25_week_seven_a_plan.md`, implemented
-and in closeout: a demo-credibility slice on the offline fork/`check` **continuation** step. A new pure,
-deterministic `ReactiveDemoModelClient` (`src/agent/reactiveDemoModel.ts`) reads the most recent `tool_result` from
-the reconstructed transcript and computes the child's final answer from it (embedding the mutated payload's message),
-so changing the mutation changes the answer — replacing the former hardcoded `DEMO_FORK_ANSWER` /
-`"Prompt-mode fork complete."` strings at the `cli fork` and `check` continuation sites. **No schema, canonical-hash,
-`replayTrace`, `forkRun` reconstruction, `diffTraces`, provider, fixture, `package.json`, `.gitignore`, or
-CLI-surface change; `check` stdout is byte-identical; `FakeDeterministicModelClient` is unchanged and remains the
-default for record/scripted paths and the fixtures generator.** Current baseline: **417/417** offline (394 + 23 new),
-zero live calls. The intended tag is `week-seven-reactive-fake-model`.
+**W7-B (behavioral outcome diff) is the current milestone** per `docs/26_week_seven_b_plan.md`, implemented and in
+closeout: an analysis/presentation slice on the **diff** step. Two new pure modules — `src/trace/traceOutcome.ts`
+(`terminalOutcome` / `toolCallSequence`) and `src/fork/diffOutcome.ts` (`diffOutcome` / `formatOutcomeDiff`) —
+classify how a parent and forked child differ in *terminal behavior* (final status, final answer / failure reason,
+tool-call path) by exact-string comparison (offline, deterministic, no model call, no semantic judge). A new
+`formatDiffReport` wrapper appends the `Outcome:` verdict to the unchanged structural divergence block, and `runDiff`
+/ `runFork` switch to it (formatter-call change only). `replayTrace` now derives its terminal fields from the shared
+`terminalOutcome`. **No schema, canonical-hash, `diffTraces()` computation, `TraceDiff` shape, `formatFirstDivergence`,
+`forkRun`, provider, fixture, `package.json`, `.gitignore`, or CLI-surface change; `check` stdout and `replayTrace`
+returned fields / CLI `replay` output are byte-identical.** Current baseline: **442/442** offline (417 + 25 new),
+zero live calls. The intended tag is `week-seven-behavioral-outcome-diff`.
+
+**W7-A is complete and tagged (`week-seven-reactive-fake-model`).** Reactive deterministic fake model: the offline
+fork/`check` continuation derives the child's answer from the mutated `tool_result` via `ReactiveDemoModelClient`,
+replacing the former hardcoded continuation strings. `FakeDeterministicModelClient`, `forkRun`, schema, hashing,
+replay/diff/verify, fixtures, and the CLI surface unchanged; `check` stdout byte-identical. See the W7-A build-log
+entry.
 
 **W6-C is complete and tagged (`week-six-release-freeze`).** Docs-only release freeze: README/DEMO commands verified
 against `package.json` / `src/cli.ts`, public docs reconciled to the true repo state; no source/test/fixture/config

@@ -173,6 +173,14 @@ describe("cli fork", () => {
     expect(trace.parentId).toBe("example-run-001");
   });
 
+  it("prints a behavioral Outcome line (W7-B): same success status, final answer changed", () => {
+    expect(forkResult.stdout).toContain("Outcome:");
+    expect(forkResult.stdout).toContain("same final status (success), but the final answer changed");
+    // Tool sequences shown because the child's path is shorter than the parent's.
+    expect(forkResult.stdout).toContain("parent tools:");
+    expect(forkResult.stdout).toContain("child tools:");
+  });
+
   it("Result line is the derived answer embedding the mutation message (W7-A)", () => {
     // The reactive continuation computes the answer from the mutated tool_result
     // — the default payload's message is embedded verbatim in the Result line.
@@ -250,6 +258,22 @@ describe("cli diff", () => {
     expect(result.stdout).toContain("changed value (result):");
     expect(result.stdout).toContain('"available":false');
     expect(result.stdout).toContain("No hotels available for that date.");
+  }, 15_000);
+
+  it("prints a behavioral Outcome line for the frozen corpus fork pair (W7-B)", async () => {
+    const result = await runCli([
+      "diff",
+      "--parent", "fixtures/traces/fork-parent.v2.json",
+      "--child",  "fixtures/traces/fork-child.v2.json",
+    ]);
+    expect(result.exitCode).toBe(0);
+    // Both runs succeed; the mutation changed the final answer (not the status).
+    expect(result.stdout).toContain("Outcome:");
+    expect(result.stdout).toContain("same final status (success), but the final answer changed");
+    expect(result.stdout).toContain("parent tools:  search → calendar → booking");
+    expect(result.stdout).toContain("child tools:   search");
+    // The structural divergence block is still present and unchanged.
+    expect(result.stdout).toContain("First divergence at index 3");
   }, 15_000);
 });
 

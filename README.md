@@ -38,18 +38,18 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Week Seven reactive fake model (W7-A) — implemented / in closeout. Post-W6-C release freeze.** The local loop is
-complete, hardened, composed under one self-check, proven live via opt-in scripts, and protected by a committed
-regression corpus. W7-A makes the offline fork/`check` continuation *derive* the child's answer from the mutated
-`tool_result` (via `ReactiveDemoModelClient`) instead of returning a hardcoded string — still fake/offline,
+**Week Seven behavioral outcome diff (W7-B) — implemented / in closeout. W7-A (reactive fake model) closed and
+tagged.** The local loop is complete, hardened, composed under one self-check, proven live via opt-in scripts, and
+protected by a committed regression corpus. W7-A made the offline fork/`check` continuation *derive* the child's
+answer from the mutated `tool_result`; W7-B makes `diff` and `fork` report how the two runs' *terminal behavior*
+differs (final status, final answer, tool-call path), computed offline from the two traces — still fake/offline,
 deterministic, zero live calls, no real model in the default CLI.
 
-- **Current milestone:** W7-A (reactive deterministic fake model); intended tag `week-seven-reactive-fake-model`.
+- **Current milestone:** W7-B (behavioral outcome diff); intended tag `week-seven-behavioral-outcome-diff`.
+- **Latest technical-capability tag:** `week-seven-reactive-fake-model` (W7-A — reactive deterministic fake model).
 - **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
   verification).
-- **Latest technical-capability tag before release-freeze:** `week-six-verify-replay-explanations` (W6-B —
-  verify/replay failure explanations).
-- **Tests:** 417/417 passing, fully offline, zero live calls, no API key required.
+- **Tests:** 442/442 passing, fully offline, zero live calls, no API key required.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
@@ -90,7 +90,7 @@ The whole offline loop verifies in four commands, no API key required:
 
 ```sh
 npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 417 tests, fully offline, zero live calls
+npm test -- --run           # 442 tests, fully offline, zero live calls
 npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
 npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
@@ -186,3 +186,7 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Seven Reactive Fake Model ✓ (`week-seven-reactive-fake-model`)
 
 - **W7-A** — Reactive deterministic fake model: the offline fork/`check` continuation now *derives* the child's answer from the mutated `tool_result` via a new pure, deterministic `ReactiveDemoModelClient` (`src/agent/reactiveDemoModel.ts`) that reads the reconstructed transcript and embeds the mutated payload's field — so changing the mutation changes the answer — replacing the former hardcoded continuation strings at the `cli fork` and `check` injection sites. Still fake/offline, deterministic, zero live calls, no real model in the default CLI. `FakeDeterministicModelClient`, `forkRun`, the trace schema, canonical hashing, replay/diff/verify, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (417/417 offline, 394 + 23 new tests)
+
+### Week-Seven Behavioral Outcome Diff ✓ (`week-seven-behavioral-outcome-diff`)
+
+- **W7-B** — Behavioral outcome diff: `diff` and `fork` now report an `Outcome:` verdict describing how the two runs' *terminal behavior* differs — final status, final answer (or failure reason), and tool-call path — computed offline from the two traces by exact-string comparison (no model call, no semantic judge). New pure modules `src/trace/traceOutcome.ts` (`terminalOutcome` / `toolCallSequence`) and `src/fork/diffOutcome.ts` (`diffOutcome` / `formatOutcomeDiff`), plus a `formatDiffReport` wrapper that appends the verdict to the unchanged structural divergence block. `replayTrace` now derives its terminal fields from the shared `terminalOutcome` (returned fields and CLI `replay` output byte-identical). The `diffTraces()` computation, the `TraceDiff` shape, `formatFirstDivergence`, `forkRun`, the schema, canonical hashing, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (442/442 offline, 417 + 25 new tests)

@@ -11,6 +11,7 @@ import {
 } from "../trace/TraceTypes.ts";
 import { hashTraceStepInput } from "../trace/hash.ts";
 import { describeStep } from "../trace/stepLabels.ts";
+import { terminalOutcome } from "../trace/traceOutcome.ts";
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -144,29 +145,19 @@ export function replayTrace(trace: Trace): ReplaySummary {
     summary: describeStep(step),
   }));
 
-  let status: ReplaySummary["status"] = "incomplete";
-  let result: string | undefined;
-  let failureReason: string | undefined;
+  // Terminal status/result parsing lives in one place (terminalOutcome); this
+  // maps its fields onto ReplaySummary with byte-identical results to the prior
+  // inline parse. replayTrace's Trace-only signature and offline guarantee are
+  // unchanged, and it still writes no stdout (the CLI's runReplay renders this).
+  const outcome = terminalOutcome(trace);
 
-  const last = trace.steps.at(-1);
-  if (last?.type === "metadata") {
-    const meta = last.payload as {
-      event?: string;
-      status?: string;
-      result?: string;
-      reason?: string;
-    };
-    if (meta.event === "run_completed" && meta.status === "success") {
-      status = "success";
-      result = meta.result;
-    } else if (meta.event === "run_failed") {
-      status = "error";
-      failureReason = meta.reason;
-    }
-  }
-
-  const summary: ReplaySummary = { traceId: trace.id, stepCount: trace.steps.length, events, status };
-  if (result !== undefined) summary.result = result;
-  if (failureReason !== undefined) summary.failureReason = failureReason;
+  const summary: ReplaySummary = {
+    traceId: trace.id,
+    stepCount: trace.steps.length,
+    events,
+    status: outcome.status,
+  };
+  if (outcome.finalAnswer !== undefined) summary.result = outcome.finalAnswer;
+  if (outcome.failureReason !== undefined) summary.failureReason = outcome.failureReason;
   return summary;
 }

@@ -1,7 +1,13 @@
 # W7-B Plan — Behavioral Outcome Diff
 
-**Status:** PLANNED (awaiting Codex audit before implementation). This document is the scoped, plan-only
-deliverable. No source, test, fixture, config, runtime, CLI, or provider change is made by writing it.
+**Status:** IMPLEMENTED / in closeout (awaiting Codex closeout audit before push/tag). Two new pure modules
+(`src/trace/traceOutcome.ts`, `src/fork/diffOutcome.ts`) plus a `formatDiffReport` wrapper are added; `runDiff` /
+`runFork` switch to the wrapper and `replayTrace` now delegates terminal parsing to the shared `terminalOutcome`.
+`diff` and `fork` print a behavioral `Outcome:` verdict. Tests: **442/442** offline (417 baseline + 25 new), zero
+live calls. `diffTraces()` computation, the `TraceDiff` shape, `formatFirstDivergence`, schema, canonical hashing,
+`forkRun`, provider code, the fixture corpus/generator, `package.json` / `package-lock.json`, and the CLI surface are
+unchanged; `check` stdout and `replayTrace` returned fields / CLI `replay` output are byte-identical. The plan body
+below is unchanged from the accepted version.
 **Predecessor:** W7-A complete, pushed, tagged `week-seven-reactive-fake-model` (HEAD `4868ca4`). The full core loop
 is implemented, hardened, composed under one self-check, proven live (opt-in), frozen against a committed regression
 corpus, release-frozen with truthful docs, and — as of W7-A — the offline fork/`check` continuation *derives* the

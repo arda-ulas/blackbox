@@ -8,16 +8,17 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W6-C (release-frozen). W7-A (reactive deterministic fake model) implemented / in closeout.** The week-one
+**Post-W7-A (reactive fake model, tagged). W7-B (behavioral outcome diff) implemented / in closeout.** The week-one
 CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a committed
 regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and verify-failure output
-legible, and W6-C release-froze the repo with truthful docs. W7-A closes the demo-credibility gap: the offline
-fork/`check` continuation now derives the child's answer from the mutated `tool_result` via a pure, deterministic
-`ReactiveDemoModelClient` (no schema/hash/replay/fork-reconstruction/provider/fixture/CLI-surface change; `check`
-stdout byte-identical).
+legible, W6-C release-froze the repo with truthful docs, and W7-A made the offline fork/`check` continuation derive
+the child's answer from the mutated `tool_result`. W7-B adds a behavioral outcome diff: `diff` and `fork` now report
+an `Outcome:` verdict describing how the two runs' terminal behavior differs (status, final answer, tool-call path),
+computed offline from the two traces (no schema/hash/`diffTraces`-computation/`forkRun`/provider/fixture/CLI-surface
+change; `check` and `replay` output byte-identical).
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 417/417 passing, fully offline, zero live calls.
+- **Tests:** 442/442 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -32,8 +33,9 @@ stdout byte-identical).
   - `week-five-public-demo-readiness` (W5-B)
   - `week-six-diff-inspect-ergonomics` (W6-A)
   - `week-six-verify-replay-explanations` (W6-B)
-  - `week-six-release-freeze` (W6-C, current tagged HEAD)
-- **In progress:** W7-A reactive deterministic fake model; intended tag `week-seven-reactive-fake-model`.
+  - `week-six-release-freeze` (W6-C)
+  - `week-seven-reactive-fake-model` (W7-A, current tagged HEAD)
+- **In progress:** W7-B behavioral outcome diff; intended tag `week-seven-behavioral-outcome-diff`.
 
 ## Hard Guardrails
 
@@ -52,7 +54,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W7-A (reactive deterministic fake model) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W7-A is planned and Codex-audited before implementation.
+- **Sequencing:** W7-B (behavioral outcome diff) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W7-B is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -69,9 +71,9 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W7-A (reactive deterministic fake model): the slice is implemented and green (417/417 offline, `check`
+Close out W7-B (behavioral outcome diff): the slice is implemented and green (442/442 offline, `check` and `replay`
 byte-identical, fixtures in sync, frozen paths untouched) → Codex closeout audit → push → tag
-`week-seven-reactive-fake-model`. No new milestone or product-surface work until it is explicitly scoped and
+`week-seven-behavioral-outcome-diff`. No new milestone or product-surface work until it is explicitly scoped and
 Codex-audited.
 
 ## Response Format
