@@ -85,21 +85,47 @@ Dependency-free, pure, fully testable. No I/O, no `process.env` read at module s
   the three duplicated `label()` closures. Default `width` chosen to match the widest label in use so alignment is
   uniform across commands.
 
-**Glyphs (restrained; exactly these four)**
+**Glyph policy (decorative only; text carries the meaning)**
 
-- `✓` (pass), `✗` (fail), `→` (flow/divergence arrow), `▸` (list/step marker). No others. No emoji.
+- Allowed Unicode glyphs — exactly these five, no others: `✓` (pass), `✗` (fail), `→` (flow/divergence arrow),
+  `▸` (list/step marker), `◼` (wordmark).
+- `◼` is allowed **only** as a tiny optional wordmark glyph in the header (e.g. `◼ blackbox — <command>`). It is not
+  used as a status/verdict marker anywhere.
+- **Glyphs are decorative only — text labels must carry the meaning.** A glyph never stands alone as the sole
+  semantic indicator: `✓`/`✗` always accompany the `PASS`/`FAIL` text, `→` accompanies the divergence text, `▸`
+  precedes an already-labelled step. Stripping every glyph must leave output whose meaning is fully intact.
+- No emoji. No mascot art. No box-drawing characters. No timeline/branch-graph rendering. No additional glyphs
+  without a later plan patch.
 
 **Color (hand-rolled ANSI, no dependency)**
 
 - Helpers: `dim`, `bold`, `green`, `red`, `yellow`, `cyan` — each wraps a string in the corresponding SGR pair.
   ~15 lines total. No `chalk`, no new dependency.
-- `colorEnabled({ isTTY, env }: { isTTY: boolean; env: NodeJS.ProcessEnv }): boolean` — the single gate. Returns
-  `true` **only** when `isTTY && !env.NO_COLOR && !env.CI`. Pure function of its injected inputs — it never reads
-  `process.stdout` or `process.env` itself, so tests exercise the truth table by passing values, never by mutating
-  the environment.
+- `colorEnabled({ isTTY, env }: { isTTY: boolean; env: NodeJS.ProcessEnv }): boolean` — the single gate. It returns
+  `true` **only** when **all** hold:
+  - `isTTY === true`, **and**
+  - `NO_COLOR` is **not present** as a key in `env` (presence disables color regardless of its value — even empty
+    string; this is the [NO_COLOR](https://no-color.org) convention, a presence check, **not** a truthiness check),
+    **and**
+  - `CI` is **not present** as a key in `env` (presence disables color regardless of value).
+  - Presence is tested with `"NO_COLOR" in env` / `"CI" in env`, never `env.NO_COLOR`/`Boolean(env.CI)`.
+- There is **no `--color` / `--no-color` flag** in W8-A — no new CLI flags are permitted this milestone, so explicit
+  color flags are deferred. `NO_COLOR` (env) is the only opt-out.
+- `colorEnabled` is a pure function of its injected inputs — it never reads `process.stdout` or `process.env`
+  itself, so tests exercise the truth table by passing values, never by mutating the environment.
 - The color helpers accept an `enabled` decision (threaded from the caller's `colorEnabled(...)` result) and emit
   plain text when disabled, so a single upstream decision governs the whole render. The default test capture path
   (non-TTY) therefore always produces plain, escape-free output.
+
+**ASCII / portability fallback**
+
+- Non-TTY / CI output remains **plain text with zero ANSI escapes** (the color gate is off there). This is
+  text-first output; ANSI color is optional sugar layered only over an interactive TTY.
+- The allowed glyphs may appear in the plain (non-TTY) text where the terminal grammar already places them, but —
+  per the glyph policy above — they are **never the only source of meaning**; the adjacent text label always is.
+- If implementation discovers glyph portability issues on any target terminal, **fall back to ASCII labels**
+  (e.g. drop `◼` from the wordmark, render `PASS`/`FAIL` without `✓`/`✗`) rather than expanding scope or adding
+  new configuration. Portability is resolved by removing decoration, never by adding a flag or dependency.
 
 ### 3.2 Restyle `src/cli.ts` command surfaces
 
@@ -112,6 +138,11 @@ pass/fail) **without changing their text content** — the semantic anchors (`PA
 This is a call-site restyle. Flag parsing, exit codes, the `die()` control flow, and every computed value are
 untouched (the `[blackbox error]` prefix text in `die()` may be restyled but its behavior — stderr + `exit(1)` — is
 not).
+
+**Stream-boundary guardrail.** W8-A **must not move** existing stdout content to stderr or existing stderr content
+to stdout. It restyles the existing human-readable surfaces **in place** on whichever stream already carries them
+(`console.log` → stdout, `console.error`/`die()` → stderr). Which stream each message uses, and the exit codes, are
+unchanged. Any future machine-readable / JSON output mode is **out of scope** for this milestone.
 
 ### 3.3 Layout-only tweaks to existing formatters
 
@@ -127,13 +158,15 @@ unchanged. Any edit that changes *what* is computed rather than *how* it is spac
 W6/W7 held `check` stdout byte-identical as a guard. W8-A **intentionally** breaks that once, because adopting the
 shared banner/label grammar necessarily reshapes `check`'s output like every other command's. The rules:
 
-1. The change is **deliberate and one-time**. `runSelfCheck` **logic** is untouched; only `runCheck`'s rendering in
-   `src/cli.ts` changes.
-2. Exit codes are unchanged (`0` PASS / `1` FAIL).
-3. After the re-baseline, `check` output is **deterministic and byte-identical run-to-run** (no timestamps,
+1. The change is **deliberate and one-time**. `runSelfCheck` **logic and return shape** are untouched; only
+   `runCheck`'s rendering in `src/cli.ts` changes.
+2. `check`'s **exit code is unchanged** (`0` PASS / `1` FAIL), and the `runSelfCheck` **return shape** is unchanged.
+3. **Before/after output capture is required during implementation** (§4.1) — the before capture is taken from the
+   unmodified tree prior to any edit, the after capture from the finished implementation.
+4. After the re-baseline, `check` output is **deterministic and byte-identical run-to-run** (no timestamps,
    randomness, or TTY-dependent content beyond the color gate, which is off in the non-TTY test/CI path).
-4. The plan captures **before** output now (a placeholder to be filled during implementation) and **after** output
-   at implementation time, both committed to the build log, so the diff is auditable and obviously intentional.
+5. Both captures are committed to `docs/08_build_log.md` under the W8-A entry so the one intentional stdout change is
+   auditable and obviously deliberate.
 
 ### 4.1 Before/after capture (fill during implementation)
 
@@ -178,26 +211,48 @@ Both captures also go into `docs/08_build_log.md` under the W8-A entry.
   `diffTraces()` computation, or `TraceDiff` / `OutcomeDiff` / `VerifyReport` shape change.
 - No provider / proof-script change; no fixture regeneration; no `scripts/generateFixtures.ts` change.
 - No `package.json` / `package-lock.json` / `.gitignore` change; **no new dependency** (ANSI is hand-rolled).
-- No new CLI command; no new CLI flag (`NO_COLOR` is the standard env; there is deliberately **no** `--no-color`
-  flag); no exit-code change.
-- No animations, spinners, or progress bars. No mascot art. No emoji. No box-drawing tables. No timeline or
-  branch-graph rendering (a branch graph is a real feature for a possible future milestone, **not** presentation
+- No new CLI command; no new CLI flag — deliberately **no** `--color` and **no** `--no-color` flag (`NO_COLOR` env
+  is the only opt-out; explicit color flags are deferred because no new CLI flags are permitted this milestone); no
+  exit-code change.
+- No stdout↔stderr stream movement; no machine-readable / JSON output mode (both out of scope — see the
+  stream-boundary guardrail in §3.2).
+- No animations, spinners, or progress bars. No mascot art. No emoji. No box-drawing tables/characters. No timeline
+  or branch-graph rendering (a branch graph is a real feature for a possible future milestone, **not** presentation
   polish). No web UI / dashboard / backend / observability surface.
-- Glyphs limited to `✓ ✗ → ▸`. A tiny wordmark glyph in the banner is the tasteful ceiling; anything animated or
-  illustrated is deferred.
+- Glyphs limited to the five allowed by the §3.1 glyph policy — `✓ ✗ → ▸` for verdict/flow/step (decorative,
+  text carries meaning) and `◼` **only** as the optional header wordmark. No additional glyphs without a later plan
+  patch; anything animated or illustrated is deferred.
+
+### 6.1 Command priority (all commands in scope; cut order if forced)
+
+Restyling **all** commands is accepted and preferred: one shared renderer is precisely what prevents inconsistent
+surfaces, and partial polish (a beautiful `fork` next to an untouched `check`) reads worse than none. But if
+implementation becomes too large to land cleanly in one slice:
+
+- **Highest priority (do first, never cut):** `fork`, `diff`, `check` — the demo's money path.
+- **Cut order if forced:** drop `list` / `inspect` first, then `record` / `replay`.
+- **Coherence gate:** no partial polish is pushed unless the resulting CLI still feels coherent as a whole — a
+  consistent grammar across whatever set of commands did ship, with no half-restyled command.
 
 ---
 
 ## 7. Test plan
 
 1. **`tests/termStyle.test.ts` (new, pure):**
-   - `colorEnabled` truth table across `isTTY × NO_COLOR × CI` (all 8 combinations); on **only** for
-     `isTTY && !NO_COLOR && !CI`.
+   - `colorEnabled` truth table across `isTTY × NO_COLOR-present × CI-present` (all 8 combinations); returns `true`
+     **only** when `isTTY === true` AND `NO_COLOR` is not present in `env` AND `CI` is not present in `env`.
+     Presence is tested by key presence (`"NO_COLOR" in env`), not truthiness — include a case where
+     `NO_COLOR: ""` (empty string) is present and still disables color.
    - `kv` alignment (labels pad to a consistent column; value column starts at a fixed offset).
    - forced-color rendering via **injected** config (pass `enabled: true`), asserting the expected SGR pairs; and
      forced-plain via `enabled: false`, asserting no escapes. **No `process.env` mutation** anywhere in the suite.
-2. **No-ANSI guard:** for every command's captured output in the non-TTY test harness, assert the output contains no
-   `[` escape sequence. This is the structural guarantee that color never leaks into piped/CI output.
+2. **No-ANSI guard (stdout AND stderr):** in the non-TTY test harness, assert **zero** `\x1b[` (regex literal
+   `/\x1b\[/`) escapes on both streams:
+   - for every existing command's **success path**, captured non-TTY **stdout** contains no `\x1b[` escape;
+   - for the existing **error paths**, captured non-TTY **stderr** contains no `\x1b[` escape — including
+     `die()` / missing-required-flag / unknown-flag cases;
+   - both streams stay escape-free under `NO_COLOR` present and under `CI` present, as well as under plain non-TTY.
+   This is the structural guarantee that color never leaks into piped/CI output on either stream.
 3. **Determinism:** run `check` twice in-suite and assert the two outputs are byte-identical to each other (the
    re-baselined text is stable run-to-run).
 4. **CLI assertion migration:** update `tests/cli.test.ts` exact-string assertions **by hand** to the reviewed new
@@ -235,12 +290,14 @@ Both captures also go into `docs/08_build_log.md` under the W8-A entry.
 2. **`check` stdout re-baseline precedent.** Audits have been trained to flag any `check` diff as drift.
    *Mitigation:* §4 declares the one-time re-baseline loudly, with before/after capture, so the closeout audit
    expects exactly one intentional text change and nothing more.
-3. **ANSI leakage.** Color escaping into piped/CI output would corrupt scripts and snapshots. *Mitigation:* the
-   structural no-ANSI guard test (§7.2) over every command's non-TTY output, plus the single `colorEnabled` gate.
+3. **ANSI leakage (both streams).** Color escaping into piped/CI **stdout or stderr** would corrupt scripts and
+   snapshots. *Mitigation:* the structural no-ANSI guard test (§7.2) over every command's non-TTY stdout **and**
+   error-path stderr, plus the single `colorEnabled` gate and the `NO_COLOR`/`CI` presence check.
 4. **Scope creep into visualization.** "Timeline / branch graph" is seductive and explicitly out (§6).
    *Mitigation:* the audit prompts check for any visualization, box-drawing, animation, or new dependency.
-5. **Glyph portability.** `✓ ✗ → ▸` render safely in modern terminals; exotic glyphs/emoji are rejected (§6).
-   *Mitigation:* the four-glyph allow-list is fixed in this plan.
+5. **Glyph portability.** `✓ ✗ → ▸ ◼` render safely in modern terminals; exotic glyphs/emoji are rejected (§6), and
+   glyphs are decorative (text carries meaning). *Mitigation:* the five-glyph allow-list is fixed in this plan, and
+   the documented fallback is to drop to ASCII labels rather than expand scope if a target terminal misbehaves.
 
 ---
 
@@ -255,40 +312,59 @@ zero behavior change.
 
 Build:
 1. src/render/termStyle.ts — pure, dependency-free: header(), section(),
-   kv(), glyphs (✓ ✗ → ▸ only), hand-rolled ANSI (dim/bold/green/red/
-   yellow/cyan) and colorEnabled({isTTY, env}) — on ONLY when
-   isTTY && !NO_COLOR && !CI. Pure functions of injected inputs; never read
+   kv(); allowed glyphs are exactly five — verdict/flow/step (checkmark,
+   cross, right-arrow, right-triangle) plus the filled-square wordmark, used
+   ONLY as the optional header wordmark. Glyphs are decorative; text labels
+   carry the meaning (PASS/FAIL/etc. must read correctly with every glyph
+   stripped). Hand-rolled ANSI (dim/bold/green/red/yellow/cyan) and
+   colorEnabled({isTTY, env}) — returns true ONLY when isTTY === true AND
+   "NO_COLOR" is NOT a key in env AND "CI" is NOT a key in env (PRESENCE
+   check via `"NO_COLOR" in env` / `"CI" in env`, NOT truthiness; NO_COLOR:""
+   still disables). Pure functions of injected inputs; never read
    process.env / process.stdout inside the module; no env mutation in tests.
+   Do NOT write any literal ESC byte in source or tests — represent it as
+   "\x1b" / /\x1b\[/.
 2. Restyle all cli.ts command surfaces through it; delete the duplicated
    label() closures. Emphasize PASS/FAIL, the first-divergence line, and the
    Outcome: verdict WITHOUT changing their text (keep PASS/FAIL/Outcome:/
    First divergence as plain substrings). Layout-only tweaks allowed in
    formatFirstDivergence, formatOutcomeDiff, verifyExplain, stepLabels —
-   computation and report shapes untouched.
+   computation and report shapes untouched. Do NOT move any existing stdout
+   content to stderr or vice versa; restyle in place. No new --color /
+   --no-color flag. Priority if the slice must shrink: keep fork/diff/check;
+   cut list/inspect first, then record/replay; never ship half-restyled.
 3. BEFORE editing, capture the exact current `npm run cli -- check` output
    (non-TTY) into the plan doc §4.1 BEFORE block and the build log. After
-   implementing, capture the new output into the AFTER block.
-4. tests/termStyle.test.ts (colorEnabled 8-row truth table, kv alignment,
-   forced-color via injected config, forced-plain no-escape); a no-ANSI guard
-   asserting zero [ in every command's non-TTY captured output; a
-   check-run-twice byte-identity guard; hand-migrate cli.test.ts assertions
-   to the grammar locked in the plan doc, keeping semantic anchors.
+   implementing, capture the new output into the AFTER block. check exit code
+   and runSelfCheck return shape stay unchanged.
+4. tests/termStyle.test.ts (colorEnabled 8-row truth table over
+   isTTY x NO_COLOR-present x CI-present incl. NO_COLOR:"" empty-present case,
+   kv alignment, forced-color via injected config, forced-plain no-escape);
+   a no-ANSI guard asserting zero /\x1b\[/ on non-TTY STDOUT for every
+   command success path AND on non-TTY STDERR for error paths (die() /
+   missing-flag / unknown-flag), under plain non-TTY, NO_COLOR-present, and
+   CI-present; a check-run-twice byte-identity guard; hand-migrate
+   cli.test.ts assertions to the grammar locked in the plan doc, keeping
+   semantic anchors.
 5. Regenerate every DEMO.md expected-output block from real runs; update
    README/AGENTS/CLAUDE/build-log status + test counts + before/after.
 
 Hard constraints: no schema / hash / replay-semantics / replayTrace return /
-forkRun / runSelfCheck-logic / diffTraces-computation / TraceDiff-OutcomeDiff-
-VerifyReport-shape / provider change; no fixture regeneration
-(tests/fixtures.test.ts passes UNMODIFIED); no scripts/generateFixtures.ts,
-package.json, package-lock.json, or .gitignore change; no dependency; no new
-command/flag; no exit-code change; no animation/spinner/mascot/emoji/
-box-drawing/timeline/branch-graph. Return values of replayTrace /
+forkRun / runSelfCheck-logic / runSelfCheck-return-shape / diffTraces-
+computation / TraceDiff-OutcomeDiff-VerifyReport-shape / provider change; no
+fixture regeneration (tests/fixtures.test.ts passes UNMODIFIED); no
+scripts/generateFixtures.ts, package.json, package-lock.json, or .gitignore
+change; no dependency; no new command/flag (incl. no --color/--no-color); no
+exit-code change; no stdout<->stderr stream movement; no machine-readable/JSON
+mode; no animation/spinner/mascot/emoji/box-drawing/timeline/branch-graph; no
+literal ESC bytes in source or tests. Return values of replayTrace /
 runSelfCheck / diffTraces / verifyTrace / diffOutcome byte-identical. check
 stdout changes ONCE, deliberately — capture before/after.
 
 Verify: npm test -- --run (all green, offline, zero live calls); npm run cli
--- check (exit 0, deterministic run-to-run); piped output has no ANSI escapes;
-npm run fixtures:generate in sync; git diff empty on all frozen paths.
+-- check (exit 0, deterministic run-to-run); piped stdout AND error-path
+stderr have no ANSI escapes; npm run fixtures:generate in sync; git diff empty
+on all frozen paths.
 
 Commit: feat: polish terminal experience
 Do not push. Do not tag. Do not start next milestone.
@@ -304,23 +380,32 @@ PLAN, before implementation. This is a presentation-only milestone.
 
 Check:
 1. Wiring soundness: does the design actually compose? colorEnabled is a pure
-   function of injected {isTTY, env}; color helpers take the enabled decision;
-   the non-TTY test path is guaranteed escape-free. Confirm no hidden env or
-   stdout read.
+   function of injected {isTTY, env} using PRESENCE checks
+   ("NO_COLOR" in env / "CI" in env, not truthiness); color helpers take the
+   enabled decision; the non-TTY path is guaranteed escape-free on BOTH
+   stdout and stderr. Confirm no hidden env or stdout read, and no literal
+   ESC bytes anywhere in the plan prose.
 2. The `check` stdout re-baseline is the ONLY declared deviation from
-   byte-identity, is one-time, keeps exit codes and runSelfCheck logic
-   unchanged, and requires before/after capture. Flag if any other invariant
-   is quietly relaxed.
+   byte-identity, is one-time, keeps exit codes AND the runSelfCheck return
+   shape unchanged, and requires before/after capture. Flag if any other
+   invariant is quietly relaxed.
 3. Guardrails complete and consistent: no schema/hash/replay-semantics/
-   replayTrace-return/forkRun/runSelfCheck-logic/diffTraces-computation/
-   TraceDiff-OutcomeDiff-VerifyReport-shape/provider/fixture/generator/
-   package/dependency/new-command/new-flag/exit-code change; no animation/
-   mascot/emoji/box-drawing/timeline/branch-graph.
+   replayTrace-return/forkRun/runSelfCheck-logic/runSelfCheck-return-shape/
+   diffTraces-computation/TraceDiff-OutcomeDiff-VerifyReport-shape/provider/
+   fixture/generator/package/dependency/new-command/new-flag (incl.
+   --color/--no-color)/exit-code/stdout<->stderr-movement/JSON-mode change;
+   no animation/mascot/emoji/box-drawing/timeline/branch-graph. Glyph policy
+   coherent: five allowed glyphs, wordmark square header-only, glyphs
+   decorative with text carrying meaning, ASCII fallback documented.
 4. Scope realism: is the single shared module + call-site restyle the
-   smallest useful version? Is assertion-churn mitigation (hand migration,
-   locked grammar, semantic anchors) adequate?
-5. Test plan sufficiency: does it structurally prevent ANSI leakage, prove
-   run-to-run determinism, and leave fixtures/report-shape suites unmodified?
+   smallest useful version? Is the all-commands scope justified with a
+   documented cut order (list/inspect first, then record/replay; keep
+   fork/diff/check) and a coherence gate? Is assertion-churn mitigation
+   (hand migration, locked grammar, semantic anchors) adequate?
+5. Test plan sufficiency: does it structurally prevent ANSI leakage on
+   stdout AND stderr (incl. error/die paths, under NO_COLOR-present and
+   CI-present), prove run-to-run determinism, and leave fixtures/report-shape
+   suites unmodified?
 
 Return: verdict (ready to implement / needs patch) + specific patch list.
 Do not implement.
@@ -341,19 +426,26 @@ Verify:
    .gitignore. tests/fixtures.test.ts unmodified.
 2. Behavior identical: exit codes, flag parsing, error paths; return values
    of replayTrace / runSelfCheck / diffTraces / verifyTrace / diffOutcome
-   byte-identical; only rendering changed. TraceDiff / OutcomeDiff /
-   VerifyReport shapes unchanged.
-3. Color safety: colorEnabled gate is isTTY && !NO_COLOR && !CI; a test
-   structurally asserts zero [ escapes in non-TTY output for every
-   command; no process.env mutation in tests.
+   byte-identical; runSelfCheck return shape unchanged; only rendering
+   changed. TraceDiff / OutcomeDiff / VerifyReport shapes unchanged. No
+   stdout<->stderr stream movement.
+3. Color safety: colorEnabled returns true ONLY for isTTY && "NO_COLOR" not
+   in env && "CI" not in env (PRESENCE, not truthiness; NO_COLOR:"" disables);
+   a test structurally asserts zero /\x1b\[/ escapes in non-TTY STDOUT for
+   every command AND non-TTY STDERR for error/die paths, under NO_COLOR-
+   present and CI-present; no process.env mutation in tests; no literal ESC
+   bytes in source or tests.
 4. Determinism: check output byte-identical run-to-run; no timestamps,
    randomness, spinner, or TTY-dependent content besides the gated color.
 5. The check-stdout re-baseline is the ONLY semantic-text change, is
    documented with before/after capture in the plan doc §4.1 and the build
-   log, and exit codes are unchanged. Flag ANY other stdout drift.
-6. Scope creep: no new dependency, command, or flag; no animation, mascot,
-   emoji, box-drawing, or timeline/branch-graph rendering; glyphs limited to
-   ✓ ✗ → ▸.
+   log, and exit codes + runSelfCheck return shape are unchanged. Flag ANY
+   other stdout drift.
+6. Scope creep: no new dependency, command, or flag (incl. --color/
+   --no-color); no animation, mascot, emoji, box-drawing, or timeline/
+   branch-graph rendering; glyphs limited to the five allowed (checkmark,
+   cross, right-arrow, right-triangle, filled-square wordmark header-only),
+   decorative with text carrying meaning.
 7. DEMO.md blocks match real runs character-for-character; README / AGENTS /
    CLAUDE test counts and status truthful.
 
