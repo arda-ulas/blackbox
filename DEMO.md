@@ -12,7 +12,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 489 tests; all should pass
+npm test -- --run     # 522 tests; all should pass
 ```
 
 ---
@@ -342,7 +342,78 @@ A leaked API key value is reported as `<api-key-value>` and never echoed. The PA
 
 ---
 
-### 8. Check (one-shot self-check of the whole loop)
+### 8. Assert (use a cassette as a CI regression test)
+
+```sh
+npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-status success --expect-tools search,calendar,booking
+```
+
+**What it does:** turns a committed cassette into a deterministic, fully offline PASS/FAIL regression check suitable
+for an npm script or a GitHub Actions step. It runs the same four `verify` invariants and then, for each expectation
+flag supplied, does an **exact-match** check against the cassette's replayed terminal outcome (`terminalOutcome`) and
+tool-call sequence (`toolCallSequence`). It exits `0` only when verification and every declared expectation pass, and
+`1` otherwise. No model, tool, or network call is made.
+
+**Files read:** the cassette named by `--trace` (read-only). Unlike `verify`, `--trace` is **required** — a CI check
+must be explicit about which cassette it pins.
+
+**Expected output shape (PASS):**
+
+```
+◼ blackbox · assert
+Trace:          fixtures/traces/success-tool-use.v2.json
+Result:         ✓ PASS
+
+invariants
+  schema_version       pass  version 2
+  hash_chain           pass  15 step(s), chain intact
+  provider_neutrality  pass  no forbidden markers
+  replayability        pass  status=success
+
+expectations
+  status               pass  success
+  tools                pass  search, calendar, booking
+```
+
+**Expectation flags** (all optional; exact match only — no fuzzy or semantic comparison):
+
+- `--expect-status <success|error|incomplete>`
+- `--expect-final-answer <string>`
+- `--expect-failure-reason <string>`
+- `--expect-tools <comma-separated>` — an empty string (`--expect-tools ""`) asserts a final-answer-only run with no
+  tool calls; otherwise the list is split on commas and each entry is trimmed and compared **in order**.
+
+With no expectation flags, `assert` runs the invariants only and prints `none declared` under `expectations`. An
+error cassette pins just as cleanly:
+
+```sh
+npm run cli -- assert --trace fixtures/traces/error-unknown-tool.v2.json --expect-status error --expect-failure-reason unknown_tool
+```
+
+**On failure**, the exit code is `1` and, below the tables, `assert` prints a labelled block naming the failed check,
+its expected and actual values, and a plain-language suggested action:
+
+```
+Failure
+  check:      status
+  expected:   error
+  actual:     success
+  action:     The cassette's terminal status changed. Re-record the run if this is a regression, or update --expect-status if the new behavior is intended.
+```
+
+**Key proof points:**
+
+- `assert` is `verify` plus declared behavioral expectations: the invariants protect against *code drift* (a hashing
+  or loader change breaking a static cassette), and the expectations protect against *cassette drift* (a re-recorded
+  cassette that behaves differently). If verification fails, the supplied expectation checks are reported `skip`
+  (never a silent pass).
+- Fully offline and composition-only — it calls the existing `verifyTrace`, `terminalOutcome`, and `toolCallSequence`
+  and introduces no new schema, hash, or provider behavior. Expectations come from CLI flags, never the cassette or a
+  sidecar file.
+
+---
+
+### 9. Check (one-shot self-check of the whole loop)
 
 ```sh
 npm run cli -- check
@@ -394,7 +465,7 @@ adds a `persisted (--out-dir …)` mode line plus `Parent:` / `Child:` paths, an
 
 ---
 
-### 9. Fixtures (committed regression corpus)
+### 10. Fixtures (committed regression corpus)
 
 ```sh
 npm run fixtures:generate
@@ -439,6 +510,7 @@ hashes in `tests/fixtures.test.ts` in the same commit (see `docs/20_week_five_a_
 | Tool-result mutation + chain continuation | Real |
 | First-divergence diff | Real |
 | Cassette verification (`verifyTrace` / neutrality audit) | Real — offline, composes existing checks |
+| Cassette assertion (`assertCassette` / `assert`) | Real — offline, composes verify + exact-match outcome/tool expectations |
 | Composed self-check (`runSelfCheck` / `check`) | Real — offline, composes record/verify/fork/diff |
 | Record / scripted model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
 | Fork/`check` continuation model client (`ReactiveDemoModelClient`) | Fake — deterministic; derives its answer from the mutated `tool_result` (no live call) |
@@ -470,6 +542,7 @@ npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 npm run cli -- verify --trace traces/example-trace.json
+npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-status success --expect-tools search,calendar,booking
 npm run cli -- check
 npm run fixtures:generate
 ```

@@ -27,6 +27,9 @@ record → replay → fork → mutate → continue → diff → verify → check
 - **verify** — run one ordered hygiene pass over a cassette (schema, hash chain, provider neutrality, offline replay).
 - **check** — run the whole loop end-to-end in one command and report a single PASS/FAIL.
 
+Plus one CI utility outside the loop: **assert** — pin a committed cassette as a regression test (the `verify`
+invariants + declared exact-match expectations on the replayed outcome) with a scriptable PASS/FAIL exit code.
+
 ## What it proves
 
 - **Offline replay is a structural guarantee, not a convention.** `replayTrace(trace)` takes *only* a `Trace` — no
@@ -42,21 +45,21 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 ## Status
 
-**Week Eight README hero polish (W8-B) — implemented / in closeout. W8-A (terminal experience polish) closed and
-tagged (`week-eight-terminal-polish`).** The local loop is complete, hardened, composed under one self-check, proven
-live via opt-in scripts, and protected by a committed regression corpus. W7-A made the offline fork/`check`
-continuation *derive* the child's answer from the mutated `tool_result`; W7-B added a behavioral `Outcome:` verdict
-to `diff`/`fork`; W8-A gave the whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners,
-aligned key/value rows, `✓`/`✗` verdict markers, restrained color in a TTY only); W8-B adds a hand-authored,
-text-accurate SVG README hero rendered from the real `check` output — all presentation/docs only, with every core
-behavior, exit code, and return value unchanged.
+**Week Nine cassette CI harness (W9-A) — implemented / in closeout. W8-B (README hero polish) closed and tagged
+(`week-eight-readme-hero`).** The local loop is complete, hardened, composed under one self-check, proven live via
+opt-in scripts, and protected by a committed regression corpus. W7-B added a behavioral `Outcome:` verdict to
+`diff`/`fork`; W8-A gave the whole CLI one shared, premium terminal grammar (`◼ blackbox · <command>` banners,
+aligned key/value rows, `✓`/`✗` verdict markers, restrained color in a TTY only); W8-B added a hand-authored,
+text-accurate SVG README hero; W9-A adds one new command, `assert`, that turns any committed cassette into a
+deterministic, offline PASS/FAIL CI regression test (`verify` invariants + declared exact-match expectations) — a
+composition of existing offline reads, with no schema, hash, or provider change.
 
-- **Current milestone:** W8-B (README hero polish); intended tag `week-eight-readme-hero`.
-- **Latest tag:** `week-eight-terminal-polish` (W8-A — terminal experience polish, presentation-only).
+- **Current milestone:** W9-A (cassette CI harness); intended tag `week-nine-cassette-assert`.
+- **Latest tag:** `week-eight-readme-hero` (W8-B — README hero polish, docs/assets-only).
 - **Latest technical-capability tag:** `week-seven-behavioral-outcome-diff` (W7-B — behavioral outcome diff).
 - **Latest release-freeze tag:** `week-six-release-freeze` (W6-C — demo surface release freeze + README/DEMO
   verification).
-- **Tests:** 489/489 passing, fully offline, zero live calls, no API key required.
+- **Tests:** 522/522 passing, fully offline, zero live calls, no API key required.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 
@@ -97,7 +100,7 @@ The whole offline loop verifies in four commands, no API key required:
 
 ```sh
 npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 489 tests, fully offline, zero live calls
+npm test -- --run           # 522 tests, fully offline, zero live calls
 npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
 npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
 ```
@@ -114,8 +117,34 @@ npm run cli -- replay
 npm run cli -- fork
 npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
 npm run cli -- verify --trace traces/example-trace.json
+npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-status success --expect-tools search,calendar,booking
 npm run cli -- check
 npm run fixtures:generate
+```
+
+## Use a cassette as a CI regression test
+
+`assert` turns any committed cassette into a deterministic, fully offline PASS/FAIL check. It runs the four
+`verify` invariants (schema, hash chain, provider neutrality, replayability) and then, for each expectation flag
+you supply, does an exact-match check against the cassette's replayed terminal outcome and tool-call sequence. It
+exits `0` only when verification and every declared expectation pass, and `1` otherwise — so it drops straight into
+an npm script or a GitHub Actions step. No model, tool, or network call is made.
+
+```sh
+npm run cli -- assert \
+  --trace fixtures/traces/success-tool-use.v2.json \
+  --expect-status success \
+  --expect-tools search,calendar,booking
+```
+
+Expectations are opt-in and exact (no fuzzy or semantic matching): `--expect-status <success|error|incomplete>`,
+`--expect-final-answer <string>`, `--expect-failure-reason <string>`, and `--expect-tools <comma-separated>` (an
+empty string asserts a final-answer-only run with no tool calls). With no expectation flags, `assert` runs the
+invariants only. In GitHub Actions:
+
+```yaml
+- run: npm ci
+- run: npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-status success --expect-tools search,calendar,booking
 ```
 
 See [DEMO.md](DEMO.md) for annotated expected output and an explanation of each step.

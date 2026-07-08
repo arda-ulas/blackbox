@@ -21,6 +21,11 @@ import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
 import { formatVerifyFailure } from "./trace/verifyExplain.ts";
 import { runSelfCheck } from "./workflow/selfCheck.ts";
 import {
+  assertCassetteFile,
+  type AssertExpectations,
+  type AssertCheck,
+} from "./workflow/assertCassette.ts";
+import {
   colorEnabled,
   header,
   section,
@@ -147,6 +152,7 @@ Commands:
   fork      Fork a trace with a prompt or tool-result mutation
   diff      Load two cassettes and print the first divergence
   verify    Verify a cassette's schema, hash chain, neutrality, and replayability
+  assert    Assert a cassette holds as a CI regression test (verify + declared expectations)
   check     Run the full offline loop (record→verify→fork→verify→diff) and report one verdict
   list      List all trace cassettes in a directory
   inspect   Print detailed info and step timeline for a cassette
@@ -511,6 +517,140 @@ async function runVerify(flags: Record<string, string | boolean>): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
+// assert — verify a cassette + check declared expectations (CI regression test)
+// ---------------------------------------------------------------------------
+
+const ASSERT_ALLOWED = [
+  "trace",
+  "expect-status",
+  "expect-final-answer",
+  "expect-failure-reason",
+  "expect-tools",
+];
+const ASSERT_VALUE_FLAGS = [
+  "trace",
+  "expect-status",
+  "expect-final-answer",
+  "expect-failure-reason",
+  "expect-tools",
+];
+
+const EXPECT_STATUS_VALUES = ["success", "error", "incomplete"];
+
+/** Render one expectation row in the same shape as verify's invariant rows. */
+function assertCheckLine(chk: AssertCheck): string {
+  const name   = chk.name.padEnd(20);
+  const status = chk.status === "fail" ? "FAIL" : chk.status;
+  return `  ${name} ${status.padEnd(5)} ${chk.detail}`;
+}
+
+/** One `  label:     value` row for the expectation-failure block. */
+function assertFailRow(label: string, value: string): string {
+  return `  ${(label + ":").padEnd(10)}  ${value}`;
+}
+
+/** Plain-language next action for a failed expectation, one line per check. */
+function assertActionFor(name: string): string {
+  switch (name) {
+    case "status":
+      return "The cassette's terminal status changed. Re-record the run if this is a regression, or update --expect-status if the new behavior is intended.";
+    case "final_answer":
+      return "The final answer text changed. Investigate the regression, or update --expect-final-answer if the new answer is intended.";
+    case "failure_reason":
+      return "The failure reason changed. Investigate why the run now fails differently, or update --expect-failure-reason if intended.";
+    case "tools":
+      return "The tool-call sequence changed. Investigate the behavioral regression, or update --expect-tools if the new path is intended.";
+    default:
+      return "The cassette's behavior no longer matches the declared expectation. Investigate the regression, or update the expectation if the change is intended.";
+  }
+}
+
+/** Render the labelled block for a failed expectation (check/expected/actual/action). */
+function formatAssertFailure(chk: AssertCheck): string[] {
+  const lines: string[] = ["Failure"];
+  lines.push(assertFailRow("check", chk.name));
+  lines.push(assertFailRow("expected", chk.expected ?? "(none)"));
+  lines.push(assertFailRow("actual", chk.actual ?? "(none)"));
+  lines.push(assertFailRow("action", assertActionFor(chk.name)));
+  return lines;
+}
+
+async function runAssert(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, ASSERT_ALLOWED);
+  checkValueFlags(flags, ASSERT_VALUE_FLAGS);
+
+  // Unlike `verify`, `assert` has no default trace: a CI regression test must be
+  // explicit about which cassette it pins, so a missing --trace is an error.
+  if (!flags["trace"] || flags["trace"] === true) die("Missing required flag: --trace");
+  const tracePath = flags["trace"] as string;
+
+  const expectations: AssertExpectations = {};
+
+  if (flags["expect-status"] !== undefined) {
+    const s = flags["expect-status"];
+    if (typeof s !== "string" || !EXPECT_STATUS_VALUES.includes(s)) {
+      die(`--expect-status must be success, error, or incomplete; got "${String(s)}"`);
+    }
+    expectations.expectStatus = s as AssertExpectations["expectStatus"];
+  }
+
+  if (typeof flags["expect-final-answer"] === "string") {
+    expectations.expectFinalAnswer = flags["expect-final-answer"];
+  }
+
+  if (typeof flags["expect-failure-reason"] === "string") {
+    expectations.expectFailureReason = flags["expect-failure-reason"];
+  }
+
+  if (flags["expect-tools"] !== undefined) {
+    // An empty string means "expect no tools" ([]); otherwise split on comma and
+    // trim whitespace around each entry.
+    const raw = typeof flags["expect-tools"] === "string" ? flags["expect-tools"] : "";
+    expectations.expectTools =
+      raw.length === 0 ? [] : raw.split(",").map((t) => t.trim());
+  }
+
+  // Fully offline: assertCassetteFile only loads the cassette and runs pure
+  // reads (verifyTrace / terminalOutcome / toolCallSequence). No model or tool.
+  const report = await assertCassetteFile(tracePath, expectations);
+
+  console.log(header("assert", colorOn));
+  console.log(kv("Trace:",  tracePath, colorOn));
+  console.log(kv("Result:", verdict(report.pass, colorOn), colorOn));
+  console.log();
+
+  console.log(section("invariants", colorOn));
+  for (const inv of report.verify.invariants) {
+    console.log(verifyLine(inv));
+  }
+  console.log();
+
+  console.log(section("expectations", colorOn));
+  if (report.checks.length === 0) {
+    console.log("  none declared");
+  } else {
+    for (const chk of report.checks) {
+      console.log(assertCheckLine(chk));
+    }
+  }
+
+  if (report.firstFailure?.kind === "verify") {
+    console.log();
+    for (const line of formatVerifyFailure(report.verify)) {
+      console.log(line);
+    }
+  } else if (report.firstFailure?.kind === "expectation") {
+    console.log();
+    for (const line of formatAssertFailure(report.firstFailure.check)) {
+      console.log(line);
+    }
+  }
+
+  // Exit non-zero on FAIL so `assert` is scriptable in CI, like verify/check.
+  if (!report.pass) process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // check — run the full offline loop and report one PASS/FAIL verdict
 // ---------------------------------------------------------------------------
 
@@ -697,13 +837,14 @@ try {
     case "fork":    await runFork(flags);    break;
     case "diff":    await runDiff(flags);    break;
     case "verify":  await runVerify(flags);  break;
+    case "assert":  await runAssert(flags);  break;
     case "check":   await runCheck(flags);   break;
     case "list":    await runList(flags);    break;
     case "inspect": await runInspect(flags); break;
     default:
       if (subcommand) {
         console.error(
-          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, check, list, inspect`,
+          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, assert, check, list, inspect`,
         );
         process.exit(1);
       }

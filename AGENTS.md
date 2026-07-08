@@ -71,19 +71,35 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W8-B README hero polish (W8-A terminal experience polish closed and tagged)
+## Current State: W9-A cassette CI harness (W8-B README hero polish closed and tagged)
 
-**W8-B (README hero polish) is the current milestone** per `docs/28_week_eight_b_plan.md`, implemented and in
-closeout: a docs/assets-only slice that adds a hand-authored, static SVG README hero
-(`assets/brand/blackbox-readme-hero.svg`) rendering the real `npm run cli -- check` output as **actual SVG text**
-(no raster, no AI-generated text, no external font/image/script/style, no base64) and embeds it at the top of
-`README.md`. The CLI-derived lines (`data-source="cli-check"`) are verified **byte-for-byte** against live `check`
-stdout; the two footer lines (`data-source="footer"`) are verified **separately** against a fixed pair. Palette is
-exactly four inks + background (`#0d1117` bg, base `#c9d1d9`, dim `#6e7681`, cyan `#56d4dd` only on `check`, green
-`#3fb950` only on `✓`/`PASS`; `blackbox` is base color at `font-weight="700"`). Only six docs/assets files change —
-**no** `src/`, `tests/`, `fixtures/`, `scripts/`, `package.json`, `package-lock.json`, `.gitignore`, or `DEMO.md`
-change; no CLI behavior/command/flag/dependency change; no traces committed. Baseline unchanged at **489/489**
-offline. The intended tag is `week-eight-readme-hero`.
+**W9-A (cassette CI harness) is the current milestone** per `docs/29_week_nine_a_plan.md`, implemented and in
+closeout: one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline
+PASS/FAIL CI regression test. `npm run cli -- assert --trace <path> [expectation flags]` runs the four existing
+`verifyTrace` invariants and then, for each supplied expectation flag, does an **exact-match** check against the
+replayed terminal outcome (`terminalOutcome`) and tool-call sequence (`toolCallSequence`). Flags: `--trace`
+(**required**, unlike `verify`), `--expect-status <success|error|incomplete>` (enum-validated), `--expect-final-answer`,
+`--expect-failure-reason`, `--expect-tools` (comma-split, trimmed, ordered; `""` ⇒ `[]`). Exit 0 only when
+verification and every supplied expectation pass; exit 1 on invariant failure, expectation failure,
+load/JSON/version failure, missing `--trace`, bad enum, unknown flag, or missing flag value. New **pure** module
+`src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile` + `AssertExpectations` / `AssertCheck` /
+`AssertReport`); `src/cli.ts` gains `runAssert` + one dispatch case (add-only). `verify ⊂ assert` — invariants gate
+expectations, so on invariant failure the supplied expectation checks become `skip` (never a silent pass); on load
+failure `assertCassetteFile` returns a structured FAIL report (no throw), delegating the verdict to the unchanged
+`verifyTraceFile`. Expectations come from CLI flags only (no cassette-embedded expectations, no sidecar file); exact
+string / ordered comparison only (no fuzzy or semantic matching, per W7-B). Rendering reuses the W8-A helpers only
+(`header` / `kv` / `verdict` / `section`, no new glyph or color). **No** schema / `hash.ts` / canonical-hash /
+`verifyTrace` / `verifyTraceFile` / `terminalOutcome` / `toolCallSequence` / `replayTrace` / `forkRun` /
+`runSelfCheck` / `diffTraces` / `diffOutcome` / `termStyle` / frozen-formatter / fixture / generator /
+`package.json` / `package-lock.json` / `.gitignore` / `assets/brand/` change; `docs/11_cli_spec.md` (historical W3-A
+spec) left untouched by design; no new dependency; every other command's output including `check` is byte-identical.
+The CLI is now **nine commands** (record, replay, fork, diff, verify, assert, check, list, inspect). Baseline
+**522/522** offline (489 + 33 new), zero live calls, no API key. The intended tag is `week-nine-cassette-assert`.
+
+W8-B (README hero polish) is **closed and tagged** (`week-eight-readme-hero`) per `docs/28_week_eight_b_plan.md`: a
+docs/assets-only slice adding a hand-authored, static SVG README hero (`assets/brand/blackbox-readme-hero.svg`) that
+renders the real `check` output as actual SVG text (CLI-derived lines verified byte-for-byte against live stdout;
+footer verified separately), embedded at the top of `README.md`.
 
 W8-A (terminal experience polish) is **closed and tagged** (`week-eight-terminal-polish`) per
 `docs/27_week_eight_a_plan.md`: a presentation-only slice across the whole CLI. A new pure, dependency-free module

@@ -92,6 +92,19 @@ describe("no ANSI on non-TTY stdout (success paths)", () => {
     expect(ANSI.test(r.stdout)).toBe(false);
   }, 15_000);
 
+  it("assert (PASS)", async () => {
+    const r = await runCli(["assert", "--trace", SUCCESS_PATH, "--expect-status", "success"]);
+    expect(r.exitCode).toBe(0);
+    expect(ANSI.test(r.stdout)).toBe(false);
+  }, 15_000);
+
+  it("assert (failing expectation → exit 1, stdout still escape-free)", async () => {
+    const r = await runCli(["assert", "--trace", SUCCESS_PATH, "--expect-status", "error"]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stdout).toContain("FAIL");
+    expect(ANSI.test(r.stdout)).toBe(false);
+  }, 15_000);
+
   it("check", async () => {
     const r = await runCli(["check"]);
     expect(r.exitCode).toBe(0);
@@ -156,6 +169,20 @@ describe("no ANSI on non-TTY stderr (error / die paths)", () => {
     expect(r.stderr).toContain("Refusing to overwrite the parent trace");
     expect(ANSI.test(r.stderr)).toBe(false);
   }, 15_000);
+
+  it("assert missing --trace (die)", async () => {
+    const r = await runCli(["assert", "--expect-status", "success"]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain("Missing required flag: --trace");
+    expect(ANSI.test(r.stderr)).toBe(false);
+  }, 15_000);
+
+  it("assert bad --expect-status enum (die)", async () => {
+    const r = await runCli(["assert", "--trace", SUCCESS_PATH, "--expect-status", "bogus"]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain("--expect-status must be");
+    expect(ANSI.test(r.stderr)).toBe(false);
+  }, 15_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -193,5 +220,11 @@ describe("no ANSI under NO_COLOR-present and CI-present", () => {
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toContain("Missing required flag");
     expect(ANSI.test(r.stderr)).toBe(false);
+  }, 15_000);
+
+  it("assert under CI present stays escape-free on stdout", async () => {
+    const r = await runCli(["assert", "--trace", SUCCESS_PATH, "--expect-status", "success"], { CI: "1" });
+    expect(r.exitCode).toBe(0);
+    expect(ANSI.test(r.stdout)).toBe(false);
   }, 15_000);
 });

@@ -8,8 +8,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W8-A (terminal experience polish) pushed and tagged (`week-eight-terminal-polish`). W8-B (README hero polish)
-implemented / in closeout.** The
+**W8-B (README hero polish) pushed and tagged (`week-eight-readme-hero`). W9-A (cassette CI harness) implemented /
+in closeout.** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -28,13 +28,19 @@ run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return
 `runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider /
 fixture / generator / `package.json` / `package-lock.json` / `.gitignore` change; no new command, flag, or exit code;
 no stdout↔stderr movement. The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`,
-`stepLabels`) are byte-identical. W8-B is a docs/assets-only follow-on: a hand-authored, static SVG README hero
-(`assets/brand/blackbox-readme-hero.svg`) that renders the real `check` output as actual SVG text (verified
-byte-for-byte against live stdout; footer verified separately), embedded at the top of `README.md`. No source,
-test, fixture, script, `package.json`, or CLI change.
+`stepLabels`) are byte-identical. W8-B was a docs/assets-only follow-on (a hand-authored, static SVG README hero at
+`assets/brand/blackbox-readme-hero.svg`, rendering the real `check` output as actual SVG text). W9-A adds one new
+CLI command, `assert`, a cassette CI harness: `npm run cli -- assert --trace <path> [expectation flags]` turns a
+committed cassette into a deterministic offline PASS/FAIL regression test by composing the existing `verifyTrace`
+invariants with exact-match expectations over the replayed `terminalOutcome` / `toolCallSequence`. New pure module
+`src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile`); `src/cli.ts` gains `runAssert` +
+dispatch (add-only). `verify ⊂ assert` (invariants gate expectations → `skip` on invariant failure); expectations
+come from CLI flags only (no cassette-embedded, no sidecar); exact match only. No schema / hash / `verifyTrace` /
+`terminalOutcome` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator /
+`package.json` change; every other command's output including `check` is byte-identical. CLI is now nine commands.
 
-- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 489/489 passing, fully offline, zero live calls.
+- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility)
+- **Tests:** 522/522 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -52,8 +58,9 @@ test, fixture, script, `package.json`, or CLI change.
   - `week-six-release-freeze` (W6-C)
   - `week-seven-reactive-fake-model` (W7-A)
   - `week-seven-behavioral-outcome-diff` (W7-B)
-  - `week-eight-terminal-polish` (W8-A, current tagged HEAD)
-- **In progress:** W8-B README hero polish (docs/assets-only); intended tag `week-eight-readme-hero`.
+  - `week-eight-terminal-polish` (W8-A)
+  - `week-eight-readme-hero` (W8-B, current tagged HEAD)
+- **In progress:** W9-A cassette CI harness (`assert` command); intended tag `week-nine-cassette-assert`.
 
 ## Hard Guardrails
 
@@ -72,7 +79,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W8-A (terminal experience polish) is closed and tagged (`week-eight-terminal-polish`); W8-B (README hero polish, docs/assets-only) is the current slice, its plan (`docs/28_week_eight_b_plan.md`) scoped and Codex-accepted and the slice implemented / in closeout. Any milestone beyond W8-B is planned and Codex-audited before implementation.
+- **Sequencing:** W8-B (README hero polish) is closed and tagged (`week-eight-readme-hero`); W9-A (cassette CI harness, the `assert` command) is the current slice, its plan (`docs/29_week_nine_a_plan.md`) scoped and Codex-accepted and the slice implemented / in closeout. Any milestone beyond W9-A is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -89,11 +96,11 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W8-B (README hero polish, docs/assets-only): the slice is implemented and green (489/489 offline, `check`
-output byte-identical run-to-run, hero SVG text verified byte-for-byte against live `check` stdout with footer
-verified separately, self-contained SVG, only the six allowlisted files changed, no traces committed, frozen paths
-untouched) → Codex audit → push → tag `week-eight-readme-hero`. No source/test/fixture/script/`package.json` change
-this slice. No new milestone or product-surface work until it is explicitly scoped and Codex-audited.
+Close out W9-A (cassette CI harness, the `assert` command): the slice is implemented and green (522/522 offline,
+`check` output byte-identical run-to-run, `assert` exit codes 0/1 confirmed against committed fixtures, frozen paths
+and every other command's output untouched, no fixture rewrite, no traces committed, no new dependency) → Codex
+audit → push → tag `week-nine-cassette-assert`. No new milestone or product-surface work until it is explicitly
+scoped and Codex-audited.
 
 ## Response Format
 
