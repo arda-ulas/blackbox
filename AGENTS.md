@@ -26,7 +26,7 @@ Do not build any of the following unless the current milestone explicitly plans 
 
 **Invariants that apply to every milestone:**
 
-- **Fake deterministic model/tools remain default.** `FakeDeterministicModelClient` and `defaultFixtureTools()` are the default in all tests and CLI commands unless a milestone explicitly changes that.
+- **Fake deterministic model/tools remain default.** Fake, offline, deterministic model clients and `defaultFixtureTools()` are the default in all tests and CLI commands unless a milestone explicitly changes that: `FakeDeterministicModelClient` (scripted) on record/scripted paths, and `ReactiveDemoModelClient` (reactive, transcript-reading) on the fork/`check` continuation path (W7-A). Both are fake/offline with zero live calls and require no API key.
 - **Replay must never call the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`; it cannot inject live behavior by construction. This must remain true.
 - **API keys must never be logged, recorded, or stored in traces.** No key, token, or credential may appear in `TraceStep.payload`, trace metadata, log output, or any file written to disk.
 - **Raw provider/SDK objects must never enter trace payloads.** Adapters catch SDK errors and normalize them to `ModelCallError` before re-throwing. Provider-native fields (`tool_use_id`, `usage`, `message.id`, etc.) must not appear in `ModelOutput` or `TraceStep.payload`.
@@ -71,15 +71,22 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W6-C release-freeze / docs verification (W6-B closed and tagged)
+## Current State: W7-A reactive deterministic fake model (W6-C release-freeze closed and tagged)
 
-**W6-C (release freeze + README/DEMO verification) is the current milestone** per `docs/24_week_six_c_plan.md`:
-documentation / repo-readiness verification only — verify every command shown in README/DEMO against `package.json`
-and `src/cli.ts`, reconcile the public docs to the true repo state (current test count, status/tag wording, build
-history, core-loop string), refresh the current-state pointers in this file and `CLAUDE.md`, and apply a two-phase
-release-freeze checklist. **Docs-only: no source, test, fixture, `package.json`, `.gitignore`, runtime, CLI, or
-provider changes.** Current baseline: **394/394** offline, zero live calls. The intended release-freeze tag is
-`week-six-release-freeze`.
+**W7-A (reactive deterministic fake model) is the current milestone** per `docs/25_week_seven_a_plan.md`, implemented
+and in closeout: a demo-credibility slice on the offline fork/`check` **continuation** step. A new pure,
+deterministic `ReactiveDemoModelClient` (`src/agent/reactiveDemoModel.ts`) reads the most recent `tool_result` from
+the reconstructed transcript and computes the child's final answer from it (embedding the mutated payload's message),
+so changing the mutation changes the answer — replacing the former hardcoded `DEMO_FORK_ANSWER` /
+`"Prompt-mode fork complete."` strings at the `cli fork` and `check` continuation sites. **No schema, canonical-hash,
+`replayTrace`, `forkRun` reconstruction, `diffTraces`, provider, fixture, `package.json`, `.gitignore`, or
+CLI-surface change; `check` stdout is byte-identical; `FakeDeterministicModelClient` is unchanged and remains the
+default for record/scripted paths and the fixtures generator.** Current baseline: **417/417** offline (394 + 23 new),
+zero live calls. The intended tag is `week-seven-reactive-fake-model`.
+
+**W6-C is complete and tagged (`week-six-release-freeze`).** Docs-only release freeze: README/DEMO commands verified
+against `package.json` / `src/cli.ts`, public docs reconciled to the true repo state; no source/test/fixture/config
+change. See the W6-C build-log entry.
 
 **W6-B is complete and tagged (`week-six-verify-replay-explanations`).** Verify/replay failure explanation:
 `src/trace/verifyExplain.ts` renders a labelled `verify` FAIL block (invariant / at / detail / plain-language

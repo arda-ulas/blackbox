@@ -8,14 +8,16 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**Post-W6-B. W6-C (release-freeze / docs verification) in progress.** The week-one CLI proof is long complete, the
-local loop has been hardened through Week Four, W5-A froze it against a committed regression corpus, W5-B made the
-public surface reviewer-ready, and W6-A/W6-B made divergence and verify-failure output legible. W6-C is
-documentation / repo-readiness verification only — no source, test, fixture, config, runtime, CLI, or provider
-changes.
+**Post-W6-C (release-frozen). W7-A (reactive deterministic fake model) implemented / in closeout.** The week-one
+CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a committed
+regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and verify-failure output
+legible, and W6-C release-froze the repo with truthful docs. W7-A closes the demo-credibility gap: the offline
+fork/`check` continuation now derives the child's answer from the mutated `tool_result` via a pure, deterministic
+`ReactiveDemoModelClient` (no schema/hash/replay/fork-reconstruction/provider/fixture/CLI-surface change; `check`
+stdout byte-identical).
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`
-- **Tests:** 394/394 passing, fully offline, zero live calls.
+- **Tests:** 417/417 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -29,8 +31,9 @@ changes.
   - `week-five-trace-fixture-corpus` (W5-A)
   - `week-five-public-demo-readiness` (W5-B)
   - `week-six-diff-inspect-ergonomics` (W6-A)
-  - `week-six-verify-replay-explanations` (W6-B, current tagged HEAD)
-- **In progress:** W6-C release freeze; intended tag `week-six-release-freeze`.
+  - `week-six-verify-replay-explanations` (W6-B)
+  - `week-six-release-freeze` (W6-C, current tagged HEAD)
+- **In progress:** W7-A reactive deterministic fake model; intended tag `week-seven-reactive-fake-model`.
 
 ## Hard Guardrails
 
@@ -40,7 +43,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 - **No Anthropic CLI wiring.** Live provider calls are opt-in, proof-script only — run manually by the human, never from the default CLI or tests.
 - **No live tests in `npm test`.** The default suite passes with zero real provider calls and no API key present.
 - **No new provider adapter unless explicitly scoped** in a planned milestone.
-- **Default CLI and `npm test` are fake/offline.** `FakeDeterministicModelClient` + `defaultFixtureTools()` are the default everywhere.
+- **Default CLI and `npm test` are fake/offline.** Fake/offline deterministic model clients + `defaultFixtureTools()` are the default everywhere: `FakeDeterministicModelClient` (scripted) for record/scripted paths and `ReactiveDemoModelClient` (reactive fork/`check` continuation) — both zero live calls, no key.
 - **Replay never calls the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`.
 - **`traces/` is git-ignored; no traces are committed.**
 - **API keys / raw provider objects never enter traces, logs, or disk** (see `AGENTS.md` invariants).
@@ -49,7 +52,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W6-C (release-freeze / docs verification) is the current milestone; its plan is scoped and Codex-accepted. Any milestone beyond W6-C is planned and Codex-audited before implementation.
+- **Sequencing:** W7-A (reactive deterministic fake model) is the current milestone; its plan is scoped and Codex-accepted and the slice is implemented / in closeout. Any milestone beyond W7-A is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -66,10 +69,10 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Complete W6-C release freeze (verify README/DEMO commands against `package.json`/`src/cli.ts`; reconcile
-README/DEMO/AGENTS/CLAUDE/build-log to the true repo state; run the §6-A local checklist) → Codex closeout audit →
-push → tag `week-six-release-freeze` (§6-B). No new milestone or product-surface work until it is explicitly scoped
-and Codex-audited.
+Close out W7-A (reactive deterministic fake model): the slice is implemented and green (417/417 offline, `check`
+byte-identical, fixtures in sync, frozen paths untouched) → Codex closeout audit → push → tag
+`week-seven-reactive-fake-model`. No new milestone or product-surface work until it is explicitly scoped and
+Codex-audited.
 
 ## Response Format
 

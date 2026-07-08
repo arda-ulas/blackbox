@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readdir, rm } from "node:fs/promises";
 import { runSelfCheck, type SelfCheckStageName } from "../src/workflow/selfCheck.ts";
-import { loadTrace, validateTrace } from "../src/replay/CassetteReplay.ts";
+import { loadTrace, validateTrace, replayTrace } from "../src/replay/CassetteReplay.ts";
 import { verifyTrace } from "../src/trace/verifyTrace.ts";
 import { diffTraces } from "../src/fork/diffTraces.ts";
 
@@ -54,6 +54,17 @@ describe("runSelfCheck — default in-memory", () => {
     const report = await runSelfCheck();
     expect(verifyTrace(report.parentTrace).pass).toBe(true);
     expect(verifyTrace(report.childTrace).pass).toBe(true);
+  });
+
+  it("child trace replays offline to an answer derived from the mutated tool_result (W7-A)", async () => {
+    // The printed check report never quotes the child answer, so this asserts the
+    // fork continuation's behavior directly: runSelfCheck's child replays (offline,
+    // Trace-only) to a result that embeds the demo mutation's message — proving the
+    // `check` continuation is computed from the mutated result, not scripted.
+    const report = await runSelfCheck();
+    const replay = replayTrace(report.childTrace);
+    expect(replay.status).toBe("success");
+    expect(replay.result).toContain("No hotels available for that date.");
   });
 
   it("diff stage reports first divergence over a non-empty hash-identical prefix", async () => {

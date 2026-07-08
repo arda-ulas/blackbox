@@ -2,10 +2,13 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { forkRun } from "../src/fork/forkRun.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../src/agent/modelClient.ts";
+import { ReactiveDemoModelClient } from "../src/agent/reactiveDemoModel.ts";
 import { defaultToolExecutor } from "../src/agent/fixtureTools.ts";
 import { runAgentLoop } from "../src/agent/agentLoop.ts";
-import { validateTrace } from "../src/replay/CassetteReplay.ts";
+import { validateTrace, replayTrace } from "../src/replay/CassetteReplay.ts";
 import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
+import { verifyTrace } from "../src/trace/verifyTrace.ts";
+import { auditTraceNeutrality } from "../src/trace/neutrality.ts";
 import type { Trace, JsonValue } from "../src/trace/TraceTypes.ts";
 
 // ---------------------------------------------------------------------------
@@ -786,5 +789,108 @@ describe("forkRun — W4-D3 structured reconstruction", () => {
     const output = formatFirstDivergence(diff);
     expect(output).toContain("First divergence");
     expect(output).toContain(String(MUTATION_INDEX));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W7-A: reactive continuation derives the child answer from the mutated
+// tool_result. Same fork geometry as the demo (mutation at step 3, forkIndex 4).
+// ---------------------------------------------------------------------------
+
+describe("forkRun — reactive continuation (W7-A)", () => {
+  const MUTATION_INDEX = 3; // the search tool_result step
+
+  const MUTATION_A: JsonValue = {
+    results: [],
+    available: false,
+    message: "No hotels available for that date.",
+  };
+  const MUTATION_B: JsonValue = {
+    results: [],
+    available: false,
+    message: "MARKER-B: fully booked in that city.",
+  };
+
+  async function forkReactive(childId: string, mutation: JsonValue) {
+    return forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId,
+      promptMutation: "(tool-result mutation — promptMutation unused)",
+      toolResultMutations: { [MUTATION_INDEX]: mutation },
+      model: new ReactiveDemoModelClient(),
+      toolExecutor: defaultToolExecutor(),
+    });
+  }
+
+  it("two different mutation payloads produce two different child answers", async () => {
+    const a = await forkReactive("child-reactive-a", MUTATION_A);
+    const b = await forkReactive("child-reactive-b", MUTATION_B);
+    expect(a.finalAnswer).not.toEqual(b.finalAnswer);
+  });
+
+  it("each child answer embeds its own payload message (derivation is visible)", async () => {
+    const a = await forkReactive("child-reactive-embed-a", MUTATION_A);
+    const b = await forkReactive("child-reactive-embed-b", MUTATION_B);
+    expect(a.finalAnswer).toContain("No hotels available for that date.");
+    expect(b.finalAnswer).toContain("MARKER-B: fully booked in that city.");
+  });
+
+  it("the same payload yields the same answer (deterministic)", async () => {
+    const a = await forkReactive("child-reactive-det-1", MUTATION_A);
+    const b = await forkReactive("child-reactive-det-2", MUTATION_A);
+    expect(a.finalAnswer).toEqual(b.finalAnswer);
+  });
+
+  it("child validates, verifies (incl. neutrality), and replays to the derived answer", async () => {
+    const { childTrace, finalAnswer } = await forkReactive("child-reactive-verify", MUTATION_A);
+
+    expect(() => validateTrace(childTrace)).not.toThrow();
+    expect(verifyTrace(childTrace).pass).toBe(true);
+    expect(auditTraceNeutrality(childTrace).ok).toBe(true);
+
+    const replay = replayTrace(childTrace);
+    expect(replay.status).toBe("success");
+    expect(replay.result).toBe(finalAnswer);
+    expect(replay.result).toContain("No hotels available for that date.");
+  });
+
+  it("child stays at 7 steps with a hash-identical prefix and first divergence at index 3", async () => {
+    const { childTrace } = await forkReactive("child-reactive-geometry", MUTATION_A);
+    expect(childTrace.steps.length).toBe(7);
+
+    for (let i = 0; i < MUTATION_INDEX; i++) {
+      expect(childTrace.steps[i].hash).toBe(parentTrace.steps[i].hash);
+    }
+
+    const diff = diffTraces(parentTrace, childTrace);
+    expect(diff.firstDivergenceIndex).toBe(MUTATION_INDEX);
+    expect(diff.sharedPrefixLength).toBe(MUTATION_INDEX);
+  });
+
+  it("availability payload triggers a different (rule-3) answer than the no-availability payload", async () => {
+    const none = await forkReactive("child-reactive-none", MUTATION_A);
+    const avail = await forkReactive("child-reactive-avail", {
+      results: [{ title: "Grand Hotel" }],
+      available: true,
+    });
+    expect(avail.finalAnswer).not.toEqual(none.finalAnswer);
+    expect(avail.finalAnswer).toContain("Grand Hotel");
+  });
+
+  it("prompt-mode fork (no tool-result mutations) yields the rule-4 prompt-derived answer", async () => {
+    const { finalAnswer } = await forkRun({
+      parentTrace,
+      forkIndex: FORK_INDEX,
+      childId: "child-reactive-prompt",
+      promptMutation: "Try a different city instead",
+      // No toolResultMutations → forkRun passes initialMessages: undefined, so the
+      // continuation sees no tool rounds and hits rule 4 (prompt-derived).
+      model: new ReactiveDemoModelClient(),
+      toolExecutor: defaultToolExecutor(),
+    });
+    expect(finalAnswer).toContain("Try a different city instead");
+    // Not the tool_result-derived rule-2 wording.
+    expect(finalAnswer).not.toContain("no options are available");
   });
 });

@@ -6,6 +6,7 @@ import { mkdir, readdir } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "./agent/modelClient.ts";
+import { ReactiveDemoModelClient } from "./agent/reactiveDemoModel.ts";
 import { defaultToolExecutor } from "./agent/fixtureTools.ts";
 import { runAgentLoop } from "./agent/agentLoop.ts";
 import {
@@ -269,8 +270,6 @@ const DEMO_SEARCH_MUTATION: JsonValue = {
   available: false,
   message:   "No hotels available for that date.",
 };
-const DEMO_FORK_ANSWER =
-  "No hotels available for Alice this weekend. The area is fully booked — consider a different date.";
 
 async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   checkUnknownFlags(flags, FORK_ALLOWED);
@@ -327,9 +326,10 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
       childId:             `${parentTrace.id}-fork`,
       promptMutation:      "(tool-result mutation — promptMutation unused)",
       toolResultMutations: { [mutationStep]: payload },
-      model: new FakeDeterministicModelClient([
-        { type: "final_answer", text: DEMO_FORK_ANSWER },
-      ]),
+      // Reactive fake: derives the child's answer from the mutated tool_result
+      // in the reconstructed transcript, so changing --payload-json changes the
+      // answer. Fake/offline — no live call by construction.
+      model: new ReactiveDemoModelClient(),
       toolExecutor: defaultToolExecutor(),
     });
     childTrace   = result.childTrace;
@@ -344,9 +344,10 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
       forkIndex,
       childId:        `${parentTrace.id}-fork`,
       promptMutation: prompt,
-      model: new FakeDeterministicModelClient([
-        { type: "final_answer", text: "Prompt-mode fork complete." },
-      ]),
+      // Reactive fake: a prompt-mode fork carries no reconstructed tool rounds
+      // (forkRun only rebuilds them under tool-result mutations), so the model
+      // hits its rule-4 fallback and derives the answer from the mutated prompt.
+      model: new ReactiveDemoModelClient(),
       toolExecutor: defaultToolExecutor(),
     });
     childTrace   = result.childTrace;

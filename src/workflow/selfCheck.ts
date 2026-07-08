@@ -23,6 +23,7 @@ import { join } from "node:path";
 import type { JsonValue, Trace } from "../trace/TraceTypes.ts";
 import { TraceRecorder } from "../trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "../agent/modelClient.ts";
+import { ReactiveDemoModelClient } from "../agent/reactiveDemoModel.ts";
 import { defaultToolExecutor } from "../agent/fixtureTools.ts";
 import { runAgentLoop } from "../agent/agentLoop.ts";
 import { saveTrace, validateTrace } from "../replay/CassetteReplay.ts";
@@ -43,8 +44,6 @@ const DEMO_SEARCH_MUTATION: JsonValue = {
   available: false,
   message: "No hotels available for that date.",
 };
-const DEMO_FORK_ANSWER =
-  "No hotels available for Alice this weekend. The area is fully booked — consider a different date.";
 
 const PARENT_FILE = "check-parent.json";
 const CHILD_FILE = "check-child.json";
@@ -144,9 +143,10 @@ export async function runSelfCheck(
     childId: `${parentTrace.id}-fork`,
     promptMutation: "(tool-result mutation — promptMutation unused)",
     toolResultMutations: { [DEMO_MUTATION_STEP]: DEMO_SEARCH_MUTATION },
-    model: new FakeDeterministicModelClient([
-      { type: "final_answer", text: DEMO_FORK_ANSWER },
-    ]),
+    // Reactive fake: derives the child's answer from the mutated tool_result, so
+    // the `check` fork stage exercises derived behavior, not a scripted string.
+    // The printed report never quotes the answer, so `check` stdout is unchanged.
+    model: new ReactiveDemoModelClient(),
     toolExecutor: defaultToolExecutor(),
   });
   const childTrace = forkResult.childTrace;

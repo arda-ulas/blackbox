@@ -1,7 +1,12 @@
 # W7-A Plan — Reactive Deterministic Fake Model
 
-**Status:** PLANNED (awaiting Codex audit before implementation). This document is the scoped, plan-only
-deliverable. No source, test, fixture, config, runtime, CLI, or provider change is made by writing it.
+**Status:** IMPLEMENTED / in closeout (awaiting Codex closeout audit before push/tag). The reactive
+deterministic continuation model (`src/agent/reactiveDemoModel.ts`) is added and wired into the `cli fork` and
+`check` continuation sites; the canned `DEMO_FORK_ANSWER` / `"Prompt-mode fork complete."` strings are removed from
+the demo surface. Tests: **417/417** offline (394 baseline + 23 new), zero live calls. Fixture corpus, frozen
+hashes, schema, canonical hashing, `replayTrace`, `forkRun`, `diffTraces`, provider code, `package.json` /
+`package-lock.json`, and the CLI surface are unchanged; `check` stdout is byte-identical. The plan body below is
+unchanged from the accepted version.
 **Predecessor:** W6-C complete, pushed, tagged `week-six-release-freeze` (HEAD `e0f9977`). The full core loop is
 implemented, hardened, composed under one self-check, proven live (opt-in), frozen against a committed regression
 corpus, and release-frozen with truthful docs: `record → replay → fork → mutate → continue → diff → verify → check`.

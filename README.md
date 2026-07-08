@@ -73,7 +73,7 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 
 | Area | Status |
 |---|---|
-| Default loop (CLI + `npm test`) | **Fake / offline** — `FakeDeterministicModelClient` + fixture tools; zero live calls; replay is structurally offline |
+| Default loop (CLI + `npm test`) | **Fake / offline** — deterministic model clients (`FakeDeterministicModelClient` scripted + `ReactiveDemoModelClient` reactive fork/`check` continuation) + fixture tools; zero live calls; replay is structurally offline |
 | Live provider proof | **Opt-in proof scripts only** — three human-run, key-gated scripts (`example:real-proof`, `example:real-tooluse-proof`, `example:real-fork-proof`); never in `npm test`, never CLI-wired; record real runs, replay offline. The full live `record → replay → fork → mutate → continue → diff` loop is proven (W4-E) |
 | Regression corpus | **Committed** fake/offline v2 cassettes under `fixtures/traces/` with frozen hashes (W5-A) guarding cassette compatibility |
 | UI / backend / dashboard / observability | **None, by design** — a discipline, not a TODO |

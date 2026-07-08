@@ -172,6 +172,35 @@ describe("cli fork", () => {
     const trace = await loadTrace(FORK_OUT_PATH);
     expect(trace.parentId).toBe("example-run-001");
   });
+
+  it("Result line is the derived answer embedding the mutation message (W7-A)", () => {
+    // The reactive continuation computes the answer from the mutated tool_result
+    // — the default payload's message is embedded verbatim in the Result line.
+    expect(forkResult.stdout).toMatch(
+      /Result:\s+Based on the search result, no options are available: "No hotels available for that date\."/,
+    );
+  });
+
+  it("a custom --payload-json marker appears in the child answer and differs from the default", async () => {
+    // Kept OUTSIDE TEMP_DIR so this child cassette is not counted by the `list`
+    // integrity tests.
+    const markerOut = join(tmpdir(), `blackbox-fork-marker-${Date.now()}.json`);
+    try {
+      const custom = await runCli([
+        "fork",
+        "--trace",        SUCCESS_PATH,
+        "--out",          markerOut,
+        "--payload-json", JSON.stringify({ results: [], available: false, message: "MARKER-ZED-77 no rooms" }),
+      ]);
+      expect(custom.exitCode).toBe(0);
+      // Derived: the child answer embeds the custom marker...
+      expect(custom.stdout).toMatch(/Result:\s+.*MARKER-ZED-77 no rooms/);
+      // ...and differs from the default fork answer (mutation → different answer).
+      expect(custom.stdout).not.toContain("No hotels available for that date.");
+    } finally {
+      await rm(markerOut, { force: true });
+    }
+  }, 30_000);
 });
 
 // ---------------------------------------------------------------------------

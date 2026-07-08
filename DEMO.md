@@ -213,7 +213,7 @@ Prefix len:     4 step(s)
 Path:           traces/example-trace-fork.json
 Trace ID:       example-run-001-fork
 Steps:          7
-Result:         No hotels available for Alice this weekend. The area is fully booked — consider a different date.
+Result:         Based on the search result, no options are available: "No hotels available for that date.". I could not complete the booking.
 Validation:     passed
 
 --- trace diff ---
@@ -235,6 +235,7 @@ First divergence at index 3
 - **Verbatim prefix:** steps 0–2 are copied byte-for-byte from the parent. Their hashes are SHA-256 identical to the corresponding parent steps. The mutation re-chains starting at step 3, so the child hash chain is valid and self-consistent.
 - **Tool-result mutation:** the injected payload (`results: [], available: false`) replaces only the `result` field of the `tool_result` step. The `toolName` and the `toolCallId` (`call-0`) are preserved, so call ↔ result correlation survives the mutation. The agent's subsequent reasoning (steps 4 onward) flows from the new result.
 - **Child continues cleanly:** `Validation: passed` confirms the child's full hash chain is intact from prefix through the newly generated steps.
+- **The answer is derived, not scripted:** the continuation runs a reactive fake model (`ReactiveDemoModelClient`) that reads the most recent `tool_result` from the reconstructed transcript and computes its answer from it — here embedding the mutated payload's `message` (`"No hotels available for that date."`) verbatim. Change the mutation (a different `--payload-json message`, or an availability payload), and the child's `Result:` line changes with it. This is still fake/offline and fully deterministic — zero live calls — but the reaction is *computed from the mutated cassette state*, not a hardcoded string.
 - **Diff is immediate:** the fork command runs `diffTraces` and prints the first divergence inline — no separate diff command needed.
 
 ---
@@ -372,9 +373,10 @@ adds a `persisted (--out-dir …)` mode line plus `Parent:` / `Child:` paths, an
 
 **Key proof points:**
 
-- `check` is fully offline — it only ever instantiates `FakeDeterministicModelClient` and `defaultToolExecutor()`,
-  so it cannot make a live call by construction. It composes the existing checks; it does not reimplement
-  hashing, replay, fork, diff, or verify.
+- `check` is fully offline — it only ever instantiates the two fake, deterministic model clients
+  (`FakeDeterministicModelClient` for the scripted record stage, `ReactiveDemoModelClient` for the fork
+  continuation) plus `defaultToolExecutor()`, so it cannot make a live call by construction. It composes the
+  existing checks; it does not reimplement hashing, replay, fork, diff, or verify.
 - On any stage failure the exit code is 1 and the report names the first failing stage. This makes `check` a
   scriptable smoke test of the whole active-debugging loop, consistent with `verify`'s exit-code contract.
 
@@ -426,14 +428,15 @@ hashes in `tests/fixtures.test.ts` in the same commit (see `docs/20_week_five_a_
 | First-divergence diff | Real |
 | Cassette verification (`verifyTrace` / neutrality audit) | Real — offline, composes existing checks |
 | Composed self-check (`runSelfCheck` / `check`) | Real — offline, composes record/verify/fork/diff |
-| Model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
+| Record / scripted model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
+| Fork/`check` continuation model client (`ReactiveDemoModelClient`) | Fake — deterministic; derives its answer from the mutated `tool_result` (no live call) |
 | Fixture tools (search, calendar, booking) | Fake — in-memory, no network |
 
 ---
 
 ## Current Limitations
 
-- **Fake model and tools only (default CLI).** The default CLI demo shown above is fully deterministic: `FakeDeterministicModelClient` plays back scripted responses and fixture tools run in-memory. No real LLM API is called by any CLI command or by `npm test`. Three optional, opt-in Anthropic proof scripts exist (each requires `ANTHROPIC_API_KEY`, is **not** CLI adapter wiring, and is **not** part of the default test suite): `npm run example:real-proof` (final-text-only record → offline replay), `npm run example:real-tooluse-proof` (W4-E E1 — real tool-use record; the API accepts Blackbox's synthetic `call-0` as `tool_use.id` / `tool_result.tool_use_id`), and `npm run example:real-fork-proof` (W4-E E2/E3 — a fresh adapter continues from a *mutated* v2 fork point using only cassette data, proving the full live `record → replay → fork → mutate → continue → diff` loop). All record real runs but replay entirely offline.
+- **Fake model and tools only (default CLI).** The default CLI demo shown above is fully deterministic and uses two fake, offline model clients: `FakeDeterministicModelClient` plays back scripted responses on the record/scripted paths, and `ReactiveDemoModelClient` computes the fork/`check` continuation answer from the mutated `tool_result` (deterministic, transcript-reading, no script). Fixture tools run in-memory. No real LLM API is called by any CLI command or by `npm test`. Three optional, opt-in Anthropic proof scripts exist (each requires `ANTHROPIC_API_KEY`, is **not** CLI adapter wiring, and is **not** part of the default test suite): `npm run example:real-proof` (final-text-only record → offline replay), `npm run example:real-tooluse-proof` (W4-E E1 — real tool-use record; the API accepts Blackbox's synthetic `call-0` as `tool_use.id` / `tool_result.tool_use_id`), and `npm run example:real-fork-proof` (W4-E E2/E3 — a fresh adapter continues from a *mutated* v2 fork point using only cassette data, proving the full live `record → replay → fork → mutate → continue → diff` loop). All record real runs but replay entirely offline.
 - **Local CLI only.** Everything runs on the local filesystem. No hosted backend, no remote cassette storage, no sharing links.
 - **No UI.** All interaction is terminal output. There is no web dashboard, branch graph, or timeline view.
 - **Single-agent only.** The loop, recorder, and fork logic assume one agent running one tool at a time. Multi-agent orchestration is out of scope.
