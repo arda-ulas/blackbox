@@ -71,15 +71,35 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W9-B public-readiness refresh complete and tagged (W9-A cassette CI harness closed and tagged)
+## Current State: W10-A foreign transcript adapter proof (W9-A / W9-B closed and tagged)
+
+**W10-A (foreign transcript adapter proof) is implemented / in closeout** per `docs/31_week_ten_a_plan.md`; intended
+tag `week-ten-foreign-transcript-adapter`. It is an additive adapter-boundary proof: a new pure, dependency-free
+module `src/ingest/foreignTranscript.ts` (`adaptForeignTranscript(input, { traceId })` / `ForeignTranscriptError`)
+converts a synthetic, chat-style external transcript into a normal Blackbox v2 `Trace` by **composing** the untouched
+`TraceRecorder` + `toolCallIdForIndex` — synchronous, deterministic, no filesystem/network/clock (`Date.now`)/
+environment/model/tool access, with `createdAt` and every step timestamp sourced only from the transcript. It emits
+the exact `agentLoop` grammar (11 steps for the two-tool proof), remaps foreign tool-call ids to deterministic
+`call-N`, allowlist-maps tool declarations (`function.name`→name / `function.description`→description /
+`function.parameters`→inputSchema), builds every payload field-by-field (foreign objects deep-validated/cloned, never
+spread), and rejects malformed input deterministically. Two committed `fixtures/external/` files (a synthetic source
+transcript carrying provider-noise sentinels + a **read-only** golden converted cassette) and
+`tests/foreignTranscript.test.ts` prove that no foreign id / `usage` / `finish_reason` / model name crosses into the
+trace, and that the existing `verify` / `replay` / `assert` surfaces consume the converted cassette **unchanged**.
+This is an adapter-boundary proof, **not** a framework/SDK/LangChain/MCP/OpenAI integration and **not** live ingestion.
+No schema / `hash.ts` / canonical-hash / `validateTrace` / `replayTrace` / `verifyTrace` / `assertCassette` /
+`terminalOutcome` / `toolCallSequence` / `forkRun` / `diffTraces` / `termStyle` / `cli.ts` / generator /
+`fixtures/traces/` / `package.json` / `package-lock.json` / `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` /
+`assets/brand/` change; no new command, flag, or dependency; every other command's output including `check` is
+byte-identical. Baseline **559/559** offline (522 + 37 new), zero live calls, no API key. Next: Codex closeout audit
+→ commit → push → tag.
 
 **W9-B (documentation-only public-readiness refresh) is complete and tagged (`week-nine-public-readiness`)** per
 `docs/30_week_nine_b_plan.md`, a docs-only slice on top of the tagged W9-A: it rewrote the README Status in durable
 public language, surfaced the `assert` capability in "What Blackbox is," appended the W8-B/W9-A build-history entries,
 and refreshed the `CLAUDE.md`/`AGENTS.md` current-state pointers. Files touched: `README.md`, `CLAUDE.md`, `AGENTS.md`,
 `docs/30_week_nine_b_plan.md`, `docs/08_build_log.md`. No source / test / fixture / `package.json` / `package-lock.json`
-/ `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change. No milestone
-is in progress; the next milestone is planned and Codex-audited before implementation.
+/ `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change.
 
 **W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`)** per `docs/29_week_nine_a_plan.md`:
 one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline

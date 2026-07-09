@@ -1,0 +1,116 @@
+{
+  "schema": "synthetic-chat-transcript/v1",
+  "conversation_id": "conv_9f3c2a17b8e4",
+  "model": "synthetic-chat-model-1",
+  "created": 1710500000000,
+  "system_fingerprint": "fp_synthetic_0007",
+  "usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 64,
+    "total_tokens": 192
+  },
+  "_provider_meta": {
+    "region": "local-sim",
+    "trace_vendor_id": "vendor-run-abc123"
+  },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Look up the current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": { "type": "string" }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "send_email",
+        "description": "Send an email to a recipient.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": { "type": "string" },
+            "subject": { "type": "string" },
+            "body": { "type": "string" }
+          },
+          "required": ["to", "subject", "body"]
+        }
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_0001",
+      "role": "user",
+      "timestamp": 1710500000000,
+      "content": "What's the weather in Paris right now, and email a short summary to alex@example.com."
+    },
+    {
+      "id": "msg_0002",
+      "role": "assistant",
+      "timestamp": 1710500000500,
+      "model": "synthetic-chat-model-1",
+      "finish_reason": "tool_calls",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_a1B2c3",
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Paris\"}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "msg_0003",
+      "role": "tool",
+      "timestamp": 1710500001000,
+      "tool_call_id": "call_a1B2c3",
+      "name": "get_weather",
+      "content": "{\"city\": \"Paris\", \"temperature_c\": 17, \"condition\": \"Partly cloudy\"}"
+    },
+    {
+      "id": "msg_0004",
+      "role": "assistant",
+      "timestamp": 1710500001500,
+      "model": "synthetic-chat-model-1",
+      "finish_reason": "tool_calls",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_d4E5f6",
+          "type": "function",
+          "function": {
+            "name": "send_email",
+            "arguments": "{\"to\": \"alex@example.com\", \"subject\": \"Paris weather\", \"body\": \"It is 17C and partly cloudy in Paris.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "msg_0005",
+      "role": "tool",
+      "timestamp": 1710500002000,
+      "tool_call_id": "call_d4E5f6",
+      "name": "send_email",
+      "content": "{\"status\": \"queued\", \"to\": \"alex@example.com\", \"delivery_id\": \"local-sim-email-7\"}"
+    },
+    {
+      "id": "msg_0006",
+      "role": "assistant",
+      "timestamp": 1710500002500,
+      "model": "synthetic-chat-model-1",
+      "finish_reason": "stop",
+      "content": "The weather in Paris is 17C and partly cloudy. I've emailed a short summary to alex@example.com."
+    }
+  ]
+}

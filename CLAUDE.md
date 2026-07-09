@@ -9,7 +9,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 ## Current State
 
 **W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`). W9-B (documentation-only
-public-readiness refresh) is complete and tagged (`week-nine-public-readiness`).** The
+public-readiness refresh) is complete and tagged (`week-nine-public-readiness`). W10-A (foreign transcript adapter
+proof) is implemented / in closeout; intended tag `week-ten-foreign-transcript-adapter`.** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -43,8 +44,22 @@ durable public language, surfaced the `assert` capability in "What Blackbox is,"
 entries, and refreshed these current-state pointers. No source / test / fixture / `package.json` / `package-lock.json`
 / `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change.
 
-- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility)
-- **Tests:** 522/522 passing, fully offline, zero live calls.
+W10-A is an additive adapter-boundary proof (`docs/31_week_ten_a_plan.md`): a new pure, dependency-free module
+`src/ingest/foreignTranscript.ts` (`adaptForeignTranscript` / `ForeignTranscriptError`) converts a synthetic,
+chat-style external transcript into a normal Blackbox v2 `Trace` by composing the untouched `TraceRecorder` +
+`toolCallIdForIndex` (no clock/I/O/network/model/tool; timestamps sourced from the transcript). It emits the exact
+`agentLoop` grammar (11 steps for the two-tool proof), remaps foreign tool-call ids to deterministic `call-N`, strips
+all provider noise (foreign ids, `usage`, `finish_reason`, model name — none cross into the trace), and rejects
+malformed input deterministically. Two committed `fixtures/external/` files (a synthetic source transcript with noise
+sentinels + a read-only golden converted cassette) plus `tests/foreignTranscript.test.ts` prove it; the existing
+`verify` / `replay` / `assert` surfaces consume the converted cassette **unchanged**. This is an adapter-boundary
+proof, **not** a framework/SDK/LangChain/MCP/OpenAI integration and not live ingestion. No schema / hash / `verifyTrace`
+/ `replayTrace` / `assertCassette` / `terminalOutcome` / `toolCallSequence` / `forkRun` / `diffTraces` / `cli.ts` /
+generator / `fixtures/traces/` / `package.json` change; no new command, flag, or dependency; every other command's
+output including `check` is byte-identical. Baseline 559/559 offline (522 + 37 new), zero live calls.
+
+- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
+- **Tests:** 559/559 passing, fully offline, zero live calls.
 - **Closed tags:**
   - `week-one-cli-proof`
   - `week-two-core-hardening`
@@ -66,7 +81,8 @@ entries, and refreshed these current-state pointers. No source / test / fixture 
   - `week-eight-readme-hero` (W8-B)
   - `week-nine-cassette-assert` (W9-A)
   - `week-nine-public-readiness` (W9-B public-readiness release tag)
-- **Latest release tag:** `week-nine-public-readiness` (W9-B documentation-only public-readiness refresh). No milestone in progress.
+- **Latest release tag:** `week-nine-public-readiness` (W9-B documentation-only public-readiness refresh).
+- **In progress:** W10-A (foreign transcript adapter proof); intended tag `week-ten-foreign-transcript-adapter`.
 
 ## Hard Guardrails
 
@@ -85,7 +101,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W9-A (cassette CI harness, the `assert` command) is closed and tagged (`week-nine-cassette-assert`); W9-B (documentation-only public-readiness refresh, `docs/30_week_nine_b_plan.md`) is closed and tagged (`week-nine-public-readiness`). No milestone is in progress; the next milestone is planned and Codex-audited before implementation.
+- **Sequencing:** W9-A (cassette CI harness, the `assert` command) is closed and tagged (`week-nine-cassette-assert`); W9-B (documentation-only public-readiness refresh, `docs/30_week_nine_b_plan.md`) is closed and tagged (`week-nine-public-readiness`); W10-A (foreign transcript adapter proof, `docs/31_week_ten_a_plan.md`) is implemented / in closeout. Any milestone beyond W10-A is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -102,10 +118,11 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Pause and plan the next milestone. W9-A (`week-nine-cassette-assert`) and W9-B (`week-nine-public-readiness`) are both
-complete and tagged; the tree is green (522/522 offline, `check` output byte-identical run-to-run) and there is no
-milestone in progress. Do not begin any W10 or product-surface implementation until it is explicitly scoped in a plan
-and Codex-audited.
+Close out W10-A (foreign transcript adapter proof, `docs/31_week_ten_a_plan.md`): the slice is implemented and green
+(559/559 offline, `check` output byte-identical run-to-run, converted cassette passes `verify`/`replay`/`assert`, no
+foreign noise persisted, frozen paths and every other command's output untouched, `fixtures/traces/` unchanged, no
+new dependency) → Codex closeout audit → commit → push → tag `week-ten-foreign-transcript-adapter`. Do not begin
+W10-B or any further product-surface work until it is explicitly scoped in a plan and Codex-audited.
 
 ## Response Format
 

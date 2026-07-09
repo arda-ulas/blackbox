@@ -145,6 +145,32 @@ invariants only. In GitHub Actions:
 
 See [DEMO.md](DEMO.md) for annotated expected output and an explanation of each step.
 
+## Adapt a foreign transcript
+
+Blackbox records its own runs, but it can also **adapt an externally-shaped agent run** into a normal Blackbox v2
+cassette and then verify/replay/assert it fully offline. This is a small **adapter-boundary proof**, not a framework
+integration: a pure, dependency-free adapter (`src/ingest/foreignTranscript.ts`, `adaptForeignTranscript`) converts a
+local, synthetic chat-style transcript fixture into a valid v2 trace. It is **not** official OpenAI, SDK, LangChain,
+or MCP support, and there is no live ingestion — the input is a committed local fixture, and the conversion never
+calls a model, tool, network, or clock.
+
+The proof point is provider-neutrality by construction: the synthetic source
+(`fixtures/external/chat-tool-use.foreign.json`) deliberately carries provider-like noise (token `usage`, a
+`finish_reason`, a model name, message ids, and foreign tool-call ids like `call_a1B2c3`), and **none** of it crosses
+into the converted cassette — foreign tool-call ids are remapped to Blackbox's deterministic `call-0` / `call-1`, and
+every payload is built field-by-field. The committed converted cassette
+(`fixtures/external/chat-tool-use.converted.v2.json`) is an ordinary cassette the existing commands consume unchanged:
+
+```sh
+npm run cli -- verify --trace fixtures/external/chat-tool-use.converted.v2.json
+npm run cli -- replay --trace fixtures/external/chat-tool-use.converted.v2.json
+npm run cli -- assert --trace fixtures/external/chat-tool-use.converted.v2.json --expect-status success --expect-tools get_weather,send_email
+```
+
+The adapter accepts exactly one tool call per assistant turn in a strict sequential `tool call → tool result` loop
+ending in a final answer; parallel tool calls and error terminations are out of scope for this proof and are rejected
+with a clear error.
+
 ## Trace fixture corpus
 
 `fixtures/traces/` holds a small **committed** set of deterministic, fake/offline v2 cassettes used as a

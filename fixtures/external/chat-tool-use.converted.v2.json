@@ -1,0 +1,386 @@
+{
+  "version": 2,
+  "id": "external-chat-tool-use",
+  "createdAt": 1710500000000,
+  "steps": [
+    {
+      "id": "external-chat-tool-use:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 1710500000500,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in Paris right now, and email a short summary to alex@example.com."
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "description": "Look up the current weather for a city.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          },
+          {
+            "name": "send_email",
+            "description": "Send an email to a recipient.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "to",
+                "subject",
+                "body"
+              ]
+            }
+          }
+        ]
+      },
+      "prevHash": null,
+      "hash": "69d4a128e6afadc5a0e16b10b8b712bd14c1925a1d7c8bd4ec2880af1df04484"
+    },
+    {
+      "id": "external-chat-tool-use:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 1710500000500,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-0",
+        "toolName": "get_weather",
+        "toolInput": {
+          "city": "Paris"
+        }
+      },
+      "prevHash": "69d4a128e6afadc5a0e16b10b8b712bd14c1925a1d7c8bd4ec2880af1df04484",
+      "hash": "849edad3888c17926cb07866ea22180c07ea3a12c63863371ee3930415c16118"
+    },
+    {
+      "id": "external-chat-tool-use:2",
+      "index": 2,
+      "type": "tool_call",
+      "timestamp": 1710500000500,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "get_weather",
+        "toolInput": {
+          "city": "Paris"
+        }
+      },
+      "prevHash": "849edad3888c17926cb07866ea22180c07ea3a12c63863371ee3930415c16118",
+      "hash": "2c8c644615396142221f18d815c8918dcffa3ed588c12bf4019dcd8a11c0e70c"
+    },
+    {
+      "id": "external-chat-tool-use:3",
+      "index": 3,
+      "type": "tool_result",
+      "timestamp": 1710500001000,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "get_weather",
+        "result": {
+          "city": "Paris",
+          "temperature_c": 17,
+          "condition": "Partly cloudy"
+        }
+      },
+      "prevHash": "2c8c644615396142221f18d815c8918dcffa3ed588c12bf4019dcd8a11c0e70c",
+      "hash": "4aefc2eb66e7668e141d5ff72cca63771caf9e83bc49223cea0be883e32d085b"
+    },
+    {
+      "id": "external-chat-tool-use:4",
+      "index": 4,
+      "type": "model_input",
+      "timestamp": 1710500001500,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in Paris right now, and email a short summary to alex@example.com."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "get_weather",
+                "toolInput": {
+                  "city": "Paris"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "get_weather",
+                "result": {
+                  "city": "Paris",
+                  "temperature_c": 17,
+                  "condition": "Partly cloudy"
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "description": "Look up the current weather for a city.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          },
+          {
+            "name": "send_email",
+            "description": "Send an email to a recipient.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "to",
+                "subject",
+                "body"
+              ]
+            }
+          }
+        ]
+      },
+      "prevHash": "4aefc2eb66e7668e141d5ff72cca63771caf9e83bc49223cea0be883e32d085b",
+      "hash": "b8524219c2e8265cf3d19a39fa0ad3aabd6465806680a7720977dc4ec43e55ce"
+    },
+    {
+      "id": "external-chat-tool-use:5",
+      "index": 5,
+      "type": "model_output",
+      "timestamp": 1710500001500,
+      "payload": {
+        "type": "tool_call",
+        "toolCallId": "call-1",
+        "toolName": "send_email",
+        "toolInput": {
+          "to": "alex@example.com",
+          "subject": "Paris weather",
+          "body": "It is 17C and partly cloudy in Paris."
+        }
+      },
+      "prevHash": "b8524219c2e8265cf3d19a39fa0ad3aabd6465806680a7720977dc4ec43e55ce",
+      "hash": "af3c89674c19ba2c9e6954fdf6319c61ef97c1882fcdad1fd37ffb92234d6bf9"
+    },
+    {
+      "id": "external-chat-tool-use:6",
+      "index": 6,
+      "type": "tool_call",
+      "timestamp": 1710500001500,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "send_email",
+        "toolInput": {
+          "to": "alex@example.com",
+          "subject": "Paris weather",
+          "body": "It is 17C and partly cloudy in Paris."
+        }
+      },
+      "prevHash": "af3c89674c19ba2c9e6954fdf6319c61ef97c1882fcdad1fd37ffb92234d6bf9",
+      "hash": "180fd4ee8cb7b71898d3f7f2f6ed751095ab871f65245a684bb5cdc1f769ff5d"
+    },
+    {
+      "id": "external-chat-tool-use:7",
+      "index": 7,
+      "type": "tool_result",
+      "timestamp": 1710500002000,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "send_email",
+        "result": {
+          "status": "queued",
+          "to": "alex@example.com",
+          "delivery_id": "local-sim-email-7"
+        }
+      },
+      "prevHash": "180fd4ee8cb7b71898d3f7f2f6ed751095ab871f65245a684bb5cdc1f769ff5d",
+      "hash": "cbc812a32df575a7a44785b93b9ac9ef4d78f986fb43b6cbdd93e337f3dfa5a1"
+    },
+    {
+      "id": "external-chat-tool-use:8",
+      "index": 8,
+      "type": "model_input",
+      "timestamp": 1710500002500,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in Paris right now, and email a short summary to alex@example.com."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "get_weather",
+                "toolInput": {
+                  "city": "Paris"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "get_weather",
+                "result": {
+                  "city": "Paris",
+                  "temperature_c": 17,
+                  "condition": "Partly cloudy"
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "toolCallId": "call-1",
+                "toolName": "send_email",
+                "toolInput": {
+                  "to": "alex@example.com",
+                  "subject": "Paris weather",
+                  "body": "It is 17C and partly cloudy in Paris."
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "send_email",
+                "result": {
+                  "status": "queued",
+                  "to": "alex@example.com",
+                  "delivery_id": "local-sim-email-7"
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "description": "Look up the current weather for a city.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            }
+          },
+          {
+            "name": "send_email",
+            "description": "Send an email to a recipient.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "to",
+                "subject",
+                "body"
+              ]
+            }
+          }
+        ]
+      },
+      "prevHash": "cbc812a32df575a7a44785b93b9ac9ef4d78f986fb43b6cbdd93e337f3dfa5a1",
+      "hash": "79dc20228dc5541731c326f4fdaa17b3d337f6e0da8a72494d689911c67ca5a5"
+    },
+    {
+      "id": "external-chat-tool-use:9",
+      "index": 9,
+      "type": "model_output",
+      "timestamp": 1710500002500,
+      "payload": {
+        "type": "final_answer",
+        "text": "The weather in Paris is 17C and partly cloudy. I've emailed a short summary to alex@example.com."
+      },
+      "prevHash": "79dc20228dc5541731c326f4fdaa17b3d337f6e0da8a72494d689911c67ca5a5",
+      "hash": "5407ffb0cdc8c13fcdbf9e30ad093990b04adee52e6491a06442cf35b845c9cf"
+    },
+    {
+      "id": "external-chat-tool-use:10",
+      "index": 10,
+      "type": "metadata",
+      "timestamp": 1710500002500,
+      "payload": {
+        "event": "run_completed",
+        "status": "success",
+        "result": "The weather in Paris is 17C and partly cloudy. I've emailed a short summary to alex@example.com."
+      },
+      "prevHash": "5407ffb0cdc8c13fcdbf9e30ad093990b04adee52e6491a06442cf35b845c9cf",
+      "hash": "e3837b693496eb0df4b34183a220bc41522ae2e4fb73f0c8336aabd3bf4bec76"
+    }
+  ]
+}
