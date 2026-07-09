@@ -79,7 +79,8 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 
 - **Not** a web UI, dashboard, backend, hosted service, or sharing platform.
 - **Not** an observability / OpenTelemetry / metrics / log-aggregation platform.
-- **Not** an agent framework (no LangChain, LlamaIndex, or MCP), and **not** a multi-agent orchestrator.
+- **Not** an agent framework or orchestrator (no LangChain, LlamaIndex, or MCP) — Blackbox does not run your agent
+  for you; it records, replays, forks, and diffs recorded histories. It sits beside frameworks, not in place of them.
 - **Not** an npm-published binary or a production SDK.
 - **Not** live-by-default: no CLI command and no test in `npm test` calls a real model or tool.
 
@@ -134,6 +135,92 @@ invoke neither models nor tools. The forked child `traces/chat-tool-use-fork.jso
 git-ignored** artifact (always written via the explicit `--out` shown above). When `fork` continues the foreign
 cassette, it invokes only the local deterministic fake model under the demo harness — **foreign tools are never
 executed, and no live provider or network call occurs.**
+
+## Worked example: debugging one bad answer
+
+Here is one concrete bug, debugged end to end. The committed cassette
+`fixtures/traces/success-tool-use.v2.json` records a run that ends in a confident booking. For this example, treat
+the recorded run as buggy: the `search` tool result at step 3 was **wrong** — it reported availability that did not
+exist, so the agent went on to book a phantom room. We want to see what the agent *should* have done once that one
+tool result is corrected, without re-running anything live.
+
+First, replay the recorded run to see the bad answer it produced — fully offline, straight from the cassette:
+
+```sh
+npm run cli -- replay --trace fixtures/traces/success-tool-use.v2.json
+```
+
+```
+summary
+Status:         success
+Result:         Hotel booked for Alice on 2024-03-15 at 14:00.
+```
+
+The run "succeeded" — it confidently booked a room off a bad search result. Now fork at that recorded tool result
+(step 3), inject the corrected **no-availability** result, and let the agent continue offline from there:
+
+```sh
+npm run cli -- fork --trace fixtures/traces/success-tool-use.v2.json \
+  --out traces/case-study-fix.json \
+  --mode tool-result \
+  --fork-index 4 \
+  --mutation-step 3 \
+  --payload-json '{"results":[],"available":false,"message":"No hotels available for that date."}'
+```
+
+The child's continuation is *derived* from the injected result, not scripted: instead of booking, the corrected run
+declines. Diff the recorded parent against the corrected child to pin exactly where — and how — they part:
+
+```sh
+npm run cli -- diff \
+  --parent fixtures/traces/success-tool-use.v2.json \
+  --child traces/case-study-fix.json
+```
+
+```
+First divergence at index 3
+  parent  tool result     a201c469  Tool result: search → ok
+  child   tool result     bbf0f149  Tool result: search → ok
+  changed value (result):
+    parent: {"results":[{"title":"Fixture result A for \"weekend hotels\"","snippet":"First deterministic result."},{"title":"Fixture result B for \"weekend hotels\"","snippet":"Second deterministic result."}]}
+    child:  {"results":[],"available":false,"message":"No hotels available for that date."}
+
+Outcome:        same final status (success), but the final answer changed
+  parent tools:  search → calendar → booking
+  child tools:   search
+```
+
+The first divergence is exactly the tool result we changed (index 3); everything before it is hash-identical. The
+behavioral `Outcome:` verdict spells out the consequence: the final answer changed, and the whole downstream tool
+path collapsed from `search → calendar → booking` (it booked) to just `search` (it stopped). Finally, pin the
+corrected behavior as a deterministic regression gate so this fix can't silently regress in CI:
+
+```sh
+npm run cli -- assert \
+  --trace traces/case-study-fix.json \
+  --expect-status success \
+  --expect-final-answer 'Based on the search result, no options are available: "No hotels available for that date.". I could not complete the booking.' \
+  --expect-tools search
+```
+
+```
+◼ blackbox · assert
+Trace:          traces/case-study-fix.json
+Result:         ✓ PASS
+...
+expectations
+  status               pass  success
+  final_answer         pass  Based on the search result, no options are available: "No hotels available for that date.". I could not complete the booking.
+  tools                pass  search
+```
+
+What is real vs. fake here: the record/replay/fork/diff/assert machinery — the canonical hash chain, the
+hash-identical prefix, the first-divergence pin, the exact-match assertion — is the real product code, run over a
+**committed cassette**. The model continuation is the **deterministic fake** (`ReactiveDemoModelClient`), tools are
+**fixture stubs**, and **no live provider or network call occurs**. `traces/case-study-fix.json` is a **generated,
+local, git-ignored** artifact (always written via the explicit `--out` above). This is a framing device over a
+committed cassette — Blackbox does not find the bug for you; it lets you *reproduce, correct, and pin* a known bad
+tool result offline and see precisely what changes.
 
 ## Quick Start
 

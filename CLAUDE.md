@@ -8,8 +8,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W11-A (fork foreign cassette proof) is complete and tagged (`week-eleven-foreign-fork-proof`). W12-A (reviewer
-demo path) is a documentation-only reconciliation slice in closeout; intended tag `week-twelve-reviewer-demo-path`.** The
+**W12-A (reviewer demo path) is complete and tagged (`week-twelve-reviewer-demo-path`). W13-A (worked debugging case
+study) is a documentation-only slice in closeout; intended tag `week-thirteen-worked-case-study`.** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -81,6 +81,21 @@ the foreign-cassette reviewer commands and its Prerequisites count is corrected 
 `scripts/` / `package.json` / `assets/brand/` / `docs/11_cli_spec.md` change; no new test, script, command, flag, or
 dependency; test total unchanged at 583/583; the README hero is unchanged.
 
+W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`) is a **documentation-only** slice closing the
+external-audit "a cold reviewer cannot see one concrete bug" gap with **no new engine feature**: it adds one README
+section, "Worked example: debugging one bad answer", that debugs a single bug end to end over the native corpus
+cassette `fixtures/traces/success-tool-use.v2.json` — the recorded run booked a room off a wrong `search` result at
+step 3; `replay` shows the bad answer, `fork` injects the corrected no-availability `tool_result` (mutation step 3,
+fork index 4, `--out traces/case-study-fix.json`), the deterministic `ReactiveDemoModelClient` continuation derives a
+decline, `diff` pins the first divergence at index 3 with the behavioral `Outcome:` verdict, and `assert`
+(`--expect-final-answer` carrying the exact derived string, per Codex correction) pins the corrected child as a
+regression gate — with short excerpts captured byte-for-byte from real non-TTY runs. Plus a one-sentence "What
+Blackbox is not" tighten to functional positioning (Blackbox sits beside frameworks, does not run your agent; no
+LangGraph/LangChain/MCP support claim). DEMO.md left untouched; the W12-A "For reviewers" block byte-unchanged;
+W13-A not added to README Build history pre-tag. No source / test / fixture / `scripts/` / `package.json` /
+`assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no new test, script, command, flag, or dependency; test
+total unchanged at 583/583; the README hero is unchanged.
+
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
 - **Tests:** 583/583 passing, fully offline, zero live calls.
 - **Closed tags:**
@@ -106,7 +121,8 @@ dependency; test total unchanged at 583/583; the README hero is unchanged.
   - `week-nine-public-readiness` (W9-B public-readiness release tag)
   - `week-ten-foreign-transcript-adapter` (W10-A)
   - `week-eleven-foreign-fork-proof` (W11-A)
-- **In progress:** W12-A (reviewer demo path, documentation-only); intended tag `week-twelve-reviewer-demo-path`.
+  - `week-twelve-reviewer-demo-path` (W12-A)
+- **In progress:** W13-A (worked debugging case study, documentation-only); intended tag `week-thirteen-worked-case-study`.
 
 ## Hard Guardrails
 
@@ -125,7 +141,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`, tests + docs only) is closed and tagged (`week-eleven-foreign-fork-proof`); W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`, documentation-only) is implemented / in closeout. Any milestone beyond W12-A is planned and Codex-audited before implementation.
+- **Sequencing:** W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`, documentation-only) is closed and tagged (`week-twelve-reviewer-demo-path`); W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`, documentation-only) is implemented / in closeout. Any milestone beyond W13-A (including W14 npm-packaging candidacy) is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -142,14 +158,15 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`): the documentation-only reconciliation slice is
-done (README Status advanced to 583/583 with durable wording, "For reviewers" replaced with the curated 3–5 minute
-path, foreign-transcript bullet added, W10-A/W11-A appended to Build history; DEMO.md count corrected to 583 + a
-foreign-cassette reviewer section; `CLAUDE.md`/`AGENTS.md` pointers and a build-log entry) with the tree still green
-(583/583 offline, `check` output byte-identical run-to-run, all seven reviewer commands green, zero source/test/
-fixture/script changes, no trace committed) → Codex closeout audit → commit → push → tag
-`week-twelve-reviewer-demo-path`. Do not begin W12-B or any further product-surface work until it is explicitly scoped
-in a plan and Codex-audited.
+Close out W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`): the documentation-only slice is done
+(one new README "Worked example: debugging one bad answer" section debugging a single bug end to end over
+`fixtures/traces/success-tool-use.v2.json` with byte-captured excerpts; one functional-positioning tighten in "What
+Blackbox is not"; DEMO.md untouched; W12-A "For reviewers" block byte-unchanged; W13-A not in Build history pre-tag;
+`CLAUDE.md`/`AGENTS.md` pointers and a build-log entry) with the tree still green (583/583 offline, `check` output
+byte-identical run-to-run, the four case-study commands and the seven W12-A reviewer commands green, zero
+source/test/fixture/script changes, no trace committed) → Codex closeout audit → commit → push → tag
+`week-thirteen-worked-case-study`. Do not begin W14 (npm-packaging candidacy) or any further product-surface work
+until it is explicitly scoped in a plan and Codex-audited.
 
 ## Response Format
 

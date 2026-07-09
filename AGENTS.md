@@ -71,10 +71,35 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W12-A reviewer demo path (W10-A / W11-A closed and tagged)
+## Current State: W13-A worked debugging case study (W12-A closed and tagged)
 
-**W12-A (reviewer demo path) is implemented / in closeout** per `docs/33_week_twelve_a_plan.md`; intended tag
-`week-twelve-reviewer-demo-path`. It is a **documentation-only** reconciliation slice on top of the tagged W10-A/W11-A:
+**W13-A (worked debugging case study) is implemented / in closeout** per `docs/34_week_thirteen_a_plan.md`; intended
+tag `week-thirteen-worked-case-study`. It is a **documentation-only** slice with **no new engine feature**, closing
+the external-audit "a cold reviewer cannot see one concrete bug" gap. It adds one README section, "Worked example:
+debugging one bad answer", that debugs a single bug end to end over the native corpus cassette
+`fixtures/traces/success-tool-use.v2.json`: the recorded run booked a room off a wrong `search` result at step 3;
+`replay` shows the bad answer (`Result: Hotel booked for Alice on 2024-03-15 at 14:00.`); `fork --mode tool-result
+--fork-index 4 --mutation-step 3 --payload-json '{"results":[],"available":false,"message":"No hotels available for
+that date."}' --out traces/case-study-fix.json` injects the corrected no-availability result; the deterministic
+`ReactiveDemoModelClient` continuation **derives** a decline instead of a booking; `diff` pins `First divergence at
+index 3` with the changed `result` and the behavioral `Outcome:` verdict (same status, final answer changed, tool
+path `search → calendar → booking` → `search`); `assert --expect-status success --expect-final-answer '<exact derived
+string>' --expect-tools search` pins the corrected child as a regression gate. All excerpts are captured
+byte-for-byte from real non-TTY runs. Codex correction: the final `assert` **must** carry `--expect-final-answer`
+(status/tools alone would pass without pinning the corrected answer, which is the point); `verify ⊂ assert` re-proves
+the child's four invariants. Also one functional-positioning tighten in "What Blackbox is not" (Blackbox sits beside
+frameworks, does not run your agent; no LangGraph/LangChain/MCP support claim). The section states real-vs-fake
+plainly (real machinery over a committed cassette; deterministic fake model; fixture tool stubs; no live
+provider/network call; `traces/case-study-fix.json` generated/local/git-ignored; a framing device, **not** automatic
+bug-finding). Files touched: `README.md`, `docs/34_week_thirteen_a_plan.md`, `docs/08_build_log.md`, `CLAUDE.md`,
+`AGENTS.md`. **DEMO.md left untouched**; the W12-A "For reviewers" block is byte-unchanged; W13-A is **not** added to
+README Build history pre-tag. No source / test / fixture / `scripts/` / `package.json` / `package-lock.json` /
+`.gitignore` / `assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no new test, npm script, CLI command,
+flag, or dependency; test total unchanged at **583/583**; the README hero is unchanged. Next: Codex closeout audit →
+commit → push → tag `week-thirteen-worked-case-study`; no W14 (npm-packaging candidacy) until scoped and audited.
+
+**W12-A (reviewer demo path) is complete and tagged (`week-twelve-reviewer-demo-path`)** per
+`docs/33_week_twelve_a_plan.md`. It is a **documentation-only** reconciliation slice on top of the tagged W10-A/W11-A:
 it advances README Status to 583/583 with durable wording (most recent technical milestone = the foreign-origin
 cassette active-debugging proof, `week-eleven-foreign-fork-proof`; no "in closeout"/"intended tag"/"latest tag"),
 adds a "What Blackbox is" bullet for foreign-transcript ingest, appends W10-A/W11-A to Build history, and replaces
@@ -87,7 +112,7 @@ command, or expected-output block is edited, and historical 522/559 counts insid
 Files touched: `README.md`, `DEMO.md`, `docs/33_week_twelve_a_plan.md`, `docs/08_build_log.md`, `CLAUDE.md`,
 `AGENTS.md`. No source / test / fixture / `scripts/` / `package.json` / `package-lock.json` / `.gitignore` /
 `assets/brand/` / `docs/11_cli_spec.md` change; no new test, npm script, CLI command, flag, or dependency; test total
-unchanged at **583/583**; the README hero is unchanged. Next: Codex closeout audit → commit → push → tag.
+unchanged at **583/583**; the README hero is unchanged. Landed at **583/583** offline, zero live calls, no API key.
 
 **W11-A (fork foreign cassette proof) is complete and tagged (`week-eleven-foreign-fork-proof`)** per
 `docs/32_week_eleven_a_plan.md`. It is a **tests + docs only** slice — zero source changes, zero fixture
