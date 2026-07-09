@@ -71,10 +71,38 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W13-A worked debugging case study (W12-A closed and tagged)
+## Current State: W14-A npm packaging-readiness proof (W13-A closed and tagged)
 
-**W13-A (worked debugging case study) is implemented / in closeout** per `docs/34_week_thirteen_a_plan.md`; intended
-tag `week-thirteen-worked-case-study`. It is a **documentation-only** slice with **no new engine feature**, closing
+**W14-A (npm packaging-readiness proof) is implemented / in closeout** per `docs/35_week_fourteen_a_plan.md`;
+intended tag `week-fourteen-package-readiness`. It is a **packaging-readiness-only** slice with **no source/runtime
+behavior change** and **no publish**: it prepares Blackbox as a locally installable npm CLI and proves it works from a
+local tarball. `package.json` gains package metadata (`name: @ardaulas/blackbox`, `version: 0.1.0`, `description`,
+`license: MIT`, `repository`, `keywords`, `engines.node: >=18`), a `bin` entry (`blackbox` → `bin/blackbox.js`), and a
+`files` whitelist (`bin`, `src`, `fixtures`, `README.md`, `LICENSE`); `tsx` is reclassified from `devDependencies` to
+`dependencies` (already in the lockfile) with the lockfile regenerated; **`"private": true` is retained as the
+structural publish guard** (`npm pack` works, `npm publish` is refused by npm) and **`package.json` scripts are
+byte-identical**. New `bin/blackbox.js` is a thin Node shim (shebang, no CLI logic, no output of its own) that runs
+`src/cli.ts` through the packaged `tsx`, forwarding argv verbatim, inheriting stdio (TTY detection / color gate
+intact), and propagating the child exit code exactly — no build step, no `dist/`, no tsconfig change, `src/`
+untouched. New MIT `LICENSE` (© Arda Ulas Ozdemir). README gains one "Run it as a packaged CLI" section describing the
+**local-tarball** flow (`npm pack` → install the `.tgz` in a temp dir → `npx blackbox check`), explicitly **not
+published to npm**; the "What Blackbox is not" package bullet is refined to "Not yet npm-published — packaging is
+prepared and verified from a local tarball; publishing is a separate, explicit step." Proven by `npm pack` + install
+into a fresh temp dir: `npm pack --dry-run` lists exactly the whitelist (no `tests/`/`docs/`/`scripts/`/`assets/brand/`
+/`traces/`), bare `blackbox` prints usage, packaged `blackbox check` is **byte-identical** to repo `npx tsx
+src/cli.ts check`, the full `record → replay → fork → diff → verify → assert` loop runs offline, a failing `assert`
+exits **1**, an unknown command exits **1** — all with no API key; the tarball and temp dir were removed after the
+proof (nothing committed). Files touched: `package.json`, `package-lock.json`, `bin/blackbox.js`, `LICENSE`,
+`README.md`, `docs/35_week_fourteen_a_plan.md`, `docs/08_build_log.md`, `CLAUDE.md`, `AGENTS.md`. No `src/` / `tests/`
+/ `fixtures/` / `scripts/` / `.gitignore` / `assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no
+`package.json` script change; no schema/hash/replay/fork/diff/verify/assert change; no new test, CLI command, or flag;
+no `dist/`, build step, tsconfig change, or bundler dependency; **no npm publish**. W14-A not added to README Build
+history pre-tag; test total unchanged at **583/583**; the README hero, the W12-A reviewer block, and the W13-A case
+study are unchanged. Next: Codex closeout audit → commit → push → tag `week-fourteen-package-readiness`; the actual
+npm publish is a **separate, explicit go/no-go** after that audit; no W15 work until scoped and audited.
+
+**W13-A (worked debugging case study) is complete and tagged (`week-thirteen-worked-case-study`)** per
+`docs/34_week_thirteen_a_plan.md`. It is a **documentation-only** slice with **no new engine feature**, closing
 the external-audit "a cold reviewer cannot see one concrete bug" gap. It adds one README section, "Worked example:
 debugging one bad answer", that debugs a single bug end to end over the native corpus cassette
 `fixtures/traces/success-tool-use.v2.json`: the recorded run booked a room off a wrong `search` result at step 3;
@@ -95,8 +123,8 @@ bug-finding). Files touched: `README.md`, `docs/34_week_thirteen_a_plan.md`, `do
 `AGENTS.md`. **DEMO.md left untouched**; the W12-A "For reviewers" block is byte-unchanged; W13-A is **not** added to
 README Build history pre-tag. No source / test / fixture / `scripts/` / `package.json` / `package-lock.json` /
 `.gitignore` / `assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no new test, npm script, CLI command,
-flag, or dependency; test total unchanged at **583/583**; the README hero is unchanged. Next: Codex closeout audit →
-commit → push → tag `week-thirteen-worked-case-study`; no W14 (npm-packaging candidacy) until scoped and audited.
+flag, or dependency; test total unchanged at **583/583**; the README hero is unchanged. Landed at **583/583** offline,
+zero live calls, no API key.
 
 **W12-A (reviewer demo path) is complete and tagged (`week-twelve-reviewer-demo-path`)** per
 `docs/33_week_twelve_a_plan.md`. It is a **documentation-only** reconciliation slice on top of the tagged W10-A/W11-A:

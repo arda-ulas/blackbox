@@ -8,8 +8,9 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W12-A (reviewer demo path) is complete and tagged (`week-twelve-reviewer-demo-path`). W13-A (worked debugging case
-study) is a documentation-only slice in closeout; intended tag `week-thirteen-worked-case-study`.** The
+**W13-A (worked debugging case study) is complete and tagged (`week-thirteen-worked-case-study`). W14-A
+(npm packaging-readiness proof) is a packaging-only slice in closeout; intended tag `week-fourteen-package-readiness`;
+npm publish remains gated behind a separate go/no-go (`"private": true` retained).** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -96,6 +97,24 @@ W13-A not added to README Build history pre-tag. No source / test / fixture / `s
 `assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no new test, script, command, flag, or dependency; test
 total unchanged at 583/583; the README hero is unchanged.
 
+W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is a **packaging-readiness-only** slice with
+**no source/runtime behavior change**: it prepares Blackbox as a locally installable npm CLI and proves it works from
+a local tarball, **without publishing**. `package.json` gains package metadata (`name: @ardaulas/blackbox`,
+`version: 0.1.0`, `description`, `license: MIT`, `repository`, `keywords`, `engines.node: >=18`), a `bin` entry
+(`blackbox` → `bin/blackbox.js`), and a `files` whitelist (`bin`, `src`, `fixtures`, `README.md`, `LICENSE`); `tsx`
+is reclassified from `devDependencies` to `dependencies` (already in the lockfile) and the lockfile is regenerated;
+`"private": true` is kept as the structural publish guard and **`package.json` scripts are byte-identical**. New
+`bin/blackbox.js` is a thin Node shim (no CLI logic, no output of its own) that runs `src/cli.ts` through the packaged
+`tsx`, forwarding argv verbatim, inheriting stdio (TTY/color gate intact), and propagating the child exit code
+exactly — no build step, no `dist/`, no tsconfig change, `src/` untouched. New MIT `LICENSE`. README gains one "Run it
+as a packaged CLI" local-tarball section (explicitly **not** npm-published) and refines the "What Blackbox is not"
+package bullet. Proven by `npm pack` + install into a fresh temp dir: bare `blackbox` usage, packaged `blackbox check`
+byte-identical to the repo `check`, the full `record → replay → fork → diff → verify → assert` loop green offline, a
+failing `assert` exiting 1 — all with no API key; tarball and temp dir removed after the proof. No `src/` / `tests/` /
+`fixtures/` / `scripts/` change; no schema/hash/replay/fork/diff/verify/assert change; no new test, CLI command, or
+flag; no npm publish. W14-A is not added to README Build history pre-tag; test total unchanged at 583/583; the README
+hero, the W12-A reviewer block, and the W13-A case study are unchanged.
+
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
 - **Tests:** 583/583 passing, fully offline, zero live calls.
 - **Closed tags:**
@@ -122,7 +141,8 @@ total unchanged at 583/583; the README hero is unchanged.
   - `week-ten-foreign-transcript-adapter` (W10-A)
   - `week-eleven-foreign-fork-proof` (W11-A)
   - `week-twelve-reviewer-demo-path` (W12-A)
-- **In progress:** W13-A (worked debugging case study, documentation-only); intended tag `week-thirteen-worked-case-study`.
+  - `week-thirteen-worked-case-study` (W13-A)
+- **In progress:** W14-A (npm packaging-readiness proof, packaging-only, no publish); intended tag `week-fourteen-package-readiness`.
 
 ## Hard Guardrails
 
@@ -141,7 +161,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`, documentation-only) is closed and tagged (`week-twelve-reviewer-demo-path`); W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`, documentation-only) is implemented / in closeout. Any milestone beyond W13-A (including W14 npm-packaging candidacy) is planned and Codex-audited before implementation.
+- **Sequencing:** W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`, documentation-only) is closed and tagged (`week-thirteen-worked-case-study`); W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`, packaging-only, no publish) is implemented / in closeout. The actual npm publish is a separate go/no-go after the W14-A audit (`"private": true` retained until then). Any milestone beyond W14-A (including W15) is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -158,15 +178,17 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`): the documentation-only slice is done
-(one new README "Worked example: debugging one bad answer" section debugging a single bug end to end over
-`fixtures/traces/success-tool-use.v2.json` with byte-captured excerpts; one functional-positioning tighten in "What
-Blackbox is not"; DEMO.md untouched; W12-A "For reviewers" block byte-unchanged; W13-A not in Build history pre-tag;
+Close out W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`): the packaging-only slice is done
+(`package.json` metadata + `bin` + `files` whitelist + `tsx` reclassified to dependencies with the lockfile
+regenerated and `"private": true` kept and scripts byte-identical; new thin `bin/blackbox.js` launcher; new MIT
+`LICENSE`; one README "Run it as a packaged CLI" local-tarball section + the "What Blackbox is not" bullet refined;
 `CLAUDE.md`/`AGENTS.md` pointers and a build-log entry) with the tree still green (583/583 offline, `check` output
-byte-identical run-to-run, the four case-study commands and the seven W12-A reviewer commands green, zero
-source/test/fixture/script changes, no trace committed) → Codex closeout audit → commit → push → tag
-`week-thirteen-worked-case-study`. Do not begin W14 (npm-packaging candidacy) or any further product-surface work
-until it is explicitly scoped in a plan and Codex-audited.
+byte-identical run-to-run, `npm pack --dry-run` whitelist-exact, the packaged CLI proven from a fresh temp-dir tarball
+install offline with byte-identical `check` and correct 0/1 exit codes, no `src/`/`tests/`/`fixtures/`/`scripts/`
+changes, no trace or tarball committed) → Codex closeout audit → commit → push → tag
+`week-fourteen-package-readiness`. The actual npm publish is a **separate, explicit go/no-go** after that audit
+(`"private": true` retained until then). Do not begin W15 or any further product-surface work until it is explicitly
+scoped in a plan and Codex-audited.
 
 ## Response Format
 

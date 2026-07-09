@@ -1,8 +1,36 @@
 {
-  "name": "blackbox",
+  "name": "@ardaulas/blackbox",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Local, offline-by-default time-travel debugger for AI agents: record, replay, fork, mutate, diff, verify, and assert single-agent tool-using runs from a canonically hash-chained cassette.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arda-ulas/blackbox.git"
+  },
+  "keywords": [
+    "ai-agents",
+    "time-travel-debugger",
+    "cassette",
+    "replay",
+    "cli",
+    "offline",
+    "deterministic"
+  ],
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "blackbox": "bin/blackbox.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "fixtures",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -18,12 +46,12 @@
     "example:real-fork-proof": "tsx src/examples/realForkProof.ts"
   },
   "devDependencies": {
-    "tsx": "^4.23.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.110.0"
+    "@anthropic-ai/sdk": "^0.110.0",
+    "tsx": "^4.23.0"
   }
 }

@@ -81,7 +81,8 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 - **Not** an observability / OpenTelemetry / metrics / log-aggregation platform.
 - **Not** an agent framework or orchestrator (no LangChain, LlamaIndex, or MCP) — Blackbox does not run your agent
   for you; it records, replays, forks, and diffs recorded histories. It sits beside frameworks, not in place of them.
-- **Not** an npm-published binary or a production SDK.
+- **Not yet npm-published** — packaging is prepared and verified from a local tarball; publishing is a separate,
+  explicit step. Not a production SDK.
 - **Not** live-by-default: no CLI command and no test in `npm test` calls a real model or tool.
 
 ## Proof status
@@ -238,6 +239,25 @@ npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-
 npm run cli -- check
 npm run fixtures:generate
 ```
+
+## Run it as a packaged CLI
+
+Blackbox is packaged as an installable CLI (bin name `blackbox`), but it is **not published to npm yet** — there is
+no `npm install @ardaulas/blackbox` or `npx` from the registry. Packaging is **prepared and verified locally from a
+tarball**; publishing is a separate, explicit step. To try the packaged command, build the tarball and install it
+into a throwaway directory:
+
+```sh
+npm pack                                            # produces ardaulas-blackbox-<version>.tgz
+cd "$(mktemp -d)" && npm init -y                     # a fresh throwaway project
+npm install /absolute/path/to/ardaulas-blackbox-0.1.0.tgz
+npx blackbox check                                   # the full offline loop, one PASS — no API key
+```
+
+The packaged `blackbox` runs the same offline commands as `npm run cli --` (`record`, `replay`, `fork`, `diff`,
+`verify`, `assert`, `check`, `list`, `inspect`), with byte-identical output and the same `0`/`1` exit codes — it is
+a thin launcher over the same source, no separate build. Everything stays local, deterministic, and offline; no live
+provider or network call occurs.
 
 ## Use a cassette as a CI regression test
 
