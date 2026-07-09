@@ -65,8 +65,8 @@ entries, and refreshed these current-state pointers. No source / test / fixture 
   - `week-eight-terminal-polish` (W8-A)
   - `week-eight-readme-hero` (W8-B)
   - `week-nine-cassette-assert` (W9-A)
-  - `week-nine-public-readiness` (W9-B, current tagged HEAD)
-- **Latest tag:** `week-nine-public-readiness` (W9-B documentation-only public-readiness refresh). No milestone in progress.
+  - `week-nine-public-readiness` (W9-B public-readiness release tag)
+- **Latest release tag:** `week-nine-public-readiness` (W9-B documentation-only public-readiness refresh). No milestone in progress.
 
 ## Hard Guardrails
 
