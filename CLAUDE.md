@@ -8,8 +8,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`). W9-B is a documentation-only
-public-readiness refresh.** The
+**W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`). W9-B (documentation-only
+public-readiness refresh) is complete and tagged (`week-nine-public-readiness`).** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -38,9 +38,9 @@ dispatch (add-only). `verify ⊂ assert` (invariants gate expectations → `skip
 come from CLI flags only (no cassette-embedded, no sidecar); exact match only. No schema / hash / `verifyTrace` /
 `terminalOutcome` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator /
 `package.json` change; every other command's output including `check` is byte-identical. CLI is now nine commands.
-W9-B is a documentation-only public-readiness refresh on top of the tagged W9-A: it rewrites the README Status in
-durable public language, surfaces the `assert` capability in "What Blackbox is," appends the W8-B/W9-A build-history
-entries, and refreshes these current-state pointers. No source / test / fixture / `package.json` / `package-lock.json`
+W9-B was a documentation-only public-readiness refresh on top of the tagged W9-A: it rewrote the README Status in
+durable public language, surfaced the `assert` capability in "What Blackbox is," appended the W8-B/W9-A build-history
+entries, and refreshed these current-state pointers. No source / test / fixture / `package.json` / `package-lock.json`
 / `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility)
@@ -64,8 +64,9 @@ entries, and refreshes these current-state pointers. No source / test / fixture 
   - `week-seven-behavioral-outcome-diff` (W7-B)
   - `week-eight-terminal-polish` (W8-A)
   - `week-eight-readme-hero` (W8-B)
-  - `week-nine-cassette-assert` (W9-A, current tagged HEAD)
-- **In progress:** W9-B documentation-only public-readiness refresh; may be tagged `week-nine-public-readiness` after closeout.
+  - `week-nine-cassette-assert` (W9-A)
+  - `week-nine-public-readiness` (W9-B, current tagged HEAD)
+- **Latest tag:** `week-nine-public-readiness` (W9-B documentation-only public-readiness refresh). No milestone in progress.
 
 ## Hard Guardrails
 
@@ -84,7 +85,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W9-A (cassette CI harness, the `assert` command) is closed and tagged (`week-nine-cassette-assert`); W9-B (documentation-only public-readiness refresh, `docs/30_week_nine_b_plan.md`) is the current slice. Any milestone beyond W9-B is planned and Codex-audited before implementation.
+- **Sequencing:** W9-A (cassette CI harness, the `assert` command) is closed and tagged (`week-nine-cassette-assert`); W9-B (documentation-only public-readiness refresh, `docs/30_week_nine_b_plan.md`) is closed and tagged (`week-nine-public-readiness`). No milestone is in progress; the next milestone is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -101,12 +102,10 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W9-B (documentation-only public-readiness refresh, `docs/30_week_nine_b_plan.md`): the docs edits are done
-(README Status rewritten in durable public language, one `assert` capability bullet added, W8-B/W9-A build history
-appended, `CLAUDE.md`/`AGENTS.md` pointers refreshed, build-log entry appended) with the tree still green (522/522
-offline, `check` output byte-identical run-to-run, no source/test/fixture/config change, no traces committed) → Codex
-closeout audit → commit → push → tag `week-nine-public-readiness`. No new milestone or product-surface work until it
-is explicitly scoped and Codex-audited.
+Pause and plan the next milestone. W9-A (`week-nine-cassette-assert`) and W9-B (`week-nine-public-readiness`) are both
+complete and tagged; the tree is green (522/522 offline, `check` output byte-identical run-to-run) and there is no
+milestone in progress. Do not begin any W10 or product-surface implementation until it is explicitly scoped in a plan
+and Codex-audited.
 
 ## Response Format
 

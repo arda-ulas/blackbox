@@ -71,15 +71,15 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W9-B public-readiness refresh (W9-A cassette CI harness closed and tagged)
+## Current State: W9-B public-readiness refresh complete and tagged (W9-A cassette CI harness closed and tagged)
 
-**W9-B is a documentation-only public-readiness refresh** per `docs/30_week_nine_b_plan.md`, the current slice on top
-of the tagged W9-A: it rewrites the README Status in durable public language, surfaces the `assert` capability in
-"What Blackbox is," appends the W8-B/W9-A build-history entries, and refreshes the `CLAUDE.md`/`AGENTS.md`
-current-state pointers. Allowed files only: `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/30_week_nine_b_plan.md`,
-`docs/08_build_log.md`. No source / test / fixture / `package.json` / `package-lock.json` / `.gitignore` / `DEMO.md` /
-`docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change. After Codex closeout audit and push it
-may be tagged `week-nine-public-readiness`.
+**W9-B (documentation-only public-readiness refresh) is complete and tagged (`week-nine-public-readiness`)** per
+`docs/30_week_nine_b_plan.md`, a docs-only slice on top of the tagged W9-A: it rewrote the README Status in durable
+public language, surfaced the `assert` capability in "What Blackbox is," appended the W8-B/W9-A build-history entries,
+and refreshed the `CLAUDE.md`/`AGENTS.md` current-state pointers. Files touched: `README.md`, `CLAUDE.md`, `AGENTS.md`,
+`docs/30_week_nine_b_plan.md`, `docs/08_build_log.md`. No source / test / fixture / `package.json` / `package-lock.json`
+/ `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change. No milestone
+is in progress; the next milestone is planned and Codex-audited before implementation.
 
 **W9-A (cassette CI harness) is complete and tagged (`week-nine-cassette-assert`)** per `docs/29_week_nine_a_plan.md`:
 one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline
