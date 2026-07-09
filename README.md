@@ -171,6 +171,30 @@ The adapter accepts exactly one tool call per assistant turn in a strict sequent
 ending in a final answer; parallel tool calls and error terminations are out of scope for this proof and are rejected
 with a clear error.
 
+The adapted cassette is also **not second-class in the active debugging loop**: it forks, mutates, continues, and
+diffs with the same Blackbox semantics as a native trace. Inject a different `get_weather` result at step 3, fork at
+step 4, and the deterministic offline continuation derives a new answer from the injected payload — then diff pins
+the first divergence and the behavioral outcome change:
+
+```sh
+npm run cli -- fork \
+  --trace fixtures/external/chat-tool-use.converted.v2.json \
+  --out traces/chat-tool-use-fork.json \
+  --mode tool-result --fork-index 4 --mutation-step 3 \
+  --payload-json '{"city":"Paris","temperature_c":-2,"condition":"Heavy snow"}'
+npm run cli -- verify --trace traces/chat-tool-use-fork.json
+npm run cli -- diff --parent fixtures/external/chat-tool-use.converted.v2.json --child traces/chat-tool-use-fork.json
+npm run cli -- assert --trace traces/chat-tool-use-fork.json --expect-status success --expect-tools get_weather
+```
+
+The forked child is a git-ignored local artifact under `traces/` (always pass the explicit `--out` shown above). The
+child shares a hash-identical prefix with the committed parent before the mutation, and its answer visibly embeds the
+injected weather payload — change the payload, change the answer. As everywhere in the default CLI, the continuation
+is fake/offline: the CLI fork runs under the demo harness (the reactive deterministic fake model plus the fixture
+tool executor). Foreign tools are never executed; the only model invocation is the local deterministic fake, and no
+live provider or network call is made. This proves debuggability of the adapted cassette, not foreign tool
+execution.
+
 ## Trace fixture corpus
 
 `fixtures/traces/` holds a small **committed** set of deterministic, fake/offline v2 cassettes used as a

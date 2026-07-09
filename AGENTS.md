@@ -71,10 +71,34 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W10-A foreign transcript adapter proof (W9-A / W9-B closed and tagged)
+## Current State: W11-A fork foreign cassette proof (W10-A closed and tagged)
 
-**W10-A (foreign transcript adapter proof) is implemented / in closeout** per `docs/31_week_ten_a_plan.md`; intended
-tag `week-ten-foreign-transcript-adapter`. It is an additive adapter-boundary proof: a new pure, dependency-free
+**W11-A (fork foreign cassette proof) is implemented / in closeout** per `docs/32_week_eleven_a_plan.md`; intended
+tag `week-eleven-foreign-fork-proof`. It is a **tests + docs only** slice — zero source changes, zero fixture
+changes, zero CLI changes, zero dependencies. One new test file, `tests/foreignFork.test.ts` (24 tests), proves the
+committed foreign-origin cassette `fixtures/external/chat-tool-use.converted.v2.json` participates in the ACTIVE
+debugging loop — `fork → mutate → continue → diff` — under the exact same, **unchanged** Blackbox semantics as a
+native trace (`forkRun`, `ReactiveDemoModelClient`, `diffTraces`, `diffOutcome`, `verifyTrace`, and the CLI surfaces
+are all untouched). Primary geometry: mutate the `get_weather` `tool_result` at step 3, fork at index 4 — the child
+shares hash-identical steps 0–2 with the **committed parent bytes**, keeps `call-0`/`get_weather`/the parent
+timestamp on the mutated step 3 (new hash, chained from step 2), carries `parentId`/`forkedFromStepId` lineage,
+validates, verifies 4/4, replays to success, passes neutrality, and its final answer **derives** from the injected
+payload (embeds the mutated weather facts; two mutations → two answers; same mutation → same answer). A test-local
+`ToolExecutor` lifts the **foreign** tool definitions from the parent's own recorded step-0 `model_input`
+(`execute()` throws and is asserted never called — no foreign tool is ever executed). Behavioral diff: shared prefix
+3, first divergence 3, both success, final answer changed, parent tools `[get_weather, send_email]` vs child
+`[get_weather]`. Secondary geometry: mutate `send_email`'s result at step 7, fork at 8 (divergence 7, reconstruction
+across both foreign rounds, answer changed, tool sequence intact). CLI integration runs `fork`/`verify`/`diff`/
+`assert` on the foreign parent (temp-dir child, always explicit `--out`); the CLI continuation is **documented
+demo-harness behavior** — it injects `defaultToolExecutor()`, so the child's continuation `model_input` records the
+fixture tool definitions (`search`/`calendar`/`booking`); the CLI does **not** preserve foreign tool definitions and
+no doc claims it does. Deliberately not frozen: full child bytes, continuation hashes, child timestamps; **no child
+fixture committed** — reviewers create the child live into git-ignored `traces/`. `fixtures/external/` still contains
+exactly the two committed W10-A files. Baseline **583/583** offline (559 + 24 new), zero live calls, no API key.
+Next: Codex closeout audit → commit → push → tag.
+
+**W10-A (foreign transcript adapter proof) is complete and tagged (`week-ten-foreign-transcript-adapter`)** per
+`docs/31_week_ten_a_plan.md`. It is an additive adapter-boundary proof: a new pure, dependency-free
 module `src/ingest/foreignTranscript.ts` (`adaptForeignTranscript(input, { traceId })` / `ForeignTranscriptError`)
 converts a synthetic, chat-style external transcript into a normal Blackbox v2 `Trace` by **composing** the untouched
 `TraceRecorder` + `toolCallIdForIndex` — synchronous, deterministic, no filesystem/network/clock (`Date.now`)/
@@ -91,8 +115,7 @@ No schema / `hash.ts` / canonical-hash / `validateTrace` / `replayTrace` / `veri
 `terminalOutcome` / `toolCallSequence` / `forkRun` / `diffTraces` / `termStyle` / `cli.ts` / generator /
 `fixtures/traces/` / `package.json` / `package-lock.json` / `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` /
 `assets/brand/` change; no new command, flag, or dependency; every other command's output including `check` is
-byte-identical. Baseline **559/559** offline (522 + 37 new), zero live calls, no API key. Next: Codex closeout audit
-→ commit → push → tag.
+byte-identical. Landed at **559/559** offline (522 + 37 new), zero live calls, no API key.
 
 **W9-B (documentation-only public-readiness refresh) is complete and tagged (`week-nine-public-readiness`)** per
 `docs/30_week_nine_b_plan.md`, a docs-only slice on top of the tagged W9-A: it rewrote the README Status in durable
