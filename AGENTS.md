@@ -71,10 +71,26 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ---
 
-## Current State: W11-A fork foreign cassette proof (W10-A closed and tagged)
+## Current State: W12-A reviewer demo path (W10-A / W11-A closed and tagged)
 
-**W11-A (fork foreign cassette proof) is implemented / in closeout** per `docs/32_week_eleven_a_plan.md`; intended
-tag `week-eleven-foreign-fork-proof`. It is a **tests + docs only** slice — zero source changes, zero fixture
+**W12-A (reviewer demo path) is implemented / in closeout** per `docs/33_week_twelve_a_plan.md`; intended tag
+`week-twelve-reviewer-demo-path`. It is a **documentation-only** reconciliation slice on top of the tagged W10-A/W11-A:
+it advances README Status to 583/583 with durable wording (most recent technical milestone = the foreign-origin
+cassette active-debugging proof, `week-eleven-foreign-fork-proof`; no "in closeout"/"intended tag"/"latest tag"),
+adds a "What Blackbox is" bullet for foreign-transcript ingest, appends W10-A/W11-A to Build history, and replaces
+README "For reviewers" with a curated 3–5 minute path (one-time `npm install`, then seven fully offline proof
+commands: `npm test`, native `check`, committed-cassette `assert`, foreign `verify`/`fork`/`diff`, forked-child
+`assert`) annotated with what is real vs fake/offline (local deterministic fake model + fixture tools; generated
+git-ignored child; foreign tools never executed; no live provider/network call). DEMO.md gains the foreign-cassette
+reviewer commands + real-vs-mocked rows and its Prerequisites count is corrected to 583; no existing DEMO step body,
+command, or expected-output block is edited, and historical 522/559 counts inside milestone history are preserved.
+Files touched: `README.md`, `DEMO.md`, `docs/33_week_twelve_a_plan.md`, `docs/08_build_log.md`, `CLAUDE.md`,
+`AGENTS.md`. No source / test / fixture / `scripts/` / `package.json` / `package-lock.json` / `.gitignore` /
+`assets/brand/` / `docs/11_cli_spec.md` change; no new test, npm script, CLI command, flag, or dependency; test total
+unchanged at **583/583**; the README hero is unchanged. Next: Codex closeout audit → commit → push → tag.
+
+**W11-A (fork foreign cassette proof) is complete and tagged (`week-eleven-foreign-fork-proof`)** per
+`docs/32_week_eleven_a_plan.md`. It is a **tests + docs only** slice — zero source changes, zero fixture
 changes, zero CLI changes, zero dependencies. One new test file, `tests/foreignFork.test.ts` (24 tests), proves the
 committed foreign-origin cassette `fixtures/external/chat-tool-use.converted.v2.json` participates in the ACTIVE
 debugging loop — `fork → mutate → continue → diff` — under the exact same, **unchanged** Blackbox semantics as a
@@ -94,8 +110,7 @@ demo-harness behavior** — it injects `defaultToolExecutor()`, so the child's c
 fixture tool definitions (`search`/`calendar`/`booking`); the CLI does **not** preserve foreign tool definitions and
 no doc claims it does. Deliberately not frozen: full child bytes, continuation hashes, child timestamps; **no child
 fixture committed** — reviewers create the child live into git-ignored `traces/`. `fixtures/external/` still contains
-exactly the two committed W10-A files. Baseline **583/583** offline (559 + 24 new), zero live calls, no API key.
-Next: Codex closeout audit → commit → push → tag.
+exactly the two committed W10-A files. Landed at **583/583** offline (559 + 24 new), zero live calls, no API key.
 
 **W10-A (foreign transcript adapter proof) is complete and tagged (`week-ten-foreign-transcript-adapter`)** per
 `docs/31_week_ten_a_plan.md`. It is an additive adapter-boundary proof: a new pure, dependency-free

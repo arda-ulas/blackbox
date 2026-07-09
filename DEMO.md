@@ -12,7 +12,7 @@ This walkthrough covers the local CLI demo. Everything runs entirely on your mac
 
 ```sh
 npm install
-npm test -- --run     # 522 tests; all should pass
+npm test -- --run     # 583 tests; all should pass
 ```
 
 ---
@@ -498,6 +498,35 @@ hashes in `tests/fixtures.test.ts` in the same commit (see `docs/20_week_five_a_
 
 ---
 
+## Foreign cassette (adapt → fork → diff)
+
+Beyond its own recorded runs, Blackbox can **adapt a synthetic, external-style transcript** into a first-class v2
+cassette and then run the whole loop on it offline. The committed converted cassette
+`fixtures/external/chat-tool-use.converted.v2.json` (produced by `adaptForeignTranscript`, W10-A) is not
+second-class: it verifies, forks, mutates, continues, and diffs under the same semantics as a native trace (W11-A).
+
+```sh
+npm run cli -- verify --trace fixtures/external/chat-tool-use.converted.v2.json
+npm run cli -- fork --trace fixtures/external/chat-tool-use.converted.v2.json \
+  --out traces/chat-tool-use-fork.json --mode tool-result \
+  --fork-index 4 --mutation-step 3 \
+  --payload-json '{"city":"Paris","temperature_c":-2,"condition":"Heavy snow"}'
+npm run cli -- diff --parent fixtures/external/chat-tool-use.converted.v2.json \
+  --child traces/chat-tool-use-fork.json
+npm run cli -- assert --trace traces/chat-tool-use-fork.json \
+  --expect-status success --expect-tools get_weather
+```
+
+`verify` reports 4/4 invariants; `fork` mutates the `get_weather` result at step 3 and continues offline, writing the
+generated, git-ignored child to `traces/chat-tool-use-fork.json` (always via the explicit `--out`); `diff` reports the
+first divergence at index 3 with the behavioral `Outcome:` verdict; `assert` pins the forked child's behavior. The
+input transcript is **synthetic and non-official** (not any provider/SDK wire format), and the fork continuation runs
+under the demo harness — `ReactiveDemoModelClient` plus the default fixture tool executor. **Foreign tools are never
+executed and no live provider or network call occurs.** See the README "For reviewers" section for the full curated
+path with per-command annotations.
+
+---
+
 ## What Is Real vs. Mocked
 
 | Component | Status |
@@ -512,8 +541,10 @@ hashes in `tests/fixtures.test.ts` in the same commit (see `docs/20_week_five_a_
 | Cassette verification (`verifyTrace` / neutrality audit) | Real — offline, composes existing checks |
 | Cassette assertion (`assertCassette` / `assert`) | Real — offline, composes verify + exact-match outcome/tool expectations |
 | Composed self-check (`runSelfCheck` / `check`) | Real — offline, composes record/verify/fork/diff |
+| Foreign transcript adapter (`adaptForeignTranscript`) | Real code, **synthetic/non-official input** — converts a hand-authored chat-style transcript into a v2 cassette; no SDK, no live call |
+| Foreign-origin cassette fork/diff (W11-A) | Real — the committed converted cassette forks/mutates/continues/diffs under unchanged semantics; continuation is fake/offline |
 | Record / scripted model client (`FakeDeterministicModelClient`) | Fake — scripted, deterministic |
-| Fork/`check` continuation model client (`ReactiveDemoModelClient`) | Fake — deterministic; derives its answer from the mutated `tool_result` (no live call) |
+| Fork/`check`/foreign continuation model client (`ReactiveDemoModelClient`) | Fake — deterministic; derives its answer from the mutated `tool_result` (no live call). The CLI foreign fork continues under this fake + the default fixture executor; **foreign tools are never executed** |
 | Fixture tools (search, calendar, booking) | Fake — in-memory, no network |
 
 ---

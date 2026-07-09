@@ -47,15 +47,17 @@ invariants + declared exact-match expectations on the replayed outcome) with a s
 
 Blackbox is a **local, deterministic, offline-by-default** time-travel debugger. The full loop is complete,
 hardened, composed under one self-check, proven live via opt-in scripts, and protected by a committed regression
-corpus. **Cassette assertions are complete:** any committed cassette can be pinned as a deterministic offline CI
-regression test.
+corpus. **Cassette assertions** pin any committed cassette as a deterministic offline CI regression test, and an
+**externally-shaped agent run** can be adapted into a first-class Blackbox cassette that verifies, replays, forks,
+mutates, continues, and diffs fully offline.
 
 - **What it is:** a local deterministic time-travel debugger for single-agent, tool-using runs — no UI, no backend,
   no live-by-default calls.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
-- **Tests:** 522/522 passing, fully offline, zero live calls, no API key required.
-- **Most recent technical milestone:** cassette assertions — the `assert` CI harness (`week-nine-cassette-assert`).
+- **Tests:** 583/583 passing, fully offline, zero live calls, no API key required.
+- **Most recent technical milestone:** foreign-origin cassette active-debugging proof — an adapted foreign cassette
+  forks, mutates, continues, and diffs under unchanged semantics (`week-eleven-foreign-fork-proof`).
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected output.
 
@@ -67,6 +69,9 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 - **Offline verify + one-shot check** — hygiene and a full-loop smoke test with PASS/FAIL exit codes.
 - **Cassette assertions** — pin a committed cassette as a deterministic offline CI regression test using exact-match
   expectations over the replayed outcome, fully offline.
+- **Foreign-transcript ingest** — adapt a synthetic, external-style transcript into a first-class Blackbox v2
+  cassette that verifies, replays, asserts, forks, and diffs fully offline (a dependency-free adapter-boundary proof,
+  not a framework integration).
 - A **committed fake/offline regression corpus** that freezes the loop's guarantees under version control.
 - An **opt-in, human-run live proof** against Anthropic — run manually, never by the default CLI or `npm test`.
 
@@ -92,14 +97,43 @@ DEMO.md.
 
 ## For reviewers
 
-The whole offline loop verifies in four commands, no API key required:
+A curated 3–5 minute path that shows the whole value: the native loop, the CI-assertion utility, and the
+foreign-origin cassette as a first-class citizen of the active debugging loop. It is a guided tour, **not** an
+exhaustive command list (see [DEMO.md](DEMO.md) and the sections below for the rest).
+
+One-time setup (the only step that touches the network — it installs dependencies from the npm registry; no build
+step is needed to run the offline loop):
 
 ```sh
-npm install                 # no build step needed to run the offline loop
-npm test -- --run           # 522 tests, fully offline, zero live calls
-npm run cli -- check        # one-shot: record → verify → fork → verify → diff → single PASS
-npm run fixtures:generate   # check mode: confirms the committed regression corpus is in sync
+npm install
 ```
+
+Then seven fully offline proof commands. Everything after `npm install` runs **local, deterministic, and
+fake/offline** — zero live calls, no API key:
+
+```sh
+npm test -- --run                                                    # 583 tests, fully offline, zero live calls
+npm run cli -- check                                                 # native one-shot: record → verify → fork → verify → diff → single PASS
+npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json \
+  --expect-status success --expect-tools search,calendar,booking     # pin a committed cassette as a CI regression gate (exit 0/1)
+npm run cli -- verify --trace fixtures/external/chat-tool-use.converted.v2.json   # a foreign-origin cassette passes all four invariants
+npm run cli -- fork --trace fixtures/external/chat-tool-use.converted.v2.json \
+  --out traces/chat-tool-use-fork.json --mode tool-result \
+  --fork-index 4 --mutation-step 3 \
+  --payload-json '{"city":"Paris","temperature_c":-2,"condition":"Heavy snow"}'   # mutate the foreign cassette's past and continue offline
+npm run cli -- diff --parent fixtures/external/chat-tool-use.converted.v2.json \
+  --child traces/chat-tool-use-fork.json                             # first structural divergence + behavioral outcome verdict
+npm run cli -- assert --trace traces/chat-tool-use-fork.json \
+  --expect-status success --expect-tools get_weather                 # pin the forked child's behavior
+```
+
+What is real vs. fake here: the trace/replay/fork/diff/verify/assert machinery is the real product code.
+Commands that invoke a model use only local deterministic fakes: `FakeDeterministicModelClient` on scripted paths
+and `ReactiveDemoModelClient` for continuation; default CLI tools are fixture stubs. `verify`, `diff`, and `assert`
+invoke neither models nor tools. The forked child `traces/chat-tool-use-fork.json` is a **generated, local,
+git-ignored** artifact (always written via the explicit `--out` shown above). When `fork` continues the foreign
+cassette, it invokes only the local deterministic fake model under the demo harness — **foreign tools are never
+executed, and no live provider or network call occurs.**
 
 ## Quick Start
 
@@ -284,3 +318,11 @@ record, not the project's current headline (see **Status** above for that).
 ### Week-Nine Cassette CI Harness ✓ (`week-nine-cassette-assert`)
 
 - **W9-A** — Cassette CI harness: one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline PASS/FAIL CI regression test. `npm run cli -- assert --trace <path> [expectation flags]` runs the four `verify` invariants and then, for each supplied expectation flag, does an **exact-match** check against the replayed terminal outcome (`terminalOutcome`) and tool-call sequence (`toolCallSequence`). Flags: `--trace` (required, unlike `verify`), `--expect-status <success|error|incomplete>`, `--expect-final-answer`, `--expect-failure-reason`, `--expect-tools` (comma-split, ordered; `""` ⇒ no tool calls). Exit 0 only when verification and every declared expectation pass; exit 1 otherwise. New pure module `src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile`); `src/cli.ts` gains `runAssert` + one dispatch case (add-only). `verify ⊂ assert` — invariants gate expectations, so on invariant failure the expectation checks become `skip` (never a silent pass); expectations come from CLI flags only (no cassette-embedded, no sidecar), exact match only. No schema / hash / `verifyTrace` / `terminalOutcome` / `toolCallSequence` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator / `package.json` change; every other command's output including `check` is byte-identical. The CLI is now **nine commands** (522/522 offline, 489 + 33 new tests)
+
+### Week-Ten Foreign Transcript Adapter ✓ (`week-ten-foreign-transcript-adapter`)
+
+- **W10-A** — Foreign transcript adapter proof: a new pure, dependency-free module `src/ingest/foreignTranscript.ts` (`adaptForeignTranscript(input, { traceId })` / `ForeignTranscriptError`) converts a synthetic, chat-style external transcript into a normal Blackbox v2 `Trace` by **composing** the untouched `TraceRecorder` + `toolCallIdForIndex` — synchronous, deterministic, no filesystem/network/clock (`Date.now`)/model/tool access, with `createdAt` and every step timestamp sourced only from the transcript. It emits the exact `agentLoop` grammar (11 steps for the two-tool proof), remaps foreign tool-call ids to deterministic `call-N`, allowlist-maps tool declarations, builds every payload field-by-field, and rejects malformed input deterministically. Two committed `fixtures/external/` files (a synthetic source transcript carrying provider-noise sentinels + a read-only golden converted cassette) plus `tests/foreignTranscript.test.ts` prove that no foreign id / `usage` / `finish_reason` / model name crosses into the trace, and that the existing `verify` / `replay` / `assert` surfaces consume the converted cassette **unchanged**. An adapter-boundary proof, **not** a framework/SDK/LangChain/MCP/OpenAI integration and not live ingestion. No schema / hash / core / `cli.ts` / generator / `fixtures/traces/` / `package.json` change (522/522 → 559/559 offline, 37 new tests)
+
+### Week-Eleven Foreign Fork Proof ✓ (`week-eleven-foreign-fork-proof`)
+
+- **W11-A** — Fork foreign cassette proof (tests + docs only): one new test file, `tests/foreignFork.test.ts`, proves the committed foreign-origin cassette participates in the **active** debugging loop — `fork → mutate → continue → diff` — under the exact same, **unchanged** `forkRun` / `ReactiveDemoModelClient` / `diffTraces` / `diffOutcome` / `verifyTrace` / CLI semantics as a native trace. Primary geometry: mutate the `get_weather` `tool_result` at step 3, fork at index 4 — the child shares hash-identical steps 0–2 with the committed parent bytes, keeps `call-0` / `get_weather` / the parent timestamp on the mutated step (new hash, chained from step 2), verifies 4/4, replays to success, and its answer **derives** from the injected payload (two mutations → two answers). Behavioral diff: shared prefix 3, first divergence 3, both success, final answer changed, parent tools `[get_weather, send_email]` vs child `[get_weather]`. Secondary geometry (mutate step 7, fork 8) and spawned-CLI `fork`/`verify`/`diff`/`assert` integration (temp-dir, always explicit `--out`) included; the CLI continuation runs under the demo harness (fixture tool definitions, reactive fake model — foreign tools never executed). Zero source, fixture, CLI, dependency, or schema change; no committed child fixture (559/559 → 583/583 offline, 24 new tests)

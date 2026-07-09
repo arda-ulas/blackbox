@@ -8,8 +8,8 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W10-A (foreign transcript adapter proof) is complete and tagged (`week-ten-foreign-transcript-adapter`). W11-A
-(fork foreign cassette proof) is implemented / in closeout; intended tag `week-eleven-foreign-fork-proof`.** The
+**W11-A (fork foreign cassette proof) is complete and tagged (`week-eleven-foreign-fork-proof`). W12-A (reviewer
+demo path) is a documentation-only reconciliation slice in closeout; intended tag `week-twelve-reviewer-demo-path`.** The
 week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
 committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
 verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
@@ -58,7 +58,7 @@ generator / `fixtures/traces/` / `package.json` change; no new command, flag, or
 output including `check` is byte-identical. W10-A landed at 559/559 offline (522 + 37 new), zero live calls, and is
 closed and tagged.
 
-W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`) is a **tests + docs only** slice — zero source
+W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`) was a **tests + docs only** slice — zero source
 changes, zero fixture changes: one new test file `tests/foreignFork.test.ts` proves the committed foreign-origin
 cassette participates in the ACTIVE debugging loop (`fork → mutate → continue → diff`) under the unchanged `forkRun` /
 `ReactiveDemoModelClient` / `diffTraces` / `diffOutcome` / CLI surfaces. Primary geometry: mutate the `get_weather`
@@ -69,8 +69,17 @@ two answers). A test-local `ToolExecutor` lifts the foreign tool definitions fro
 `defaultToolExecutor()`'s fixture tool definitions — the CLI does not preserve foreign defs). Secondary geometry
 (mutate 7, fork 8) and CLI `fork`/`verify`/`diff`/`assert` integration (temp-dir, always explicit `--out`) included.
 Nothing frozen beyond the parent's committed bytes + divergence geometry (no child fixture, no continuation-hash or
-timestamp freezing). README gains the four fork reviewer commands. No new command, flag, dependency, or schema/hash
-change.
+timestamp freezing). No new command, flag, dependency, or schema/hash change. W11-A is closed and tagged.
+
+W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`) is a **documentation-only** reconciliation slice: it
+reconciles the public docs after W10-A/W11-A (README Status advanced to 583/583 with durable wording and the
+foreign-fork proof as the most recent technical milestone; a foreign-transcript bullet added to "What Blackbox is";
+W10-A/W11-A appended to Build history) and replaces README "For reviewers" with a curated 3–5 minute path — one-time
+`npm install`, then seven fully offline proof commands (`npm test`, native `check`, committed-cassette `assert`,
+foreign `verify`/`fork`/`diff`, forked-child `assert`) each annotated with what is real vs fake/offline; DEMO.md gains
+the foreign-cassette reviewer commands and its Prerequisites count is corrected to 583. No source / test / fixture /
+`scripts/` / `package.json` / `assets/brand/` / `docs/11_cli_spec.md` change; no new test, script, command, flag, or
+dependency; test total unchanged at 583/583; the README hero is unchanged.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
 - **Tests:** 583/583 passing, fully offline, zero live calls.
@@ -95,8 +104,9 @@ change.
   - `week-eight-readme-hero` (W8-B)
   - `week-nine-cassette-assert` (W9-A)
   - `week-nine-public-readiness` (W9-B public-readiness release tag)
-  - `week-ten-foreign-transcript-adapter` (W10-A, current tagged HEAD)
-- **In progress:** W11-A (fork foreign cassette proof, tests + docs only); intended tag `week-eleven-foreign-fork-proof`.
+  - `week-ten-foreign-transcript-adapter` (W10-A)
+  - `week-eleven-foreign-fork-proof` (W11-A)
+- **In progress:** W12-A (reviewer demo path, documentation-only); intended tag `week-twelve-reviewer-demo-path`.
 
 ## Hard Guardrails
 
@@ -115,7 +125,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W10-A (foreign transcript adapter proof, `docs/31_week_ten_a_plan.md`) is closed and tagged (`week-ten-foreign-transcript-adapter`); W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`, tests + docs only) is implemented / in closeout. Any milestone beyond W11-A is planned and Codex-audited before implementation.
+- **Sequencing:** W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`, tests + docs only) is closed and tagged (`week-eleven-foreign-fork-proof`); W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`, documentation-only) is implemented / in closeout. Any milestone beyond W12-A is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -132,12 +142,14 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`): the tests + docs slice is implemented
-and green (583/583 offline, `check` output byte-identical run-to-run, foreign parent forks/mutates/continues/diffs
-under unchanged semantics, prefix hash-identical to the committed parent bytes, derived child answer, zero source and
-fixture changes, `fixtures/external/` still exactly two files, no child fixture committed, no new dependency) → Codex
-closeout audit → commit → push → tag `week-eleven-foreign-fork-proof`. Do not begin W11-B or any further
-product-surface work until it is explicitly scoped in a plan and Codex-audited.
+Close out W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`): the documentation-only reconciliation slice is
+done (README Status advanced to 583/583 with durable wording, "For reviewers" replaced with the curated 3–5 minute
+path, foreign-transcript bullet added, W10-A/W11-A appended to Build history; DEMO.md count corrected to 583 + a
+foreign-cassette reviewer section; `CLAUDE.md`/`AGENTS.md` pointers and a build-log entry) with the tree still green
+(583/583 offline, `check` output byte-identical run-to-run, all seven reviewer commands green, zero source/test/
+fixture/script changes, no trace committed) → Codex closeout audit → commit → push → tag
+`week-twelve-reviewer-demo-path`. Do not begin W12-B or any further product-surface work until it is explicitly scoped
+in a plan and Codex-audited.
 
 ## Response Format
 
