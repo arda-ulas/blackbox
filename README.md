@@ -2,8 +2,9 @@
 
 **Blackbox is a local, offline-by-default time-travel debugger for AI agents.** It records a multi-step
 model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette,
-forks at any step with a mutated prompt or injected tool result, and diffs the resulting execution histories to
-find the first point where the two runs diverged — then verifies and self-checks the whole loop.
+forks at a supported non-terminal step with a mutated prompt or injected tool result, and diffs the resulting
+execution histories to find the first point where the two runs diverged — then verifies and self-checks the whole
+loop.
 
 It is *active debugging*, not passive observability: you don't just watch an agent run, you re-run it from a past
 step under a changed condition and see exactly what changes.
@@ -20,7 +21,8 @@ record → replay → fork → mutate → continue → diff → verify → check
 
 - **record** — run a scripted, multi-step tool-using agent and save an append-only, canonically-hashed trace.
 - **replay** — re-derive the whole run offline from the cassette; no model or tool is ever called.
-- **fork** — branch from any past step, copying the parent prefix byte-for-byte.
+- **fork** — branch from a supported non-terminal step, copying the parent prefix byte-for-byte (metadata and
+  terminal steps are not valid fork points).
 - **mutate** — inject a different prompt or a different tool result at the fork point.
 - **continue** — let the agent run on from the mutation with a deterministic model.
 - **diff** — find and print the first step where parent and child diverge.
@@ -56,8 +58,8 @@ mutates, continues, and diffs fully offline.
 - **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
   (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
 - **Tests:** 583/583 passing, fully offline, zero live calls, no API key required.
-- **Most recent technical milestone:** foreign-origin cassette active-debugging proof — an adapted foreign cassette
-  forks, mutates, continues, and diffs under unchanged semantics (`week-eleven-foreign-fork-proof`).
+- **Foreign cassettes are first-class:** an externally-shaped agent run, adapted into a Blackbox cassette, forks,
+  mutates, continues, and diffs under the same unchanged semantics as a native trace.
 
 See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected output.
 
@@ -65,7 +67,7 @@ See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected o
 
 - A **local, offline-by-default, deterministic** time-travel debugger for single-agent, tool-using runs.
 - **Cassette record/replay** with a canonical SHA-256 hash chain.
-- **Fork + mutate + diff** — branch from any step, change one thing, see what diverges.
+- **Fork + mutate + diff** — branch from a supported non-terminal step, change one thing, see what diverges.
 - **Offline verify + one-shot check** — hygiene and a full-loop smoke test with PASS/FAIL exit codes.
 - **Cassette assertions** — pin a committed cassette as a deterministic offline CI regression test using exact-match
   expectations over the replayed outcome, fully offline.
@@ -226,19 +228,13 @@ tool result offline and see precisely what changes.
 ## Quick Start
 
 ```sh
-npm install
-npm test -- --run
-npm run cli -- record
-npm run cli -- list
-npm run cli -- inspect
-npm run cli -- replay
-npm run cli -- fork
-npm run cli -- diff --parent traces/example-trace.json --child traces/example-trace-fork.json
-npm run cli -- verify --trace traces/example-trace.json
-npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json --expect-status success --expect-tools search,calendar,booking
-npm run cli -- check
-npm run fixtures:generate
+npm install            # one-time; installs dependencies from npm (the only networked step)
+npm run cli -- check   # run the whole loop offline and print a single PASS — no API key
 ```
+
+`check` records a run, verifies it, forks and mutates it, verifies the child, and diffs the two — the entire core
+loop in one command. The [worked example](#worked-example-debugging-one-bad-answer) walks a single bug end to end,
+and [DEMO.md](DEMO.md) is the full command-by-command tour.
 
 ## Run it as a packaged CLI
 
@@ -256,8 +252,10 @@ npx blackbox check                                   # the full offline loop, on
 
 The packaged `blackbox` runs the same offline commands as `npm run cli --` (`record`, `replay`, `fork`, `diff`,
 `verify`, `assert`, `check`, `list`, `inspect`), with byte-identical output and the same `0`/`1` exit codes — it is
-a thin launcher over the same source, no separate build. Everything stays local, deterministic, and offline; no live
-provider or network call occurs.
+a thin launcher over the same source, no separate build. The `blackbox` command itself makes **no live model, tool,
+or network call**. The one caveat is install-time, not run-time: `npm install <tarball>` may contact the npm registry
+to fetch the CLI's own dependencies. There is no registry install and no registry `npx` — the tarball is produced and
+installed locally.
 
 ## Use a cassette as a CI regression test
 
@@ -354,82 +352,37 @@ See `docs/20_week_five_a_plan.md` §7 for the regeneration policy.
 
 ---
 
-## Build history
+## Documentation
 
-Blackbox was built in weekly milestones. Each is complete and tagged; the sections below are the accurate build
-record, not the project's current headline (see **Status** above for that).
+- **[DEMO.md](DEMO.md)** — full command-by-command walkthrough with expected output.
+- **[docs/03_trace_schema.md](docs/03_trace_schema.md)** — the v2 cassette format.
+- **[docs/13_adapter_contract.md](docs/13_adapter_contract.md)** — the provider-neutral adapter boundary.
+- **[docs/37_architecture_overview.md](docs/37_architecture_overview.md)** — how the engine fits together.
 
-### Week-One Proof ✓ (`week-one-cli-proof`)
+## Release history
 
-- Record one multi-step tool-using agent run; save an append-only hash-chained trace
-- Replay the run fully offline from cassette
-- Fork at step `k` with a mutated prompt; verify the child shares a canonical-hash-identical prefix
-- Print a terminal diff showing the first divergence
+Blackbox was built in small, tagged weekly milestones. The headline is **Status** above; this is a compact
+milestone summary. Each row names its milestone tag, except `week-four-*`, which is a family of several Week-Four
+tags rather than a single tag. The full, detailed build log lives in [docs/08_build_log.md](docs/08_build_log.md).
 
-### Week-Two Hardening ✓ (`week-two-core-hardening`)
-
-- **W2-A** — Cassette schema versioning: `loadTrace` rejects stale or unsupported cassettes
-- **W2-B** — Tool-result mutation: inject a different result at any prefix step, re-chain from that point onward
-- **W2-C** — Fork-point semantics: defined and documented for every step type; `metadata` steps rejected as fork points
-- **W2-D** — Richer demos: success path (search → calendar → booking) and error path (unknown tool); `example:fork` demonstrates tool-result mutation
-
-### Week-Three CLI ✓ (`week-three-cli-packaging`)
-
-- **W3-A** — Unified `npm run cli --` entry point with `record`, `replay`, `fork`, `diff`; hand-rolled arg parser; flag validation
-- **W3-B** — `list` and `inspect`; `list` validates hash chains before counting files as valid
-- **W3-C** — Terminal output polish: consistent section headers, human-readable divergence summary, `[blackbox]` prefixes
-- **W3-D** — Demo walkthrough ([DEMO.md](DEMO.md))
-
-### Week-Four Hardening ✓ (`week-four-*`)
-
-- **W4-A…E** — Provider-neutral adapter boundary; optional opt-in Anthropic proof scripts (never in `npm test`, no CLI wiring); structured v2 transcript; full live `record → replay → fork → mutate → continue → diff` loop proven against Anthropic
-- **W4-F** — Cassette verification + trace hygiene: `npm run cli -- verify --trace <path>` checks schema version, hash chain, provider-neutrality, and offline replayability, reporting PASS/FAIL and the first failing invariant. Reusable core: `verifyTrace` / `verifyTraceFile` (`src/trace/verifyTrace.ts`) and the neutrality audit (`src/trace/neutrality.ts`)
-- **W4-G** — Fork/verify workflow polish: `npm run cli -- check` runs the whole offline loop (record → verify → fork → verify → diff) in one command and reports a single PASS/FAIL verdict (in-memory by default; `--out-dir <dir>` persists the parent + child cassettes). Reusable core: `runSelfCheck` (`src/workflow/selfCheck.ts`). `fork` refuses to overwrite its own parent trace
-
-### Week-Five Regression Hardening ✓ (`week-five-trace-fixture-corpus`)
-
-- **W5-A** — Trace fixture corpus + regression harness: a small committed, fake/offline v2 corpus under `fixtures/traces/` plus `tests/fixtures.test.ts`, which loads the frozen cassettes and asserts every core invariant against them — schema version, hash chain, **frozen expected hashes**, provider neutrality, offline replay, terminal-error verification, fork-prefix hash identity, and a frozen first-divergence index. This turns the loop's guarantees into a version-controlled baseline so a future change cannot silently break cassette compatibility
-
-### Week-Five Public Demo Readiness ✓ (`week-five-public-demo-readiness`)
-
-- **W5-B** — Public demo narrative + repo readiness (docs-only): re-authored README as the repo front door (what Blackbox is / is not, "What it proves", "Proof status", a four-command "For reviewers" path), tightened DEMO, and refreshed the current-state pointers in `AGENTS.md` / `CLAUDE.md`. No source, test, fixture, config, runtime, CLI, or provider change
-
-### Week-Six Diff/Inspect Ergonomics ✓ (`week-six-diff-inspect-ergonomics`)
-
-- **W6-A** — Diff/inspect legibility: a shared, pure presentation helper (`src/trace/stepLabels.ts`) makes `diff`/`fork` show the value that actually changed at a divergence in human words (`changed value (<field>):`) instead of a truncated JSON dump. Replay output is byte-identical (verbatim lift); no schema, hash, fixture, or CLI-surface change
-
-### Week-Six Verify/Replay Explanations ✓ (`week-six-verify-replay-explanations`)
-
-- **W6-B** — Verify failure explanations: a pure presentation helper (`src/trace/verifyExplain.ts`) renders a labelled `verify` FAIL block (`invariant:` / `at:` / `detail:` / plain-language `action:`) per invariant class, with leaked secrets still masked as `<api-key-value>`. The `verify` PASS path and the `VerifyReport` shape are unchanged; no schema, hash, fixture, or CLI-surface change
-
-### Week-Six Release Freeze ✓ (`week-six-release-freeze`)
-
-- **W6-C** — Release freeze + README/DEMO verification (docs-only): verified every command in README/DEMO against `package.json` and `src/cli.ts`, reconciled the public docs to the true repo state (test count 394/394, current status/tag wording, complete build history, consistent core-loop string), and refreshed the `AGENTS.md` / `CLAUDE.md` current-state pointers. No source, test, fixture, config, runtime, CLI, or provider change
-
-### Week-Seven Reactive Fake Model ✓ (`week-seven-reactive-fake-model`)
-
-- **W7-A** — Reactive deterministic fake model: the offline fork/`check` continuation now *derives* the child's answer from the mutated `tool_result` via a new pure, deterministic `ReactiveDemoModelClient` (`src/agent/reactiveDemoModel.ts`) that reads the reconstructed transcript and embeds the mutated payload's field — so changing the mutation changes the answer — replacing the former hardcoded continuation strings at the `cli fork` and `check` injection sites. Still fake/offline, deterministic, zero live calls, no real model in the default CLI. `FakeDeterministicModelClient`, `forkRun`, the trace schema, canonical hashing, replay/diff/verify, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (417/417 offline, 394 + 23 new tests)
-
-### Week-Seven Behavioral Outcome Diff ✓ (`week-seven-behavioral-outcome-diff`)
-
-- **W7-B** — Behavioral outcome diff: `diff` and `fork` now report an `Outcome:` verdict describing how the two runs' *terminal behavior* differs — final status, final answer (or failure reason), and tool-call path — computed offline from the two traces by exact-string comparison (no model call, no semantic judge). New pure modules `src/trace/traceOutcome.ts` (`terminalOutcome` / `toolCallSequence`) and `src/fork/diffOutcome.ts` (`diffOutcome` / `formatOutcomeDiff`), plus a `formatDiffReport` wrapper that appends the verdict to the unchanged structural divergence block. `replayTrace` now derives its terminal fields from the shared `terminalOutcome` (returned fields and CLI `replay` output byte-identical). The `diffTraces()` computation, the `TraceDiff` shape, `formatFirstDivergence`, `forkRun`, the schema, canonical hashing, the fixture corpus and generator, `package.json`, and the CLI surface are unchanged; `check` stdout is byte-identical (442/442 offline, 417 + 25 new tests)
-
-### Week-Eight Terminal Experience Polish ✓ (`week-eight-terminal-polish`)
-
-- **W8-A** — Terminal experience polish: one shared, premium terminal grammar across all eight commands via a new pure, dependency-free module `src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `colorEnabled` / `GLYPH`). Banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗` glyphs. Color is optional sugar gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)`, computed **independently per output stream** so a redirected stderr stays escape-free even when stdout is a color TTY — so piped / `NO_COLOR` / `CI` output on **both** stdout and stderr is escape-free (a structural no-ANSI test guards it). Glyphs (`✓ ✗ → ▸ ◼`) are decorative; the text labels always carry the meaning (the header's `·` is punctuation, not a glyph). The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`, `stepLabels`) are byte-identical, so every frozen behavioral-diff spacing assertion holds. `check` stdout was re-baselined once, deliberately (before/after captured in `docs/27_week_eight_a_plan.md` and the build log); its exit code and the `runSelfCheck` return shape are unchanged and its output is byte-identical run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return / `forkRun` / `runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider / fixture / generator / `package.json` / `.gitignore` change; no new command, flag, or exit code (489/489 offline, 442 + 47 new tests)
-
-### Week-Eight README Hero ✓ (`week-eight-readme-hero`)
-
-- **W8-B** — README hero polish (docs/assets-only): a hand-authored, static SVG (`assets/brand/blackbox-readme-hero.svg`) that renders the real `npm run cli -- check` output as **actual SVG text** — no raster, no AI-generated text, no external font/image/script/style, no base64 — embedded at the top of `README.md`. The CLI-derived lines are verified byte-for-byte against live `check` stdout; the two footer lines are verified separately against a fixed expected pair. No `src/`, `tests/`, `fixtures/`, `scripts/`, `package.json`, `package-lock.json`, `.gitignore`, or `DEMO.md` change; no CLI behavior/command/flag/exit-code change; no new dependency
-
-### Week-Nine Cassette CI Harness ✓ (`week-nine-cassette-assert`)
-
-- **W9-A** — Cassette CI harness: one new CLI command, `assert`, that turns a committed cassette into a deterministic, fully offline PASS/FAIL CI regression test. `npm run cli -- assert --trace <path> [expectation flags]` runs the four `verify` invariants and then, for each supplied expectation flag, does an **exact-match** check against the replayed terminal outcome (`terminalOutcome`) and tool-call sequence (`toolCallSequence`). Flags: `--trace` (required, unlike `verify`), `--expect-status <success|error|incomplete>`, `--expect-final-answer`, `--expect-failure-reason`, `--expect-tools` (comma-split, ordered; `""` ⇒ no tool calls). Exit 0 only when verification and every declared expectation pass; exit 1 otherwise. New pure module `src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile`); `src/cli.ts` gains `runAssert` + one dispatch case (add-only). `verify ⊂ assert` — invariants gate expectations, so on invariant failure the expectation checks become `skip` (never a silent pass); expectations come from CLI flags only (no cassette-embedded, no sidecar), exact match only. No schema / hash / `verifyTrace` / `terminalOutcome` / `toolCallSequence` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator / `package.json` change; every other command's output including `check` is byte-identical. The CLI is now **nine commands** (522/522 offline, 489 + 33 new tests)
-
-### Week-Ten Foreign Transcript Adapter ✓ (`week-ten-foreign-transcript-adapter`)
-
-- **W10-A** — Foreign transcript adapter proof: a new pure, dependency-free module `src/ingest/foreignTranscript.ts` (`adaptForeignTranscript(input, { traceId })` / `ForeignTranscriptError`) converts a synthetic, chat-style external transcript into a normal Blackbox v2 `Trace` by **composing** the untouched `TraceRecorder` + `toolCallIdForIndex` — synchronous, deterministic, no filesystem/network/clock (`Date.now`)/model/tool access, with `createdAt` and every step timestamp sourced only from the transcript. It emits the exact `agentLoop` grammar (11 steps for the two-tool proof), remaps foreign tool-call ids to deterministic `call-N`, allowlist-maps tool declarations, builds every payload field-by-field, and rejects malformed input deterministically. Two committed `fixtures/external/` files (a synthetic source transcript carrying provider-noise sentinels + a read-only golden converted cassette) plus `tests/foreignTranscript.test.ts` prove that no foreign id / `usage` / `finish_reason` / model name crosses into the trace, and that the existing `verify` / `replay` / `assert` surfaces consume the converted cassette **unchanged**. An adapter-boundary proof, **not** a framework/SDK/LangChain/MCP/OpenAI integration and not live ingestion. No schema / hash / core / `cli.ts` / generator / `fixtures/traces/` / `package.json` change (522/522 → 559/559 offline, 37 new tests)
-
-### Week-Eleven Foreign Fork Proof ✓ (`week-eleven-foreign-fork-proof`)
-
-- **W11-A** — Fork foreign cassette proof (tests + docs only): one new test file, `tests/foreignFork.test.ts`, proves the committed foreign-origin cassette participates in the **active** debugging loop — `fork → mutate → continue → diff` — under the exact same, **unchanged** `forkRun` / `ReactiveDemoModelClient` / `diffTraces` / `diffOutcome` / `verifyTrace` / CLI semantics as a native trace. Primary geometry: mutate the `get_weather` `tool_result` at step 3, fork at index 4 — the child shares hash-identical steps 0–2 with the committed parent bytes, keeps `call-0` / `get_weather` / the parent timestamp on the mutated step (new hash, chained from step 2), verifies 4/4, replays to success, and its answer **derives** from the injected payload (two mutations → two answers). Behavioral diff: shared prefix 3, first divergence 3, both success, final answer changed, parent tools `[get_weather, send_email]` vs child `[get_weather]`. Secondary geometry (mutate step 7, fork 8) and spawned-CLI `fork`/`verify`/`diff`/`assert` integration (temp-dir, always explicit `--out`) included; the CLI continuation runs under the demo harness (fixture tool definitions, reactive fake model — foreign tools never executed). Zero source, fixture, CLI, dependency, or schema change; no committed child fixture (559/559 → 583/583 offline, 24 new tests)
+| Milestone (tag) | What it landed |
+|---|---|
+| `week-one-cli-proof` | Record → replay → fork (mutated prompt) → diff, hash-chained cassette |
+| `week-two-core-hardening` | Schema versioning, tool-result mutation, fork-point semantics, richer demos |
+| `week-three-cli-packaging` | Unified `cli` entry point (`record`/`replay`/`fork`/`diff`/`list`/`inspect`), output polish, DEMO |
+| `week-four-*` (tag family) | Provider-neutral adapter boundary; opt-in live Anthropic proof of the full loop; structured v2 transcript; `verify`; one-shot `check` |
+| `week-five-trace-fixture-corpus` | Committed fake/offline v2 regression corpus with frozen hashes |
+| `week-five-public-demo-readiness` | README/DEMO re-authored as the repo front door (docs-only) |
+| `week-six-diff-inspect-ergonomics` | Human-readable "changed value" divergence labels |
+| `week-six-verify-replay-explanations` | Labelled `verify` FAIL explanations (secrets masked) |
+| `week-six-release-freeze` | Docs verified against the real CLI (docs-only) |
+| `week-seven-reactive-fake-model` | Continuation derives the child's answer from the mutated `tool_result` |
+| `week-seven-behavioral-outcome-diff` | `Outcome:` verdict on `diff`/`fork` (status, answer, tool path) |
+| `week-eight-terminal-polish` | One shared, color-gated terminal grammar across all commands |
+| `week-eight-readme-hero` | Hand-authored SVG README hero rendering real `check` output |
+| `week-nine-cassette-assert` | `assert` — pin a committed cassette as an offline CI regression gate |
+| `week-ten-foreign-transcript-adapter` | Adapt an externally-shaped transcript into a v2 cassette |
+| `week-eleven-foreign-fork-proof` | The adapted cassette forks, mutates, continues, and diffs under unchanged semantics |
+| `week-twelve-reviewer-demo-path` | Curated reviewer walkthrough (docs-only) |
+| `week-thirteen-worked-case-study` | The worked-example bug walkthrough above (docs-only) |
+| `week-fourteen-package-readiness` | Local-tarball packaging as a `blackbox` CLI, verified offline — **not** npm-published |

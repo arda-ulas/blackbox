@@ -13,7 +13,6 @@
 //
 // W4-F. No change to hash.ts, validateTrace, replayTrace, or loadTrace semantics.
 
-import { readFile } from "node:fs/promises";
 import { CURRENT_TRACE_VERSION, type Trace } from "./TraceTypes.ts";
 import { auditTraceNeutrality } from "./neutrality.ts";
 import { loadTrace, validateTrace, replayTrace } from "../replay/CassetteReplay.ts";

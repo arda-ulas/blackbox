@@ -19,7 +19,7 @@
   ],
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "bin": {
     "blackbox": "bin/blackbox.js"
@@ -32,9 +32,6 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
     "test": "vitest",
     "example:record": "tsx src/examples/record.ts",
     "example:replay": "tsx src/examples/replay.ts",
@@ -46,8 +43,8 @@
     "example:real-fork-proof": "tsx src/examples/realForkProof.ts"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1",
     "vitest": "^4.1.9"
   },
   "dependencies": {

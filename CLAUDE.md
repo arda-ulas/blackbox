@@ -4,116 +4,16 @@
 
 Blackbox is a time-travel debugger for AI agents.
 
-It records multi-step model/tool runs, replays them offline from cassette, forks from any step, mutates a prompt or tool result, and diffs the resulting execution histories.
+It records multi-step model/tool runs, replays them offline from cassette, forks from a supported non-terminal step, mutates a prompt or tool result, and diffs the resulting execution histories.
 
 ## Current State
 
-**W13-A (worked debugging case study) is complete and tagged (`week-thirteen-worked-case-study`). W14-A
-(npm packaging-readiness proof) is a packaging-only slice in closeout; intended tag `week-fourteen-package-readiness`;
-npm publish remains gated behind a separate go/no-go (`"private": true` retained).** The
-week-one CLI proof is long complete, the local loop has been hardened through Week Four, W5-A froze it against a
-committed regression corpus, W5-B made the public surface reviewer-ready, W6-A/W6-B made divergence and
-verify-failure output legible, W6-C release-froze the repo with truthful docs, W7-A made the offline fork/`check`
-continuation derive the child's answer from the mutated `tool_result`, and W7-B added a behavioral `Outcome:` verdict
-to `diff`/`fork`. W8-A is a presentation-only slice across the whole CLI: a new pure, dependency-free module
-`src/render/termStyle.ts` (`header` / `section` / `kv` / `verdict` / `palette` / `errorPrefix` / `colorEnabled` /
-`GLYPH`) supplies one shared terminal grammar, and `src/cli.ts` restyles all eight command surfaces through it
-(banners become `◼ blackbox · <command>`, ad-hoc `--- x ---` sub-rules become dimmed section labels, the duplicated
-per-command `label()` closures collapse into one aligned `kv`, and PASS/FAIL is emphasized with color and `✓`/`✗`).
-Color is gated by `colorEnabled({ isTTY, env })` — on only when `isTTY && !("NO_COLOR" in env) && !("CI" in env)` —
-computed **once per output stream** (independent stdout and stderr decisions, so a redirected stderr stays
-escape-free even when stdout is a color TTY), so non-TTY / piped / CI output on both streams is escape-free; glyphs
-are decorative, text carries the meaning (the header's `·` is punctuation, not a glyph). `check` stdout was re-baselined once, deliberately (before/after in `docs/27_week_eight_a_plan.md` §4.1 and
-the build log); its exit code and the `runSelfCheck` return shape are unchanged and its output is byte-identical
-run-to-run. No schema / canonical-hash / replay-semantics / `replayTrace`-return / `forkRun` /
-`runSelfCheck`-logic / `diffTraces()`-computation / `TraceDiff`-`OutcomeDiff`-`VerifyReport`-shape / provider /
-fixture / generator / `package.json` / `package-lock.json` / `.gitignore` change; no new command, flag, or exit code;
-no stdout↔stderr movement. The four pure formatters (`formatFirstDivergence`, `formatOutcomeDiff`, `verifyExplain`,
-`stepLabels`) are byte-identical. W8-B was a docs/assets-only follow-on (a hand-authored, static SVG README hero at
-`assets/brand/blackbox-readme-hero.svg`, rendering the real `check` output as actual SVG text). W9-A adds one new
-CLI command, `assert`, a cassette CI harness: `npm run cli -- assert --trace <path> [expectation flags]` turns a
-committed cassette into a deterministic offline PASS/FAIL regression test by composing the existing `verifyTrace`
-invariants with exact-match expectations over the replayed `terminalOutcome` / `toolCallSequence`. New pure module
-`src/workflow/assertCassette.ts` (`assertCassette` / `assertCassetteFile`); `src/cli.ts` gains `runAssert` +
-dispatch (add-only). `verify ⊂ assert` (invariants gate expectations → `skip` on invariant failure); expectations
-come from CLI flags only (no cassette-embedded, no sidecar); exact match only. No schema / hash / `verifyTrace` /
-`terminalOutcome` / `replayTrace` / `forkRun` / `runSelfCheck` / `diffTraces` / `termStyle` / fixture / generator /
-`package.json` change; every other command's output including `check` is byte-identical. CLI is now nine commands.
-W9-B was a documentation-only public-readiness refresh on top of the tagged W9-A: it rewrote the README Status in
-durable public language, surfaced the `assert` capability in "What Blackbox is," appended the W8-B/W9-A build-history
-entries, and refreshed these current-state pointers. No source / test / fixture / `package.json` / `package-lock.json`
-/ `.gitignore` / `DEMO.md` / `docs/11_cli_spec.md` / `assets/brand/` change; no runtime behavior change.
-
-W10-A is an additive adapter-boundary proof (`docs/31_week_ten_a_plan.md`): a new pure, dependency-free module
-`src/ingest/foreignTranscript.ts` (`adaptForeignTranscript` / `ForeignTranscriptError`) converts a synthetic,
-chat-style external transcript into a normal Blackbox v2 `Trace` by composing the untouched `TraceRecorder` +
-`toolCallIdForIndex` (no clock/I/O/network/model/tool; timestamps sourced from the transcript). It emits the exact
-`agentLoop` grammar (11 steps for the two-tool proof), remaps foreign tool-call ids to deterministic `call-N`, strips
-all provider noise (foreign ids, `usage`, `finish_reason`, model name — none cross into the trace), and rejects
-malformed input deterministically. Two committed `fixtures/external/` files (a synthetic source transcript with noise
-sentinels + a read-only golden converted cassette) plus `tests/foreignTranscript.test.ts` prove it; the existing
-`verify` / `replay` / `assert` surfaces consume the converted cassette **unchanged**. This is an adapter-boundary
-proof, **not** a framework/SDK/LangChain/MCP/OpenAI integration and not live ingestion. No schema / hash / `verifyTrace`
-/ `replayTrace` / `assertCassette` / `terminalOutcome` / `toolCallSequence` / `forkRun` / `diffTraces` / `cli.ts` /
-generator / `fixtures/traces/` / `package.json` change; no new command, flag, or dependency; every other command's
-output including `check` is byte-identical. W10-A landed at 559/559 offline (522 + 37 new), zero live calls, and is
-closed and tagged.
-
-W11-A (fork foreign cassette proof, `docs/32_week_eleven_a_plan.md`) was a **tests + docs only** slice — zero source
-changes, zero fixture changes: one new test file `tests/foreignFork.test.ts` proves the committed foreign-origin
-cassette participates in the ACTIVE debugging loop (`fork → mutate → continue → diff`) under the unchanged `forkRun` /
-`ReactiveDemoModelClient` / `diffTraces` / `diffOutcome` / CLI surfaces. Primary geometry: mutate the `get_weather`
-`tool_result` at step 3, fork at 4 — child shares hash-identical steps 0–2 with the committed parent bytes, diverges
-first at 3, verifies 4/4, replays to success, and its answer **derives** from the injected payload (two mutations →
-two answers). A test-local `ToolExecutor` lifts the foreign tool definitions from the parent's own step-0 payload
-(`execute()` throws, asserted never called); the CLI continuation is documented demo-harness behavior (it records
-`defaultToolExecutor()`'s fixture tool definitions — the CLI does not preserve foreign defs). Secondary geometry
-(mutate 7, fork 8) and CLI `fork`/`verify`/`diff`/`assert` integration (temp-dir, always explicit `--out`) included.
-Nothing frozen beyond the parent's committed bytes + divergence geometry (no child fixture, no continuation-hash or
-timestamp freezing). No new command, flag, dependency, or schema/hash change. W11-A is closed and tagged.
-
-W12-A (reviewer demo path, `docs/33_week_twelve_a_plan.md`) is a **documentation-only** reconciliation slice: it
-reconciles the public docs after W10-A/W11-A (README Status advanced to 583/583 with durable wording and the
-foreign-fork proof as the most recent technical milestone; a foreign-transcript bullet added to "What Blackbox is";
-W10-A/W11-A appended to Build history) and replaces README "For reviewers" with a curated 3–5 minute path — one-time
-`npm install`, then seven fully offline proof commands (`npm test`, native `check`, committed-cassette `assert`,
-foreign `verify`/`fork`/`diff`, forked-child `assert`) each annotated with what is real vs fake/offline; DEMO.md gains
-the foreign-cassette reviewer commands and its Prerequisites count is corrected to 583. No source / test / fixture /
-`scripts/` / `package.json` / `assets/brand/` / `docs/11_cli_spec.md` change; no new test, script, command, flag, or
-dependency; test total unchanged at 583/583; the README hero is unchanged.
-
-W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`) is a **documentation-only** slice closing the
-external-audit "a cold reviewer cannot see one concrete bug" gap with **no new engine feature**: it adds one README
-section, "Worked example: debugging one bad answer", that debugs a single bug end to end over the native corpus
-cassette `fixtures/traces/success-tool-use.v2.json` — the recorded run booked a room off a wrong `search` result at
-step 3; `replay` shows the bad answer, `fork` injects the corrected no-availability `tool_result` (mutation step 3,
-fork index 4, `--out traces/case-study-fix.json`), the deterministic `ReactiveDemoModelClient` continuation derives a
-decline, `diff` pins the first divergence at index 3 with the behavioral `Outcome:` verdict, and `assert`
-(`--expect-final-answer` carrying the exact derived string, per Codex correction) pins the corrected child as a
-regression gate — with short excerpts captured byte-for-byte from real non-TTY runs. Plus a one-sentence "What
-Blackbox is not" tighten to functional positioning (Blackbox sits beside frameworks, does not run your agent; no
-LangGraph/LangChain/MCP support claim). DEMO.md left untouched; the W12-A "For reviewers" block byte-unchanged;
-W13-A not added to README Build history pre-tag. No source / test / fixture / `scripts/` / `package.json` /
-`assets/brand/` / `docs/11_cli_spec.md` / `DEMO.md` change; no new test, script, command, flag, or dependency; test
-total unchanged at 583/583; the README hero is unchanged.
-
-W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is a **packaging-readiness-only** slice with
-**no source/runtime behavior change**: it prepares Blackbox as a locally installable npm CLI and proves it works from
-a local tarball, **without publishing**. `package.json` gains package metadata (`name: @ardaulas/blackbox`,
-`version: 0.1.0`, `description`, `license: MIT`, `repository`, `keywords`, `engines.node: >=18`), a `bin` entry
-(`blackbox` → `bin/blackbox.js`), and a `files` whitelist (`bin`, `src`, `fixtures`, `README.md`, `LICENSE`); `tsx`
-is reclassified from `devDependencies` to `dependencies` (already in the lockfile) and the lockfile is regenerated;
-`"private": true` is kept as the structural publish guard and **`package.json` scripts are byte-identical**. New
-`bin/blackbox.js` is a thin Node shim (no CLI logic, no output of its own) that runs `src/cli.ts` through the packaged
-`tsx`, forwarding argv verbatim, inheriting stdio (TTY/color gate intact), and propagating the child exit code
-exactly — no build step, no `dist/`, no tsconfig change, `src/` untouched. New MIT `LICENSE`. README gains one "Run it
-as a packaged CLI" local-tarball section (explicitly **not** npm-published) and refines the "What Blackbox is not"
-package bullet. Proven by `npm pack` + install into a fresh temp dir: bare `blackbox` usage, packaged `blackbox check`
-byte-identical to the repo `check`, the full `record → replay → fork → diff → verify → assert` loop green offline, a
-failing `assert` exiting 1 — all with no API key; tarball and temp dir removed after the proof. No `src/` / `tests/` /
-`fixtures/` / `scripts/` change; no schema/hash/replay/fork/diff/verify/assert change; no new test, CLI command, or
-flag; no npm publish. W14-A is not added to README Build history pre-tag; test total unchanged at 583/583; the README
-hero, the W12-A reviewer block, and the W13-A case study are unchanged.
+**W14-A (npm packaging-readiness proof) is complete and tagged (`week-fourteen-package-readiness`).** The engine
+scope is finished: the full loop was built and hardened across the weekly milestones, frozen against a committed
+regression corpus, made reviewer- and public-ready, extended with the `assert` CI utility and the
+`adaptForeignTranscript` ingest adapter, proven to fork/diff a foreign-origin cassette under unchanged semantics, and
+finally packaged as a local-tarball `blackbox` CLI. The per-week detail lives in the README "Release history" table
+and `docs/08_build_log.md`; the durable state is below.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
 - **Tests:** 583/583 passing, fully offline, zero live calls.
@@ -142,7 +42,9 @@ hero, the W12-A reviewer block, and the W13-A case study are unchanged.
   - `week-eleven-foreign-fork-proof` (W11-A)
   - `week-twelve-reviewer-demo-path` (W12-A)
   - `week-thirteen-worked-case-study` (W13-A)
-- **In progress:** W14-A (npm packaging-readiness proof, packaging-only, no publish); intended tag `week-fourteen-package-readiness`.
+  - `week-fourteen-package-readiness` (W14-A)
+- **Packaging:** installs and runs as a local-tarball `blackbox` CLI, verified offline; **not** npm-published
+  (`"private": true` retained; publishing is a separate, explicit go/no-go).
 
 ## Hard Guardrails
 
@@ -161,7 +63,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** W13-A (worked debugging case study, `docs/34_week_thirteen_a_plan.md`, documentation-only) is closed and tagged (`week-thirteen-worked-case-study`); W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`, packaging-only, no publish) is implemented / in closeout. The actual npm publish is a separate go/no-go after the W14-A audit (`"private": true` retained until then). Any milestone beyond W14-A (including W15) is planned and Codex-audited before implementation.
+- **Sequencing:** every weekly milestone through W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is closed and tagged. The engine scope is finished; the npm publish remains a separate, explicit go/no-go (`"private": true` retained until then). Any further product-surface work is planned and Codex-audited before implementation.
 
 ## Core Loop
 
@@ -178,17 +80,11 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-Close out W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`): the packaging-only slice is done
-(`package.json` metadata + `bin` + `files` whitelist + `tsx` reclassified to dependencies with the lockfile
-regenerated and `"private": true` kept and scripts byte-identical; new thin `bin/blackbox.js` launcher; new MIT
-`LICENSE`; one README "Run it as a packaged CLI" local-tarball section + the "What Blackbox is not" bullet refined;
-`CLAUDE.md`/`AGENTS.md` pointers and a build-log entry) with the tree still green (583/583 offline, `check` output
-byte-identical run-to-run, `npm pack --dry-run` whitelist-exact, the packaged CLI proven from a fresh temp-dir tarball
-install offline with byte-identical `check` and correct 0/1 exit codes, no `src/`/`tests/`/`fixtures/`/`scripts/`
-changes, no trace or tarball committed) → Codex closeout audit → commit → push → tag
-`week-fourteen-package-readiness`. The actual npm publish is a **separate, explicit go/no-go** after that audit
-(`"private": true` retained until then). Do not begin W15 or any further product-surface work until it is explicitly
-scoped in a plan and Codex-audited.
+The engine is scope-complete and packaged. The default next action is **presentation / portfolio packaging** — making
+the public repo, README, DEMO, and docs read cleanly for a cold reviewer — **not** more engine work. Do not add new
+engine features, a dashboard/UI/backend/observability surface, or a LangChain/LangGraph/MCP integration unless it is
+first scoped in a plan and Codex-audited. The npm publish stays a separate, explicit go/no-go (`"private": true`
+retained until then).
 
 ## Response Format
 

@@ -1,6 +1,6 @@
 # Blackbox — CLI Demo Walkthrough
 
-Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at any step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff → verify → check**.
+Blackbox is a local time-travel debugger for AI agents. It records a multi-step model/tool run as an append-only, hash-chained trace, replays that trace fully offline from the saved cassette (zero model or tool calls), forks at a supported non-terminal step by injecting a mutated prompt or tool result, and diffs the resulting execution histories to find the first point where the two runs diverged. The core loop is: **record → replay → fork → mutate → continue → diff → verify → check**.
 
 This walkthrough covers the local CLI demo. Everything runs entirely on your machine with no external API calls. Traces are recorded in **schema v2** — tool rounds carry a deterministic, provider-neutral `toolCallId` (see [docs/03_trace_schema.md](docs/03_trace_schema.md)).
 
@@ -556,7 +556,7 @@ path with per-command annotations.
 - **No UI.** All interaction is terminal output. There is no web dashboard, branch graph, or timeline view.
 - **Single-agent only.** The loop, recorder, and fork logic assume one agent running one tool at a time. Multi-agent orchestration is out of scope.
 - **Not a generic observability platform.** Blackbox records structured traces for replay and forking — it is not an OpenTelemetry exporter or a production log aggregator.
-- **Not npm-published.** The CLI is invoked via `npm run cli --` inside the repo. Packaging as a global binary or published package is a future phase.
+- **Not npm-published.** The CLI is invoked via `npm run cli --` inside the repo. Local-tarball packaging as a `blackbox` command is **prepared and verified** (`npm pack` → install the `.tgz` into a throwaway dir → `npx blackbox check`, byte-identical offline); publishing to the npm registry remains a separate, explicit step.
 - **Demo scenarios only.** The scripted hotel-booking and flight-error scenarios illustrate the loop. Running Blackbox against arbitrary agent code requires implementing the `ModelClient` interface and wiring up real tools.
 
 ---

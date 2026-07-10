@@ -144,7 +144,9 @@ function die(msg: string): never {
 function printUsage(): void {
   console.log(`${header("usage", colorOn)}
 
-Usage: npm run cli -- <command> [flags]
+Usage: blackbox <command> [flags]
+
+Inside this repo you can run the same CLI as: npm run cli -- <command> [flags]
 
 Commands:
   record    Run demo agent traces and save cassettes to disk
@@ -157,7 +159,7 @@ Commands:
   list      List all trace cassettes in a directory
   inspect   Print detailed info and step timeline for a cassette
 
-Run a command with no flags to use defaults.
+Most demo commands have safe defaults; diff and assert require explicit trace arguments.
 `);
 }
 
