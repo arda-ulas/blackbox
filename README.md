@@ -32,112 +32,16 @@ record → replay → fork → mutate → continue → diff → verify → check
 Plus one CI utility outside the loop: **assert** — pin a committed cassette as a regression test (the `verify`
 invariants + declared exact-match expectations on the replayed outcome) with a scriptable PASS/FAIL exit code.
 
-## What it proves
-
-- **Offline replay is a structural guarantee, not a convention.** `replayTrace(trace)` takes *only* a `Trace` — no
-  model client, no tools — so it is impossible to make a live call from inside replay.
-- **Fork prefixes are hash-identical.** A forked child shares a byte-for-byte, SHA-256-identical prefix with its
-  parent up to the mutation point; the diff pinpoints the first divergence.
-- **The full loop is proven against a real provider.** Opt-in, human-run proof scripts confirmed the complete
-  `record → replay → fork → mutate → continue → diff` loop against the live Anthropic Messages API — without ever
-  persisting a provider-native id, usage, stop metadata, or a key.
-- **A committed corpus guards cassette compatibility.** A small, frozen, fake/offline v2 trace corpus with frozen
-  hashes fails loudly if a future change would silently break cassette compatibility, hashing, replay, or fork
-  geometry.
-
-## Status
-
-Blackbox is a **local, deterministic, offline-by-default** time-travel debugger. The full loop is complete,
-hardened, composed under one self-check, proven live via opt-in scripts, and protected by a committed regression
-corpus. **Cassette assertions** pin any committed cassette as a deterministic offline CI regression test, and an
-**externally-shaped agent run** can be adapted into a first-class Blackbox cassette that verifies, replays, forks,
-mutates, continues, and diffs fully offline.
-
-- **What it is:** a local deterministic time-travel debugger for single-agent, tool-using runs — no UI, no backend,
-  no live-by-default calls.
-- **Trace format:** schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
-  (`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md).
-- **Tests:** 583/583 passing, fully offline, zero live calls, no API key required.
-- **Foreign cassettes are first-class:** an externally-shaped agent run, adapted into a Blackbox cassette, forks,
-  mutates, continues, and diffs under the same unchanged semantics as a native trace.
-
-See [DEMO.md](DEMO.md) for a full command-by-command walkthrough with expected output.
-
-## What Blackbox is
-
-- A **local, offline-by-default, deterministic** time-travel debugger for single-agent, tool-using runs.
-- **Cassette record/replay** with a canonical SHA-256 hash chain.
-- **Fork + mutate + diff** — branch from a supported non-terminal step, change one thing, see what diverges.
-- **Offline verify + one-shot check** — hygiene and a full-loop smoke test with PASS/FAIL exit codes.
-- **Cassette assertions** — pin a committed cassette as a deterministic offline CI regression test using exact-match
-  expectations over the replayed outcome, fully offline.
-- **Foreign-transcript ingest** — adapt a synthetic, external-style transcript into a first-class Blackbox v2
-  cassette that verifies, replays, asserts, forks, and diffs fully offline (a dependency-free adapter-boundary proof,
-  not a framework integration).
-- A **committed fake/offline regression corpus** that freezes the loop's guarantees under version control.
-- An **opt-in, human-run live proof** against Anthropic — run manually, never by the default CLI or `npm test`.
-
-## What Blackbox is not
-
-- **Not** a web UI, dashboard, backend, hosted service, or sharing platform.
-- **Not** an observability / OpenTelemetry / metrics / log-aggregation platform.
-- **Not** an agent framework or orchestrator (no LangChain, LlamaIndex, or MCP) — Blackbox does not run your agent
-  for you; it records, replays, forks, and diffs recorded histories. It sits beside frameworks, not in place of them.
-- **Not yet npm-published** — packaging is prepared and verified from a local tarball; publishing is a separate,
-  explicit step. Not a production SDK.
-- **Not** live-by-default: no CLI command and no test in `npm test` calls a real model or tool.
-
-## Proof status
-
-| Area | Status |
-|---|---|
-| Default loop (CLI + `npm test`) | **Fake / offline** — deterministic model clients (`FakeDeterministicModelClient` scripted + `ReactiveDemoModelClient` reactive fork/`check` continuation) + fixture tools; zero live calls; replay is structurally offline |
-| Live provider proof | **Opt-in proof scripts only** — three human-run, key-gated scripts (`example:real-proof`, `example:real-tooluse-proof`, `example:real-fork-proof`); never in `npm test`, never CLI-wired; record real runs, replay offline. The full live `record → replay → fork → mutate → continue → diff` loop is proven (W4-E) |
-| Regression corpus | **Committed** fake/offline v2 cassettes under `fixtures/traces/` with frozen hashes (W5-A) guarding cassette compatibility |
-| UI / backend / dashboard / observability | **None, by design** — a discipline, not a TODO |
-
-For the full real-vs-mocked breakdown, see the [What Is Real vs. Mocked](DEMO.md#what-is-real-vs-mocked) table in
-DEMO.md.
-
-## For reviewers
-
-A curated 3–5 minute path that shows the whole value: the native loop, the CI-assertion utility, and the
-foreign-origin cassette as a first-class citizen of the active debugging loop. It is a guided tour, **not** an
-exhaustive command list (see [DEMO.md](DEMO.md) and the sections below for the rest).
-
-One-time setup (the only step that touches the network — it installs dependencies from the npm registry; no build
-step is needed to run the offline loop):
+## Quick Start
 
 ```sh
-npm install
+npm install            # one-time; installs dependencies from npm (the only networked step)
+npm run cli -- check   # run the whole loop offline and print a single PASS — no API key
 ```
 
-Then seven fully offline proof commands. Everything after `npm install` runs **local, deterministic, and
-fake/offline** — zero live calls, no API key:
-
-```sh
-npm test -- --run                                                    # 583 tests, fully offline, zero live calls
-npm run cli -- check                                                 # native one-shot: record → verify → fork → verify → diff → single PASS
-npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json \
-  --expect-status success --expect-tools search,calendar,booking     # pin a committed cassette as a CI regression gate (exit 0/1)
-npm run cli -- verify --trace fixtures/external/chat-tool-use.converted.v2.json   # a foreign-origin cassette passes all four invariants
-npm run cli -- fork --trace fixtures/external/chat-tool-use.converted.v2.json \
-  --out traces/chat-tool-use-fork.json --mode tool-result \
-  --fork-index 4 --mutation-step 3 \
-  --payload-json '{"city":"Paris","temperature_c":-2,"condition":"Heavy snow"}'   # mutate the foreign cassette's past and continue offline
-npm run cli -- diff --parent fixtures/external/chat-tool-use.converted.v2.json \
-  --child traces/chat-tool-use-fork.json                             # first structural divergence + behavioral outcome verdict
-npm run cli -- assert --trace traces/chat-tool-use-fork.json \
-  --expect-status success --expect-tools get_weather                 # pin the forked child's behavior
-```
-
-What is real vs. fake here: the trace/replay/fork/diff/verify/assert machinery is the real product code.
-Commands that invoke a model use only local deterministic fakes: `FakeDeterministicModelClient` on scripted paths
-and `ReactiveDemoModelClient` for continuation; default CLI tools are fixture stubs. `verify`, `diff`, and `assert`
-invoke neither models nor tools. The forked child `traces/chat-tool-use-fork.json` is a **generated, local,
-git-ignored** artifact (always written via the explicit `--out` shown above). When `fork` continues the foreign
-cassette, it invokes only the local deterministic fake model under the demo harness — **foreign tools are never
-executed, and no live provider or network call occurs.**
+`check` records a run, verifies it, forks and mutates it, verifies the child, and diffs the two — the entire core
+loop in one command. The [worked example](#worked-example-debugging-one-bad-answer) walks a single bug end to end,
+and [DEMO.md](DEMO.md) is the full command-by-command tour.
 
 ## Worked example: debugging one bad answer
 
@@ -225,37 +129,79 @@ local, git-ignored** artifact (always written via the explicit `--out` above). T
 committed cassette — Blackbox does not find the bug for you; it lets you *reproduce, correct, and pin* a known bad
 tool result offline and see precisely what changes.
 
-## Quick Start
+## Scope and proof
+
+Blackbox is **local, deterministic, and offline by default.** The full loop is complete: 583/583 tests passing,
+fully offline, zero live calls, no API key required.
+
+- **What it is:** a local cassette debugger for single-agent, tool-using runs — canonical SHA-256 hash chain,
+  offline replay, fork + mutate + diff, scriptable CI assertions, and a foreign-transcript adapter that converts
+  externally-shaped runs into first-class v2 cassettes.
+- **What it isn't:** no web UI, dashboard, backend, metrics platform, agent framework, or npm registry publish.
+  Packaging is prepared and verified from a local tarball; publishing is a separate, explicit step.
+- **Default mode:** the CLI and `npm test` use deterministic fake/offline clients
+  (`FakeDeterministicModelClient` scripted + `ReactiveDemoModelClient` reactive) and fixture tools — zero live
+  calls. Replay, diff, verify, and assert are structurally offline: `replayTrace(trace)` takes only a `Trace`, not
+  a model client, so it is impossible to make a live call from replay.
+- **Live proof:** three opt-in, human-run, key-gated scripts confirm the full `record → replay → fork → mutate →
+  continue → diff` loop against the Anthropic API; they are never wired into `npm test` or the default CLI, and
+  they still replay offline.
+- **Regression corpus:** committed fake/offline v2 cassettes under `fixtures/traces/` with frozen hashes guard
+  cassette compatibility, hashing, replay, and fork geometry.
+
+Trace format: schema **v2** — tool rounds are recorded as structured, provider-neutral transcript parts
+(`MessagePart`) carrying a deterministic `toolCallId`. See [docs/03_trace_schema.md](docs/03_trace_schema.md). For
+the full real-vs-mocked breakdown, see the [What Is Real vs. Mocked](DEMO.md#what-is-real-vs-mocked) table in
+DEMO.md.
+
+---
+
+## Documentation
+
+- **[DEMO.md](DEMO.md)** — full command-by-command walkthrough with expected output.
+- **[docs/03_trace_schema.md](docs/03_trace_schema.md)** — the v2 cassette format.
+- **[docs/13_adapter_contract.md](docs/13_adapter_contract.md)** — the provider-neutral adapter boundary.
+- **[docs/37_architecture_overview.md](docs/37_architecture_overview.md)** — how the engine fits together.
+
+## For reviewers
+
+A curated 3–5 minute path that shows the whole value: the native loop, the CI-assertion utility, and the
+foreign-origin cassette as a first-class citizen of the active debugging loop. It is a guided tour, **not** an
+exhaustive command list (see [DEMO.md](DEMO.md) and the sections below for the rest).
+
+One-time setup (the only step that touches the network — it installs dependencies from the npm registry; no build
+step is needed to run the offline loop):
 
 ```sh
-npm install            # one-time; installs dependencies from npm (the only networked step)
-npm run cli -- check   # run the whole loop offline and print a single PASS — no API key
+npm install
 ```
 
-`check` records a run, verifies it, forks and mutates it, verifies the child, and diffs the two — the entire core
-loop in one command. The [worked example](#worked-example-debugging-one-bad-answer) walks a single bug end to end,
-and [DEMO.md](DEMO.md) is the full command-by-command tour.
-
-## Run it as a packaged CLI
-
-Blackbox is packaged as an installable CLI (bin name `blackbox`), but it is **not published to npm yet** — there is
-no `npm install @ardaulas/blackbox` or `npx` from the registry. Packaging is **prepared and verified locally from a
-tarball**; publishing is a separate, explicit step. To try the packaged command, build the tarball and install it
-into a throwaway directory:
+Then seven fully offline proof commands. Everything after `npm install` runs **local, deterministic, and
+fake/offline** — zero live calls, no API key:
 
 ```sh
-npm pack                                            # produces ardaulas-blackbox-<version>.tgz
-cd "$(mktemp -d)" && npm init -y                     # a fresh throwaway project
-npm install /absolute/path/to/ardaulas-blackbox-0.1.0.tgz
-npx blackbox check                                   # the full offline loop, one PASS — no API key
+npm test -- --run                                                    # 583 tests, fully offline, zero live calls
+npm run cli -- check                                                 # native one-shot: record → verify → fork → verify → diff → single PASS
+npm run cli -- assert --trace fixtures/traces/success-tool-use.v2.json \
+  --expect-status success --expect-tools search,calendar,booking     # pin a committed cassette as a CI regression gate (exit 0/1)
+npm run cli -- verify --trace fixtures/external/chat-tool-use.converted.v2.json   # a foreign-origin cassette passes all four invariants
+npm run cli -- fork --trace fixtures/external/chat-tool-use.converted.v2.json \
+  --out traces/chat-tool-use-fork.json --mode tool-result \
+  --fork-index 4 --mutation-step 3 \
+  --payload-json '{"city":"Paris","temperature_c":-2,"condition":"Heavy snow"}'   # mutate the foreign cassette's past and continue offline
+npm run cli -- diff --parent fixtures/external/chat-tool-use.converted.v2.json \
+  --child traces/chat-tool-use-fork.json                             # first structural divergence + behavioral outcome verdict
+npm run cli -- assert --trace traces/chat-tool-use-fork.json \
+  --expect-status success --expect-tools get_weather                 # pin the forked child's behavior
 ```
 
-The packaged `blackbox` runs the same offline commands as `npm run cli --` (`record`, `replay`, `fork`, `diff`,
-`verify`, `assert`, `check`, `list`, `inspect`), with byte-identical output and the same `0`/`1` exit codes — it is
-a thin launcher over the same source, no separate build. The `blackbox` command itself makes **no live model, tool,
-or network call**. The one caveat is install-time, not run-time: `npm install <tarball>` may contact the npm registry
-to fetch the CLI's own dependencies. There is no registry install and no registry `npx` — the tarball is produced and
-installed locally.
+What is real vs. fake here: the trace/replay/fork/diff/verify/assert machinery is the real product code.
+Commands that invoke a model use only local deterministic fakes: `FakeDeterministicModelClient` on scripted paths
+and `ReactiveDemoModelClient` for continuation; default CLI tools are fixture stubs. `verify`, `diff`, and `assert`
+invoke neither models nor tools. The forked child `traces/chat-tool-use-fork.json` is a **generated, local,
+git-ignored** artifact (always written via the explicit `--out` shown above). When `fork` continues the foreign
+cassette, it invokes only the local deterministic fake model under the demo harness — **foreign tools are never
+executed, and no live provider or network call occurs.**
 
 ## Use a cassette as a CI regression test
 
@@ -334,6 +280,27 @@ tool executor). Foreign tools are never executed; the only model invocation is t
 live provider or network call is made. This proves debuggability of the adapted cassette, not foreign tool
 execution.
 
+## Run it as a packaged CLI
+
+Blackbox is packaged as an installable CLI (bin name `blackbox`), but it is **not published to npm yet** — there is
+no `npm install @ardaulas/blackbox` or `npx` from the registry. Packaging is **prepared and verified locally from a
+tarball**; publishing is a separate, explicit step. To try the packaged command, build the tarball and install it
+into a throwaway directory:
+
+```sh
+npm pack                                            # produces ardaulas-blackbox-<version>.tgz
+cd "$(mktemp -d)" && npm init -y                     # a fresh throwaway project
+npm install /absolute/path/to/ardaulas-blackbox-0.1.0.tgz
+npx blackbox check                                   # the full offline loop, one PASS — no API key
+```
+
+The packaged `blackbox` runs the same offline commands as `npm run cli --` (`record`, `replay`, `fork`, `diff`,
+`verify`, `assert`, `check`, `list`, `inspect`), with byte-identical output and the same `0`/`1` exit codes — it is
+a thin launcher over the same source, no separate build. The `blackbox` command itself makes **no live model, tool,
+or network call**. The one caveat is install-time, not run-time: `npm install <tarball>` may contact the npm registry
+to fetch the CLI's own dependencies. There is no registry install and no registry `npx` — the tarball is produced and
+installed locally.
+
 ## Trace fixture corpus
 
 `fixtures/traces/` holds a small **committed** set of deterministic, fake/offline v2 cassettes used as a
@@ -352,18 +319,11 @@ See `docs/20_week_five_a_plan.md` §7 for the regeneration policy.
 
 ---
 
-## Documentation
-
-- **[DEMO.md](DEMO.md)** — full command-by-command walkthrough with expected output.
-- **[docs/03_trace_schema.md](docs/03_trace_schema.md)** — the v2 cassette format.
-- **[docs/13_adapter_contract.md](docs/13_adapter_contract.md)** — the provider-neutral adapter boundary.
-- **[docs/37_architecture_overview.md](docs/37_architecture_overview.md)** — how the engine fits together.
-
 ## Release history
 
-Blackbox was built in small, tagged weekly milestones. The headline is **Status** above; this is a compact
-milestone summary. Each row names its milestone tag, except `week-four-*`, which is a family of several Week-Four
-tags rather than a single tag. The full, detailed build log lives in [docs/08_build_log.md](docs/08_build_log.md).
+Blackbox was built in small, tagged weekly milestones. This is a compact milestone summary. Each row names its
+milestone tag, except `week-four-*`, which is a family of several Week-Four tags rather than a single tag. The
+full, detailed build log lives in [docs/08_build_log.md](docs/08_build_log.md).
 
 | Milestone (tag) | What it landed |
 |---|---|
