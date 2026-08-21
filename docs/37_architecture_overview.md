@@ -53,12 +53,13 @@ does not affect the hash, and the same logical content always produces the same 
 step folds in the previous step's hash via `prevHash`, the cassette is tamper-evident: change any step
 and every hash from that point forward changes.
 
-## Why replay cannot call models or tools
+## Why replay does not call models or tools
 
-`replayTrace(trace)` (`src/replay/CassetteReplay.ts`) takes **only a `Trace`** — no `ModelClient`, no
-tools, no network. This is a structural guarantee, not a convention: replay re-derives the run's
-outcome purely from recorded bytes, so it is impossible to make a live call from inside replay. This
-is what makes replay deterministic and offline by construction.
+`replayTrace(trace)` (`src/replay/CassetteReplay.ts`) accepts a **`Trace` as its execution input** — no
+`ModelClient` or tool executor is injected — and the current replay module has no model, tool-execution,
+or network dependency. Replay re-derives the run's outcome from the recorded steps rather than performing
+a fresh model or tool execution. These properties make replay deterministic and offline in the current
+implementation.
 
 ## Fork, mutate, rehash, continue
 

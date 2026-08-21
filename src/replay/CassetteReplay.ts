@@ -135,8 +135,9 @@ export interface ReplaySummary {
  * Reconstruct a human-readable summary of a recorded run.
  *
  * Replay is purely a read of stored steps — no model client or tool
- * implementations are required or called. The function signature accepts
- * only a Trace, making it structurally impossible to inject live behavior.
+ * implementations are required or called. The function accepts a Trace as
+ * its execution input, and the current module has no model, tool-execution,
+ * or network dependency.
  */
 export function replayTrace(trace: Trace): ReplaySummary {
   const events: ReplayEvent[] = trace.steps.map((step) => ({

@@ -71,7 +71,8 @@ Add one real provider adapter, gated behind an environment variable:
 - Implement `AnthropicModelClient` (or similar) in `src/agent/anthropicModelClient.ts`
 - Reads `ANTHROPIC_API_KEY` from `process.env`; throws a clear error if missing when instantiated
 - Satisfies the same `ModelClient` interface as `FakeDeterministicModelClient` — drop-in replacement
-- Never called during `replayTrace` (structurally impossible; verify)
+- Never called during `replayTrace`; replay accepts a `Trace` as its execution input and the current replay module
+  has no model, tool-execution, or network dependency (verify)
 - Tests skip any test that instantiates `AnthropicModelClient` unless `ANTHROPIC_API_KEY` is set in the environment
 - No key, no token, no credential of any kind is committed to the repo or hardcoded in source
 

@@ -74,7 +74,7 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 ## Current State
 
 **W14-A (npm packaging-readiness proof) is complete and tagged (`week-fourteen-package-readiness`).** All prior
-weekly milestones are closed and tagged; the full tag record is in the README "Release history" table, and the
+numbered milestones are closed and tagged; the full tag record is in the README "Release history" table, and the
 detailed build log is `docs/08_build_log.md`.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`, plus the `assert` CI utility

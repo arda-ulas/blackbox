@@ -10,7 +10,7 @@ It is *active debugging*, not passive observability: you don't just watch an age
 step under a changed condition and see exactly what changes.
 
 <img src="assets/brand/blackbox-readme-hero.svg"
-     alt="Blackbox check command showing the offline record verify fork diff workflow passing."
+     alt="Blackbox diff command showing the first divergence and changed parent and child tool paths."
      width="100%">
 
 ## The core loop
@@ -42,6 +42,9 @@ npm run cli -- check   # run the whole loop offline and print a single PASS — 
 `check` records a run, verifies it, forks and mutates it, verifies the child, and diffs the two — the entire core
 loop in one command. The [worked example](#worked-example-debugging-one-bad-answer) walks a single bug end to end,
 and [DEMO.md](DEMO.md) is the full command-by-command tour.
+
+**Reviewer links:** [Architecture](docs/37_architecture_overview.md) · [Case study](docs/38_case_study.md) ·
+[CI](https://github.com/arda-ulas/blackbox/actions) · [`forkRun` implementation](src/fork/forkRun.ts)
 
 ## Worked example: debugging one bad answer
 
@@ -141,8 +144,9 @@ fully offline, zero live calls, no API key required.
   Packaging is prepared and verified from a local tarball; publishing is a separate, explicit step.
 - **Default mode:** the CLI and `npm test` use deterministic fake/offline clients
   (`FakeDeterministicModelClient` scripted + `ReactiveDemoModelClient` reactive) and fixture tools — zero live
-  calls. Replay, diff, verify, and assert are structurally offline: `replayTrace(trace)` takes only a `Trace`, not
-  a model client, so it is impossible to make a live call from replay.
+  calls. Replay is offline in the current implementation: `replayTrace(trace)` accepts a `Trace` as its execution
+  input, and the replay module has no model, tool-execution, or network dependency. It derives the outcome from the
+  recorded trace rather than performing a fresh model or tool execution.
 - **Live proof:** three opt-in, human-run, key-gated scripts confirm the full `record → replay → fork → mutate →
   continue → diff` loop against the Anthropic API; they are never wired into `npm test` or the default CLI, and
   they still replay offline.
@@ -321,7 +325,7 @@ See `docs/20_week_five_a_plan.md` §7 for the regeneration policy.
 
 ## Release history
 
-Blackbox was built in small, tagged weekly milestones. This is a compact milestone summary. Each row names its
+Blackbox was built in small, numbered, tagged milestones. This is a compact milestone summary. Each row names its
 milestone tag, except `week-four-*`, which is a family of several Week-Four tags rather than a single tag. The
 full, detailed build log lives in [docs/08_build_log.md](docs/08_build_log.md).
 

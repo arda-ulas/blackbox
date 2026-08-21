@@ -173,7 +173,9 @@ Status:         success
 Result:         Hotel booked for Alice on 2024-03-15 at 14:00.
 ```
 
-**Key proof point:** replay is a structural guarantee, not a convention. The `replayTrace` function takes only a `Trace` — no `ModelClient` parameter, no `FixtureTool` parameter. It is impossible to make a model or tool call from inside replay. Every event is read from the cassette.
+**Key proof point:** `replayTrace` accepts a `Trace` as its execution input — no `ModelClient` or tool executor is
+injected — and the current replay module has no model, tool-execution, or network dependency. Every event is read
+from the cassette rather than produced by a fresh model or tool execution.
 
 ---
 

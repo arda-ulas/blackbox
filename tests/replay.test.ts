@@ -158,9 +158,9 @@ describe("validateTrace", () => {
 
 describe("replayTrace", () => {
   it("never calls the model or tools — accepts only a Trace, returns ReplaySummary", async () => {
-    // replayTrace(trace: Trace): ReplaySummary — no ModelClient or FixtureTool
-    // parameter exists. It is structurally impossible to inject live behavior.
-    // Running it against a real trace and getting a result proves offline operation.
+    // replayTrace(trace: Trace): ReplaySummary exposes no injected model or tool
+    // dependency, and the current replay module imports no execution dependency.
+    // Running it against a real trace confirms that it derives the stored outcome.
     const trace = await recordSimpleTrace();
     const summary = replayTrace(trace);
     expect(summary.traceId).toBe("run-simple");

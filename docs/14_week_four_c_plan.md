@@ -31,7 +31,7 @@ These constraints are non-negotiable and must be verified before any implementat
 |---|---|
 | Default adapter | `FakeDeterministicModelClient` remains the default in all tests and CLI commands |
 | Opt-in only | Anthropic adapter only activates via isolated proof script — **no CLI flag in W4-C** |
-| Replay isolation | `replayTrace` takes no `ModelClient` parameter — structurally impossible to call Anthropic during replay |
+| Replay isolation | `replayTrace` accepts a `Trace` as its execution input; the current replay module has no Anthropic, model, tool-execution, or network dependency |
 | Fork/diff on recorded traces | `forkRun` and `diffTraces` work identically on any `Trace` — no adapter-specific logic |
 | API key source | `process.env.ANTHROPIC_API_KEY` only — never hardcoded, never in config files, never in traces or logs |
 | API key never stored | No field in `TraceStep.payload`, `Trace` metadata, log output, or any written file may contain the key |

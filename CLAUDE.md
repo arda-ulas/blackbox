@@ -9,10 +9,10 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 ## Current State
 
 **W14-A (npm packaging-readiness proof) is complete and tagged (`week-fourteen-package-readiness`).** The engine
-scope is finished: the full loop was built and hardened across the weekly milestones, frozen against a committed
+scope is finished: the full loop was built and hardened across the numbered, tagged milestones, frozen against a committed
 regression corpus, made reviewer- and public-ready, extended with the `assert` CI utility and the
 `adaptForeignTranscript` ingest adapter, proven to fork/diff a foreign-origin cassette under unchanged semantics, and
-finally packaged as a local-tarball `blackbox` CLI. The per-week detail lives in the README "Release history" table
+finally packaged as a local-tarball `blackbox` CLI. The per-milestone detail lives in the README "Release history" table
 and `docs/08_build_log.md`; the durable state is below.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
@@ -63,7 +63,7 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** every weekly milestone through W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is closed and tagged. The engine scope is finished; the npm publish remains a separate, explicit go/no-go (`"private": true` retained until then). Any further product-surface work is planned and Codex-audited before implementation.
+- **Sequencing:** every numbered milestone through W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is closed and tagged. The engine scope is finished; the npm publish remains a separate, explicit go/no-go (`"private": true` retained until then). Any further product-surface work is planned and Codex-audited before implementation.
 
 ## Core Loop
 
