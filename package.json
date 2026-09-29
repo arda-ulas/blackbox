@@ -1,6 +1,6 @@
 {
   "name": "@ardaulas/blackbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A flight recorder for AI agents: record your Anthropic or OpenAI agent to a hash-chained cassette, replay it offline, fork it with one tool result changed, and diff to the first divergence.",
   "license": "MIT",
   "author": "Arda Ulas Ozdemir",

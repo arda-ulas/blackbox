@@ -16,6 +16,41 @@ change behavior).
 - Read-only import of OpenTelemetry GenAI spans.
 - Vercel AI SDK and OpenAI Agents SDK integrations.
 
+## [0.2.1] - 2026-09-29
+
+Worked examples, and the small features they needed.
+
+### Added
+
+- **`blackbox inspect <cassette> --step N`** prints one step in full: its type,
+  hash, time and complete payload, so a recorded tool result can be read
+  without opening the JSON.
+- **`diff` names the changed fields** of a divergent value too long to show
+  whole, e.g. `result.data[0].dp.value: "91" → "124"`.
+- **`fork --set @file.json`** reads the replacement tool result from a file.
+- **Import a Claude Code subagent's transcript.** A file under
+  `<session>/subagents/agent-*.jsonl`, where every line is a sidechain, now
+  imports as a session of its own.
+- **Example: root-causing a triage agent** (`examples/fleet-triage/`). A
+  back-office fleet-maintenance agent keeps an overheating van in service
+  because its telemetry tool served a snapshot cached before the fault.
+  Reproduce with `replay`, isolate with `inspect`, test the hypothesis with
+  `fork`, confirm with `diff`, then prevent a recurrence with a freshness check
+  and a cassette pinned in CI. Telemetry uses COVESA VSS 6.1 signal paths with
+  VISS data points. Runs offline, with no API key.
+- **Example: what did my coding agent do?** (`examples/claude-code-session/`):
+  a real, scrubbed Claude Code session imported, inspected, verified and
+  pinned with `assert`.
+- A test proving that replaying with a different model name stops at the
+  path `model`.
+
+### Changed
+
+- The `--help` banner uses the README's tagline ("time-travel debugger").
+- Hints for unreadable old cassettes point at `blackbox record`.
+- The comparison page was rewritten with facts re-verified in September 2026,
+  starting with Laminar.
+
 ## [0.2.0] - 2026-09-29
 
 The first release you can point at your own agent.
