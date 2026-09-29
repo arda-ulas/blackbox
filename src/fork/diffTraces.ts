@@ -8,6 +8,7 @@ import {
   stepTypeLabel,
 } from "../trace/stepLabels.ts";
 import { diffOutcome, formatOutcomeDiff } from "./diffOutcome.ts";
+import { canonicalize } from "../trace/hash.ts";
 
 export interface TraceDiff {
   parentTraceId: string;
@@ -31,7 +32,11 @@ export interface TraceDiff {
   isChildStrictPrefixOfParent: boolean;
 }
 
-export function diffTraces(parentTrace: Trace, childTrace: Trace): TraceDiff {
+function compareTraces(
+  parentTrace: Trace,
+  childTrace: Trace,
+  stepsEqual: (parent: TraceStep, child: TraceStep) => boolean,
+): TraceDiff {
   const pSteps = parentTrace.steps;
   const cSteps = childTrace.steps;
   const maxLen = Math.max(pSteps.length, cSteps.length);
@@ -42,7 +47,7 @@ export function diffTraces(parentTrace: Trace, childTrace: Trace): TraceDiff {
     const pStep: TraceStep | null = pSteps[i] ?? null;
     const cStep: TraceStep | null = cSteps[i] ?? null;
 
-    if (pStep !== null && cStep !== null && pStep.hash === cStep.hash) {
+    if (pStep !== null && cStep !== null && stepsEqual(pStep, cStep)) {
       sharedPrefixLength += 1;
       continue;
     }
@@ -74,6 +79,31 @@ export function diffTraces(parentTrace: Trace, childTrace: Trace): TraceDiff {
     isParentStrictPrefixOfChild: false,
     isChildStrictPrefixOfParent: false,
   };
+}
+
+/**
+ * Integrity comparison: step hashes must match exactly. Because timestamps and
+ * the previous hash are part of each integrity hash, independent recordings of
+ * the same behavior normally diverge at step 0. This remains the default for
+ * fork-prefix proofs and tamper-sensitive comparisons.
+ */
+export function diffTraces(parentTrace: Trace, childTrace: Trace): TraceDiff {
+  return compareTraces(parentTrace, childTrace, (parent, child) => parent.hash === child.hash);
+}
+
+/**
+ * Semantic comparison for independent recordings. Compares only the ordered
+ * step type and canonical payload, deliberately ignoring timestamps, ids,
+ * prevHash, and integrity hashes. It never changes or weakens cassette hash
+ * validation; callers should verify each trace separately before comparing.
+ */
+export function diffTracesSemantic(parentTrace: Trace, childTrace: Trace): TraceDiff {
+  return compareTraces(
+    parentTrace,
+    childTrace,
+    (parent, child) =>
+      parent.type === child.type && canonicalize(parent.payload) === canonicalize(child.payload),
+  );
 }
 
 function humanSummary(diff: TraceDiff): string {
@@ -148,9 +178,24 @@ export function formatFirstDivergence(diff: TraceDiff): string {
  * `formatFirstDivergence` are all unchanged. Both `runDiff` and `runFork`
  * render through this one wrapper, so both surfaces gain the outcome verdict.
  */
-export function formatDiffReport(parentTrace: Trace, childTrace: Trace): string {
-  const traceDiff = diffTraces(parentTrace, childTrace);
+export interface DiffReportOptions {
+  /** Default: integrity (hash equality). Semantic ignores volatile trace fields. */
+  comparison?: "integrity" | "semantic";
+}
+
+export function formatDiffReport(
+  parentTrace: Trace,
+  childTrace: Trace,
+  options: DiffReportOptions = {},
+): string {
+  const comparison = options.comparison ?? "integrity";
+  const traceDiff = comparison === "semantic"
+    ? diffTracesSemantic(parentTrace, childTrace)
+    : diffTraces(parentTrace, childTrace);
   const structural = formatFirstDivergence(traceDiff);
   const outcome = diffOutcome(parentTrace, childTrace);
-  return [structural, formatOutcomeDiff(outcome)].join("\n\n");
+  const comparisonNote = comparison === "semantic"
+    ? "Comparison:      semantic (step type + payload; timestamps and hash-chain fields ignored)"
+    : undefined;
+  return [comparisonNote, structural, formatOutcomeDiff(outcome)].filter(Boolean).join("\n\n");
 }

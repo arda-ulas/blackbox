@@ -152,7 +152,7 @@ Commands:
   record    Run demo agent traces and save cassettes to disk
   replay    Replay a cassette offline (no model or tool calls)
   fork      Fork a trace with a prompt or tool-result mutation
-  diff      Load two cassettes and print the first divergence
+  diff      Compare two cassettes (hash integrity by default; --semantic for re-recordings)
   verify    Verify a cassette's schema, hash chain, neutrality, and replayability
   assert    Assert a cassette holds as a CI regression test (verify + declared expectations)
   check     Run the full offline loop (record→verify→fork→verify→diff) and report one verdict
@@ -448,7 +448,7 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
 // diff
 // ---------------------------------------------------------------------------
 
-const DIFF_ALLOWED     = ["parent", "child"];
+const DIFF_ALLOWED     = ["parent", "child", "semantic"];
 const DIFF_VALUE_FLAGS = ["parent", "child"];
 
 async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
@@ -457,6 +457,10 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
 
   if (!flags["parent"] || flags["parent"] === true) die("Missing required flag: --parent");
   if (!flags["child"]  || flags["child"]  === true) die("Missing required flag: --child");
+  if (typeof flags["semantic"] === "string") {
+    die("--semantic is a boolean flag and does not take a value");
+  }
+  const comparison = flags["semantic"] === true ? "semantic" : "integrity";
 
   const parentTrace = await loadTrace(flags["parent"] as string);
   const childTrace  = await loadTrace(flags["child"]  as string);
@@ -470,7 +474,7 @@ async function runDiff(flags: Record<string, string | boolean>): Promise<void> {
   console.log(kv("Parent:", parentPath, colorOn));
   console.log(kv("Child:",  childPath, colorOn));
   console.log();
-  console.log(formatDiffReport(parentTrace, childTrace));
+  console.log(formatDiffReport(parentTrace, childTrace, { comparison }));
 }
 
 // ---------------------------------------------------------------------------

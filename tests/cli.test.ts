@@ -243,6 +243,31 @@ describe("cli diff", () => {
     expect(result.stdout).toContain("Summary:");
   }, 15_000);
 
+  it("accepts --semantic and labels the comparison mode", async () => {
+    const result = await runCli([
+      "diff",
+      "--parent", SUCCESS_PATH,
+      "--child", SUCCESS_PATH,
+      "--semantic",
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Comparison:      semantic");
+    expect(result.stdout).toContain("no divergence");
+  }, 15_000);
+
+  it("rejects a value on --semantic before printing any report output", async () => {
+    const result = await runCli([
+      "diff",
+      "--parent", SUCCESS_PATH,
+      "--child", SUCCESS_PATH,
+      "--semantic", "yes",
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--semantic is a boolean flag");
+    expect(result.stdout).not.toContain("Parent:");
+    expect(result.stdout).not.toContain("blackbox · diff");
+  }, 15_000);
+
   it("surfaces the changed value at the divergence (frozen corpus fork pair)", async () => {
     // W6-A: standalone diff shows the mutated tool result value legibly. Uses
     // the committed hash-identical fork pair so the divergence is deterministic

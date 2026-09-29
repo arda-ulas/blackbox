@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { diffTraces, formatFirstDivergence } from "../src/fork/diffTraces.ts";
+import {
+  diffTraces,
+  diffTracesSemantic,
+  formatDiffReport,
+  formatFirstDivergence,
+} from "../src/fork/diffTraces.ts";
 import type { TraceDiff } from "../src/fork/diffTraces.ts";
 import { forkRun } from "../src/fork/forkRun.ts";
 import { TraceRecorder } from "../src/trace/TraceRecorder.ts";
@@ -351,5 +356,44 @@ describe("diffTraces — hash equality not object identity", () => {
       const diff = diffTraces(traceA, traceB);
       expect(diff.hasDivergence).toBe(false);
     }
+  });
+});
+
+describe("diffTracesSemantic — independent recordings", () => {
+  it("ignores timestamp and hash-chain differences while integrity diff still diverges", () => {
+    const shifted = structuredClone(toolTrace);
+    shifted.id = "shifted-recording";
+    shifted.createdAt += 10_000;
+    for (const step of shifted.steps) {
+      step.timestamp += 10_000;
+      step.prevHash = step.prevHash === null ? null : `shifted-${step.prevHash}`;
+      step.hash = `shifted-${step.hash}`;
+    }
+
+    expect(diffTraces(toolTrace, shifted).firstDivergenceIndex).toBe(0);
+    const semantic = diffTracesSemantic(toolTrace, shifted);
+    expect(semantic.hasDivergence).toBe(false);
+    expect(semantic.sharedPrefixLength).toBe(toolTrace.steps.length);
+  });
+
+  it("still finds the first changed payload", () => {
+    const changed = structuredClone(toolTrace);
+    changed.steps[3].payload = {
+      toolCallId: "call-0",
+      toolName: "search",
+      result: { results: [] },
+    };
+
+    const semantic = diffTracesSemantic(toolTrace, changed);
+    expect(semantic.hasDivergence).toBe(true);
+    expect(semantic.firstDivergenceIndex).toBe(3);
+  });
+
+  it("labels semantic reports and leaves integrity semantics separate", () => {
+    const report = formatDiffReport(toolTrace, structuredClone(toolTrace), {
+      comparison: "semantic",
+    });
+    expect(report).toContain("Comparison:      semantic");
+    expect(report).toContain("timestamps and hash-chain fields ignored");
   });
 });
