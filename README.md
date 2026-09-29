@@ -157,19 +157,23 @@ contains the API key it saw in the environment or the request headers.
 
 ## How it compares
 
-- **[Laminar](https://github.com/lmnr-ai/lmnr)** is an open-source tracing platform with a debugger. It reruns an
-  agent with earlier LLM calls served from a cache, and needs its server (cloud or self-hosted). Blackbox keeps
-  everything in local files and adds the hash chain, strict request matching and CI assertions.
-- **[LangGraph time travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel)** forks graph state
-  from a checkpoint. Checkpoints snapshot graph state, not individual model calls. It works only for LangGraph
-  agents, and steps after the fork re-run live. Blackbox works
-  under any agent loop that uses the official SDKs, and can continue a fork from scripted replies.
-- **HTTP cassette recorders** (VCR-style tools, Polly.js) replay HTTP traffic. They have no notion of a tool result
-  to change, no divergence report, and no tamper evidence.
-- **[backspin](https://github.com/zaibuchihuoji/backspin)** is the closest in shape: it records to a file, replays
-  offline, branches with a changed value and diffs to the first divergence. It is Python-first (its TypeScript SDK
-  is not on npm), matches requests by fingerprint rather than field by field, and has no hash chain, so you cannot check that a
-  fork's shared prefix matches its parent by comparing hashes.
+Checked in September 2026; sources on the [comparison page](https://arda-ulas.github.io/blackbox/comparison).
+
+- **[Laminar](https://github.com/lmnr-ai/lmnr)** is an open-source observability platform with an agent debugger. A
+  rerun serves earlier LLM responses from a cache in the Laminar backend (Cloud or self-hosted, with a signed-in
+  account) up to a chosen step, matching loosely (system messages are left out of the cache key), and calls the model
+  live after it. In TypeScript its replay caching works through the Vercel AI SDK. Blackbox keeps the recording in a
+  file in your repository, matches every request field by field, forks by changing one recorded tool result, and
+  checks the result in CI with no key or network. Laminar adds what Blackbox lacks: tracing dashboards, evaluations
+  and Python support.
+- **[LangGraph time travel](https://docs.langchain.com/oss/javascript/langgraph/use-time-travel)** replays and forks
+  a LangGraph graph from a checkpoint; nodes after it re-run with live model calls. Blackbox works under any agent
+  loop on the official SDKs and answers model calls from the recording.
+- **[backspin](https://github.com/zaibuchihuoji/backspin)** also records to a file, replays offline and diffs to the
+  first divergence. It is Python-first, matches requests by a fingerprint of model and messages, forks by changing a
+  recorded LLM answer, and has no hash chain.
+- **HTTP cassette recorders** (Polly.js, nock, VCR.py) make tests deterministic at the HTTP level; none documents
+  forking a recorded run at a step and diffing the outcome.
 
 ## Try it without an agent
 
