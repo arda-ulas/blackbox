@@ -9,6 +9,9 @@ hero:
       text: Quickstart
       link: /quickstart
     - theme: alt
+      text: See it find a root cause
+      link: /example-fleet-triage
+    - theme: alt
       text: How it works
       link: /concepts
     - theme: alt
@@ -25,6 +28,10 @@ features:
     details: "blackbox assert and blackbox replay turn a committed cassette into an offline regression test."
 ---
 
-<img src="/hero.svg" alt="blackbox diff output: first divergence at step 3 and the two final answers" style="margin-top: 2rem; border-radius: 12px;" />
+<img src="/hero.svg" alt="blackbox inspect shows a telemetry reading captured before the fault; blackbox diff shows the first divergence at step 5 and the work order changing from routine to urgent" style="margin-top: 2rem; border-radius: 12px;" />
+
+The recording above is from the [fleet-triage example](./example-fleet-triage): a maintenance agent kept an overheating
+van in service because its telemetry tool served a stale reading. Blackbox reproduces the run, isolates the reading,
+tests the fix by forking, and pins it.
 
 _Blackbox is unrelated to Blackbox AI, the coding assistant._

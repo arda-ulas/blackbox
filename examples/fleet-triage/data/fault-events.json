@@ -1,0 +1,11 @@
+{
+  "_note": "Example data. When each vehicle last reported a new diagnostic trouble code.",
+  "VAN-14": {
+    "dtc": "P0217",
+    "set_at": "2026-09-29T07:58:00Z"
+  },
+  "VAN-31": {
+    "dtc": "P0217",
+    "set_at": "2026-09-29T06:45:00Z"
+  }
+}

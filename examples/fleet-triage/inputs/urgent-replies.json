@@ -1,0 +1,20 @@
+[
+  {
+    "type": "tool_calls",
+    "text": "Coolant is at 124 °C, above the 110 °C threshold for P0217, and the reading was captured after the fault was set. This is real overheating, so the van has to come off the road now.",
+    "calls": [
+      {
+        "toolName": "open_work_order",
+        "toolInput": {
+          "vehicle_id": "VAN-14",
+          "priority": "urgent",
+          "action": "Remove from service now and do not drive. Tow to the depot and inspect the cooling system (coolant level, pump, fan, thermostat) before it returns."
+        }
+      }
+    ]
+  },
+  {
+    "type": "final_answer",
+    "text": "Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened an urgent work order to tow it to the depot for a cooling-system inspection."
+  }
+]

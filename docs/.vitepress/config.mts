@@ -24,6 +24,13 @@ export default defineConfig({
         ],
       },
       {
+        text: "Examples",
+        items: [
+          { text: "Root-causing a triage agent", link: "/example-fleet-triage" },
+          { text: "What did my coding agent do?", link: "/example-claude-code" },
+        ],
+      },
+      {
         text: "Guides",
         items: [
           { text: "Integrations", link: "/integrations" },

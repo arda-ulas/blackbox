@@ -1,0 +1,9 @@
+{
+  "_note": "Example data for illustration; not repair guidance. The title is the generic OBD-II (SAE J2012) code title; the severity band, threshold and checks are illustrative.",
+  "P0217": {
+    "title": "Engine Coolant Over Temperature Condition",
+    "severity_band": "high when engine coolant is above the threshold; otherwise suspect the temperature sensor or its circuit",
+    "overheat_threshold_c": 110,
+    "recommended_checks": ["current engine coolant temperature", "coolant level", "cooling fan operation", "thermostat", "water pump"]
+  }
+}

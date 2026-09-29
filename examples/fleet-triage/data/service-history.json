@@ -1,0 +1,5 @@
+{
+  "_note": "Example data.",
+  "VAN-14": { "last_service": "2026-08-02", "parts_replaced": ["thermostat", "coolant (flush and refill)"] },
+  "VAN-22": { "last_service": "2026-06-18", "parts_replaced": ["brake pads (front)"] }
+}

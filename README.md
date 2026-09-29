@@ -10,10 +10,19 @@ JSON: no server, no account. (Unrelated to Blackbox AI, the coding assistant.)
 [Docs](https://arda-ulas.github.io/blackbox/)
 
 <img src="assets/brand/blackbox-readme-hero.svg"
-     alt="blackbox diff output: first divergence at step 3, where a forked run was given a different weather result, and the two final answers."
+     alt="blackbox inspect shows a fleet agent's telemetry reading captured the evening before the fault; blackbox diff shows the first divergence at step 5 when the live reading is injected, and the work order changing from routine to urgent."
      width="100%">
 
-See the whole loop in ten seconds, offline, with no agent of your own:
+## See it find a root cause
+
+A fleet-maintenance agent kept an overheating van in service: its telemetry tool served a reading cached before the
+fault. The [fleet-triage example](https://arda-ulas.github.io/blackbox/example-fleet-triage) walks the investigation
+offline, with no API key: **reproduce** the run with `replay`, **isolate** the stale reading with `inspect`, **test**
+the hypothesis with `fork`, **confirm** the cause with `diff`, and **prevent** a recurrence with a freshness check and
+an `assert` pinned in CI. A second example, [what did my coding agent do?](https://arda-ulas.github.io/blackbox/example-claude-code),
+imports a real Claude Code session.
+
+To see the whole loop in ten seconds with no agent of your own:
 
 ```bash
 npx @ardaulas/blackbox check
@@ -177,6 +186,8 @@ npx @ardaulas/blackbox demo     # writes the demo cassettes to ./traces to explo
 [CLI reference](https://arda-ulas.github.io/blackbox/cli) ·
 [Trace format](https://arda-ulas.github.io/blackbox/trace-format) ·
 [CI](https://arda-ulas.github.io/blackbox/ci) ·
+[Root-cause example](https://arda-ulas.github.io/blackbox/example-fleet-triage) ·
+[Claude Code example](https://arda-ulas.github.io/blackbox/example-claude-code) ·
 [Worked example](https://arda-ulas.github.io/blackbox/worked-example) ·
 [Architecture](https://arda-ulas.github.io/blackbox/architecture)
 

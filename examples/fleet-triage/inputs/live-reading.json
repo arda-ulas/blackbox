@@ -1,0 +1,28 @@
+{
+  "vehicle_id": "VAN-14",
+  "data": [
+    {
+      "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+      "dp": {
+        "value": "124",
+        "ts": "2026-09-29T08:52:00Z"
+      }
+    },
+    {
+      "path": "Vehicle.TraveledDistance",
+      "dp": {
+        "value": "84433900",
+        "ts": "2026-09-29T08:52:00Z"
+      }
+    },
+    {
+      "path": "Vehicle.Diagnostics.DTCList",
+      "dp": {
+        "value": [
+          "P0217"
+        ],
+        "ts": "2026-09-29T08:52:00Z"
+      }
+    }
+  ]
+}

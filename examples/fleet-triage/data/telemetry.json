@@ -1,0 +1,124 @@
+{
+  "_note": "Example data for illustration; not repair guidance. Signals are named with COVESA VSS 6.1 paths; each reading is a VISS v3 data point {value, ts}, with values as strings and ts as the capture time. `cache` holds snapshots synced at the depot; `live` is the vehicle's latest reading.",
+  "cache": {
+    "VAN-14": [
+      {
+        "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+        "dp": {
+          "value": "91",
+          "ts": "2026-09-28T17:05:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.TraveledDistance",
+        "dp": {
+          "value": "84391200",
+          "ts": "2026-09-28T17:05:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.Diagnostics.DTCList",
+        "dp": {
+          "value": [],
+          "ts": "2026-09-28T17:05:00Z"
+        }
+      }
+    ],
+    "VAN-22": [
+      {
+        "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+        "dp": {
+          "value": "88",
+          "ts": "2026-09-29T07:40:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.TraveledDistance",
+        "dp": {
+          "value": "61007400",
+          "ts": "2026-09-29T07:40:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.Diagnostics.DTCList",
+        "dp": {
+          "value": [],
+          "ts": "2026-09-29T07:40:00Z"
+        }
+      }
+    ],
+    "VAN-31": [
+      {
+        "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+        "dp": {
+          "value": "90",
+          "ts": "2026-09-28T18:20:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.TraveledDistance",
+        "dp": {
+          "value": "40550900",
+          "ts": "2026-09-28T18:20:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.Diagnostics.DTCList",
+        "dp": {
+          "value": [],
+          "ts": "2026-09-28T18:20:00Z"
+        }
+      }
+    ]
+  },
+  "live": {
+    "VAN-14": [
+      {
+        "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+        "dp": {
+          "value": "124",
+          "ts": "2026-09-29T08:52:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.TraveledDistance",
+        "dp": {
+          "value": "84433900",
+          "ts": "2026-09-29T08:52:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.Diagnostics.DTCList",
+        "dp": {
+          "value": [
+            "P0217"
+          ],
+          "ts": "2026-09-29T08:52:00Z"
+        }
+      }
+    ],
+    "VAN-22": [
+      {
+        "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+        "dp": {
+          "value": "89",
+          "ts": "2026-09-29T08:50:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.TraveledDistance",
+        "dp": {
+          "value": "61012800",
+          "ts": "2026-09-29T08:50:00Z"
+        }
+      },
+      {
+        "path": "Vehicle.Diagnostics.DTCList",
+        "dp": {
+          "value": [],
+          "ts": "2026-09-29T08:50:00Z"
+        }
+      }
+    ]
+  }
+}

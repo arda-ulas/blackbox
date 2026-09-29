@@ -1,0 +1,617 @@
+{
+  "version": 2,
+  "id": "triage-hypothesis",
+  "createdAt": 1790707335364,
+  "steps": [
+    {
+      "id": "triage-incident:0",
+      "index": 0,
+      "type": "model_input",
+      "timestamp": 1790707335389,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Telematics alert for VAN-14: check-engine light on, DTC P0217 set at 2026-09-29T07:58:00Z. Please triage."
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup_dtc",
+            "description": "Look up an OBD-II diagnostic trouble code: its title, severity band and recommended checks.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
+              ]
+            }
+          },
+          {
+            "name": "get_telemetry",
+            "description": "Latest telematics readings for a vehicle, as COVESA VSS signal paths with VISS data points (value, capture time ts).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "get_service_history",
+            "description": "A vehicle's last service date and the parts replaced then.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "open_work_order",
+            "description": "Open a maintenance work order. priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "urgent",
+                    "soon",
+                    "routine"
+                  ]
+                },
+                "action": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id",
+                "priority",
+                "action"
+              ]
+            }
+          }
+        ],
+        "systemPrompt": "You triage maintenance tickets for a delivery-van fleet. Use the tools to look up the fault code and the vehicle's current state, then open exactly one work order with the right priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service). Finish with two sentences for the dispatcher: the priority and why.",
+        "model": "claude-haiku-4-5",
+        "params": {
+          "maxTokens": 800
+        }
+      },
+      "prevHash": null,
+      "hash": "ccaf8eec62d8c42220bc538d80f036ea1deb83480acfaba5d69e318787846691"
+    },
+    {
+      "id": "triage-incident:1",
+      "index": 1,
+      "type": "model_output",
+      "timestamp": 1790707335392,
+      "payload": {
+        "type": "tool_calls",
+        "calls": [
+          {
+            "toolCallId": "call-0",
+            "toolName": "lookup_dtc",
+            "toolInput": {
+              "code": "P0217"
+            }
+          },
+          {
+            "toolCallId": "call-1",
+            "toolName": "get_telemetry",
+            "toolInput": {
+              "vehicle_id": "VAN-14"
+            }
+          }
+        ],
+        "text": "I'll look up P0217 and pull VAN-14's latest telematics readings."
+      },
+      "prevHash": "ccaf8eec62d8c42220bc538d80f036ea1deb83480acfaba5d69e318787846691",
+      "hash": "10e61608c33c20df0135b9c14de0bb79f678dd0c597c403653c4b22119f7d490"
+    },
+    {
+      "id": "triage-incident:2",
+      "index": 2,
+      "type": "tool_call",
+      "timestamp": 1790707335394,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "lookup_dtc",
+        "toolInput": {
+          "code": "P0217"
+        }
+      },
+      "prevHash": "10e61608c33c20df0135b9c14de0bb79f678dd0c597c403653c4b22119f7d490",
+      "hash": "89be93df0fb0549108e99a1ea9cd1ddbea5f6ca5ed2e75eb0baa70ed1f475e55"
+    },
+    {
+      "id": "triage-incident:3",
+      "index": 3,
+      "type": "tool_result",
+      "timestamp": 1790707335394,
+      "payload": {
+        "toolCallId": "call-0",
+        "toolName": "lookup_dtc",
+        "result": {
+          "code": "P0217",
+          "title": "Engine Coolant Over Temperature Condition",
+          "severity_band": "high when engine coolant is above the threshold; otherwise suspect the temperature sensor or its circuit",
+          "overheat_threshold_c": 110,
+          "recommended_checks": [
+            "current engine coolant temperature",
+            "coolant level",
+            "cooling fan operation",
+            "thermostat",
+            "water pump"
+          ]
+        }
+      },
+      "prevHash": "89be93df0fb0549108e99a1ea9cd1ddbea5f6ca5ed2e75eb0baa70ed1f475e55",
+      "hash": "ae3418232aa5423c28764da471b7c113607487678db4720863c8f4776d3a274e"
+    },
+    {
+      "id": "triage-incident:4",
+      "index": 4,
+      "type": "tool_call",
+      "timestamp": 1790707335394,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "get_telemetry",
+        "toolInput": {
+          "vehicle_id": "VAN-14"
+        }
+      },
+      "prevHash": "ae3418232aa5423c28764da471b7c113607487678db4720863c8f4776d3a274e",
+      "hash": "ec5fd2f5fa745cf655120fb214afde346320888cdcb6e2485599ce07cc2f3d79"
+    },
+    {
+      "id": "triage-hypothesis:5",
+      "index": 5,
+      "type": "tool_result",
+      "timestamp": 1790707335394,
+      "payload": {
+        "toolCallId": "call-1",
+        "toolName": "get_telemetry",
+        "result": {
+          "vehicle_id": "VAN-14",
+          "data": [
+            {
+              "path": "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature",
+              "dp": {
+                "value": "124",
+                "ts": "2026-09-29T08:52:00Z"
+              }
+            },
+            {
+              "path": "Vehicle.TraveledDistance",
+              "dp": {
+                "value": "84433900",
+                "ts": "2026-09-29T08:52:00Z"
+              }
+            },
+            {
+              "path": "Vehicle.Diagnostics.DTCList",
+              "dp": {
+                "value": [
+                  "P0217"
+                ],
+                "ts": "2026-09-29T08:52:00Z"
+              }
+            }
+          ]
+        }
+      },
+      "prevHash": "ec5fd2f5fa745cf655120fb214afde346320888cdcb6e2485599ce07cc2f3d79",
+      "hash": "dbc3f911b103e7573d5add18391fe0388d2706ff3b9a9701ed84bd48f8ae790a"
+    },
+    {
+      "id": "triage-hypothesis:6",
+      "index": 6,
+      "type": "model_input",
+      "timestamp": 1790707335412,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Telematics alert for VAN-14: check-engine light on, DTC P0217 set at 2026-09-29T07:58:00Z. Please triage."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "I'll look up P0217 and pull VAN-14's latest telematics readings."
+              },
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "lookup_dtc",
+                "toolInput": {
+                  "code": "P0217"
+                }
+              },
+              {
+                "type": "tool_use",
+                "toolCallId": "call-1",
+                "toolName": "get_telemetry",
+                "toolInput": {
+                  "vehicle_id": "VAN-14"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "lookup_dtc",
+                "result": "{\"code\":\"P0217\",\"title\":\"Engine Coolant Over Temperature Condition\",\"severity_band\":\"high when engine coolant is above the threshold; otherwise suspect the temperature sensor or its circuit\",\"overheat_threshold_c\":110,\"recommended_checks\":[\"current engine coolant temperature\",\"coolant level\",\"cooling fan operation\",\"thermostat\",\"water pump\"]}"
+              },
+              {
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "get_telemetry",
+                "result": "{\"vehicle_id\":\"VAN-14\",\"data\":[{\"path\":\"Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature\",\"dp\":{\"value\":\"124\",\"ts\":\"2026-09-29T08:52:00Z\"}},{\"path\":\"Vehicle.TraveledDistance\",\"dp\":{\"value\":\"84433900\",\"ts\":\"2026-09-29T08:52:00Z\"}},{\"path\":\"Vehicle.Diagnostics.DTCList\",\"dp\":{\"value\":[\"P0217\"],\"ts\":\"2026-09-29T08:52:00Z\"}}]}"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup_dtc",
+            "description": "Look up an OBD-II diagnostic trouble code: its title, severity band and recommended checks.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
+              ]
+            }
+          },
+          {
+            "name": "get_telemetry",
+            "description": "Latest telematics readings for a vehicle, as COVESA VSS signal paths with VISS data points (value, capture time ts).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "get_service_history",
+            "description": "A vehicle's last service date and the parts replaced then.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "open_work_order",
+            "description": "Open a maintenance work order. priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "urgent",
+                    "soon",
+                    "routine"
+                  ]
+                },
+                "action": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id",
+                "priority",
+                "action"
+              ]
+            }
+          }
+        ],
+        "systemPrompt": "You triage maintenance tickets for a delivery-van fleet. Use the tools to look up the fault code and the vehicle's current state, then open exactly one work order with the right priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service). Finish with two sentences for the dispatcher: the priority and why.",
+        "model": "claude-haiku-4-5",
+        "params": {
+          "maxTokens": 800
+        }
+      },
+      "prevHash": "dbc3f911b103e7573d5add18391fe0388d2706ff3b9a9701ed84bd48f8ae790a",
+      "hash": "b612d700182dd5043ec50457b32ea79317ab641b4d3917b4fcbf702c0f1204a4"
+    },
+    {
+      "id": "triage-hypothesis:7",
+      "index": 7,
+      "type": "model_output",
+      "timestamp": 1790707335412,
+      "payload": {
+        "type": "tool_calls",
+        "calls": [
+          {
+            "toolCallId": "call-2",
+            "toolName": "open_work_order",
+            "toolInput": {
+              "vehicle_id": "VAN-14",
+              "priority": "urgent",
+              "action": "Remove from service now and do not drive. Tow to the depot and inspect the cooling system (coolant level, pump, fan, thermostat) before it returns."
+            }
+          }
+        ],
+        "text": "Coolant is at 124 °C, above the 110 °C threshold for P0217, and the reading was captured after the fault was set. This is real overheating, so the van has to come off the road now."
+      },
+      "prevHash": "b612d700182dd5043ec50457b32ea79317ab641b4d3917b4fcbf702c0f1204a4",
+      "hash": "fa204360a5be4f75800e1cafa7107544ae7ee8303a69a54d019a3776b0a7e283"
+    },
+    {
+      "id": "triage-hypothesis:8",
+      "index": 8,
+      "type": "tool_call",
+      "timestamp": 1790707335413,
+      "payload": {
+        "toolCallId": "call-2",
+        "toolName": "open_work_order",
+        "toolInput": {
+          "vehicle_id": "VAN-14",
+          "priority": "urgent",
+          "action": "Remove from service now and do not drive. Tow to the depot and inspect the cooling system (coolant level, pump, fan, thermostat) before it returns."
+        }
+      },
+      "prevHash": "fa204360a5be4f75800e1cafa7107544ae7ee8303a69a54d019a3776b0a7e283",
+      "hash": "daf4c34fb237f4ebbe101889f851131ab495dbf233daf5b1ec129795ee7bef49"
+    },
+    {
+      "id": "triage-hypothesis:9",
+      "index": 9,
+      "type": "tool_result",
+      "timestamp": 1790707335413,
+      "payload": {
+        "toolCallId": "call-2",
+        "toolName": "open_work_order",
+        "result": {
+          "work_order_id": "WO-9E2562",
+          "vehicle_id": "VAN-14",
+          "priority": "urgent",
+          "status": "open"
+        }
+      },
+      "prevHash": "daf4c34fb237f4ebbe101889f851131ab495dbf233daf5b1ec129795ee7bef49",
+      "hash": "1c02d032a9e4d9dac9baa5933240c42f2e5a009249203362969add4e8d9a84c4"
+    },
+    {
+      "id": "triage-hypothesis:10",
+      "index": 10,
+      "type": "model_input",
+      "timestamp": 1790707335413,
+      "payload": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Telematics alert for VAN-14: check-engine light on, DTC P0217 set at 2026-09-29T07:58:00Z. Please triage."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "I'll look up P0217 and pull VAN-14's latest telematics readings."
+              },
+              {
+                "type": "tool_use",
+                "toolCallId": "call-0",
+                "toolName": "lookup_dtc",
+                "toolInput": {
+                  "code": "P0217"
+                }
+              },
+              {
+                "type": "tool_use",
+                "toolCallId": "call-1",
+                "toolName": "get_telemetry",
+                "toolInput": {
+                  "vehicle_id": "VAN-14"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-0",
+                "toolName": "lookup_dtc",
+                "result": "{\"code\":\"P0217\",\"title\":\"Engine Coolant Over Temperature Condition\",\"severity_band\":\"high when engine coolant is above the threshold; otherwise suspect the temperature sensor or its circuit\",\"overheat_threshold_c\":110,\"recommended_checks\":[\"current engine coolant temperature\",\"coolant level\",\"cooling fan operation\",\"thermostat\",\"water pump\"]}"
+              },
+              {
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "get_telemetry",
+                "result": "{\"vehicle_id\":\"VAN-14\",\"data\":[{\"path\":\"Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature\",\"dp\":{\"value\":\"124\",\"ts\":\"2026-09-29T08:52:00Z\"}},{\"path\":\"Vehicle.TraveledDistance\",\"dp\":{\"value\":\"84433900\",\"ts\":\"2026-09-29T08:52:00Z\"}},{\"path\":\"Vehicle.Diagnostics.DTCList\",\"dp\":{\"value\":[\"P0217\"],\"ts\":\"2026-09-29T08:52:00Z\"}}]}"
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Coolant is at 124 °C, above the 110 °C threshold for P0217, and the reading was captured after the fault was set. This is real overheating, so the van has to come off the road now."
+              },
+              {
+                "type": "tool_use",
+                "toolCallId": "call-2",
+                "toolName": "open_work_order",
+                "toolInput": {
+                  "vehicle_id": "VAN-14",
+                  "priority": "urgent",
+                  "action": "Remove from service now and do not drive. Tow to the depot and inspect the cooling system (coolant level, pump, fan, thermostat) before it returns."
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolCallId": "call-2",
+                "toolName": "open_work_order",
+                "result": "{\"work_order_id\":\"WO-9E2562\",\"vehicle_id\":\"VAN-14\",\"priority\":\"urgent\",\"status\":\"open\"}"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup_dtc",
+            "description": "Look up an OBD-II diagnostic trouble code: its title, severity band and recommended checks.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
+              ]
+            }
+          },
+          {
+            "name": "get_telemetry",
+            "description": "Latest telematics readings for a vehicle, as COVESA VSS signal paths with VISS data points (value, capture time ts).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "get_service_history",
+            "description": "A vehicle's last service date and the parts replaced then.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id"
+              ]
+            }
+          },
+          {
+            "name": "open_work_order",
+            "description": "Open a maintenance work order. priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service).",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "vehicle_id": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "urgent",
+                    "soon",
+                    "routine"
+                  ]
+                },
+                "action": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vehicle_id",
+                "priority",
+                "action"
+              ]
+            }
+          }
+        ],
+        "systemPrompt": "You triage maintenance tickets for a delivery-van fleet. Use the tools to look up the fault code and the vehicle's current state, then open exactly one work order with the right priority: urgent (remove from service now), soon (within 48 hours) or routine (next scheduled service). Finish with two sentences for the dispatcher: the priority and why.",
+        "model": "claude-haiku-4-5",
+        "params": {
+          "maxTokens": 800
+        }
+      },
+      "prevHash": "1c02d032a9e4d9dac9baa5933240c42f2e5a009249203362969add4e8d9a84c4",
+      "hash": "b785c8d428e586cb8a44c41f7f3777d842596647a5949364b63916006ef8a613"
+    },
+    {
+      "id": "triage-hypothesis:11",
+      "index": 11,
+      "type": "model_output",
+      "timestamp": 1790707335413,
+      "payload": {
+        "type": "final_answer",
+        "text": "Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened an urgent work order to tow it to the depot for a cooling-system inspection."
+      },
+      "prevHash": "b785c8d428e586cb8a44c41f7f3777d842596647a5949364b63916006ef8a613",
+      "hash": "c1c0281310ab7244fa34738ea9439e384f0a8b50d9957c5a585c570f7e58f26d"
+    },
+    {
+      "id": "triage-hypothesis:12",
+      "index": 12,
+      "type": "metadata",
+      "timestamp": 1790707335414,
+      "payload": {
+        "event": "run_completed",
+        "status": "success",
+        "result": "Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened an urgent work order to tow it to the depot for a cooling-system inspection."
+      },
+      "prevHash": "c1c0281310ab7244fa34738ea9439e384f0a8b50d9957c5a585c570f7e58f26d",
+      "hash": "31cc398ba925dbea9264750aaf60683be0eb5f6d5de61c4d2d862c624787f32e"
+    }
+  ],
+  "parentId": "triage-incident",
+  "forkedFromStepId": "triage-incident:5"
+}

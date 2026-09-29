@@ -1,23 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="834" viewBox="0 0 1600 834" role="img" aria-label="blackbox diff output: first divergence at step 3 and the two final answers">
-  <rect width="100%" height="100%" rx="18" fill="#0d1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1567" height="721.6" viewBox="0 0 1567 721.6" role="img" aria-label="blackbox inspect shows a stale telemetry reading at step 5; blackbox diff shows the first divergence at step 5 and the work order changing from routine to urgent">
+  <rect width="100%" height="100%" rx="14" fill="#0d1117"/>
+  <circle cx="26" cy="22" r="6" fill="#30363d"/><circle cx="46" cy="22" r="6" fill="#30363d"/><circle cx="66" cy="22" r="6" fill="#30363d"/>
   <style>
-    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; font-size: 30px; dominant-baseline: hanging; white-space: pre; }
-    .bright { fill: #c9d1d9; }
-    .muted { fill: #8b949e; }
-    .dim { fill: #6e7681; }
-    .cyan { fill: #58a6ff; }
-    .bold { font-weight: 700; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 22px; white-space: pre; fill: #8b949e; opacity: 0; animation: show 0.01s forwards; }
+    .cmd { fill: #58a6ff; }
+    .hi { fill: #e6edf3; font-weight: 600; }
+    @keyframes show { to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { text { animation: none; opacity: 1; } }
   </style>
-  <text x="90" y="90" class="bright bold">◼ blackbox · <tspan class="cyan">diff</tspan></text>
-  <text x="90" y="142" class="muted">Parent:         runs/trip.json</text>
-  <text x="90" y="194" class="muted">Child:          runs/storm.json</text>
-  <text x="90" y="276" class="bright">First divergence at index 3</text>
-  <text x="90" y="328" class="muted"><tspan class="dim">  parent</tspan><tspan>  tool result  </tspan><tspan class="dim">d948816f</tspan><tspan>  Tool result: get_weather → ok</tspan></text>
-  <text x="90" y="380" class="muted"><tspan class="dim">  child </tspan><tspan>  tool result  </tspan><tspan class="dim">0f9c100a</tspan><tspan>  Tool result: get_weather → ok</tspan></text>
-  <text x="90" y="432" class="muted">  changed value (result):</text>
-  <text x="90" y="484" class="muted"><tspan class="dim">    parent:</tspan><tspan> {"tempC":24,"sky":"sunny"}</tspan></text>
-  <text x="90" y="536" class="bright"><tspan class="dim">    child: </tspan><tspan class="cyan"> {"tempC":9,"sky":"storm"}</tspan></text>
-  <text x="90" y="618" class="bright"><tspan class="bold">Outcome:</tspan><tspan>        same final status (success), but the final answer changed</tspan></text>
-  <text x="90" y="670" class="muted"><tspan class="dim">  parent answer:</tspan><tspan> Lisbon: 24°C and sunny beats Oslo&apos;s rain.</tspan></text>
-  <text x="90" y="722" class="muted"><tspan class="dim">  child answer: </tspan><tspan> Neither is great; Lisbon has a storm and Oslo has rain.</tspan></text>
+  <text x="44" y="80" class="cmd" style="animation-delay:0.20s">$ npx blackbox inspect cassettes/triage-incident.json --step 5</text>
+  <text x="44" y="111" class="out" style="animation-delay:1.10s">  get_telemetry result for VAN-14:</text>
+  <text x="44" y="142" class="hi" style="animation-delay:1.22s">    Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature  {"value":"91","ts":"2026-09-28T17:05:00Z"}</text>
+  <text x="44" y="173" class="out" style="animation-delay:1.34s">    Vehicle.TraveledDistance  {"value":"84391200","ts":"2026-09-28T17:05:00Z"}</text>
+  <text x="44" y="204" class="hi" style="animation-delay:1.46s">    Vehicle.Diagnostics.DTCList  {"value":[],"ts":"2026-09-28T17:05:00Z"}</text>
+  <text x="44" y="253.6" class="cmd" style="animation-delay:2.18s">$ npx blackbox diff cassettes/triage-incident.json cassettes/triage-hypothesis.json</text>
+  <text x="44" y="284.6" class="hi" style="animation-delay:3.08s">First divergence at index 5</text>
+  <text x="44" y="315.6" class="out" style="animation-delay:3.20s">  changed fields:</text>
+  <text x="44" y="346.6" class="hi" style="animation-delay:3.32s">    result.data[0].dp.value: "91" → "124"</text>
+  <text x="44" y="377.6" class="out" style="animation-delay:3.44s">    result.data[0].dp.ts: "2026-09-28T17:05:00Z" → "2026-09-29T08:52:00Z"</text>
+  <text x="44" y="408.6" class="out" style="animation-delay:3.56s">    result.data[1].dp.value: "84391200" → "84433900"</text>
+  <text x="44" y="439.6" class="out" style="animation-delay:3.68s">    result.data[1].dp.ts: "2026-09-28T17:05:00Z" → "2026-09-29T08:52:00Z"</text>
+  <text x="44" y="470.6" class="hi" style="animation-delay:3.80s">    result.data[2].dp.value[0]: (absent) → "P0217"</text>
+  <text x="44" y="501.6" class="out" style="animation-delay:3.92s">    result.data[2].dp.ts: "2026-09-28T17:05:00Z" → "2026-09-29T08:52:00Z"</text>
+  <text x="44" y="532.6" class="hi" style="animation-delay:4.04s">Outcome:        same final status (success), but the final answer changed</text>
+  <text x="44" y="563.6" class="out" style="animation-delay:4.16s">  parent answer: Routine: I opened work order WO-9610DE for VAN-14&apos;s next scheduled service. Coolant is normal …</text>
+  <text x="44" y="594.6" class="out" style="animation-delay:4.28s">  child answer:  Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for…</text>
+  <text x="44" y="625.6" class="out" style="animation-delay:4.40s">  parent tools:  lookup_dtc → get_telemetry → get_service_history → open_work_order</text>
+  <text x="44" y="656.6" class="out" style="animation-delay:4.52s">  child tools:   lookup_dtc → get_telemetry → open_work_order</text>
 </svg>
