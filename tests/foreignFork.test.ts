@@ -168,7 +168,7 @@ describe("foreign cassette fork — primary geometry (mutate 3, fork 4)", () => 
     const { childTrace } = await forkWeather(parent);
     const continuation = childTrace.steps[4];
     expect(continuation.type).toBe("model_input");
-    const payload = continuation.payload as {
+    const payload = continuation.payload as unknown as {
       messages: Array<{ role: string; content: unknown }>;
       tools: ToolDefinition[];
     };
@@ -188,7 +188,7 @@ describe("foreign cassette fork — primary geometry (mutate 3, fork 4)", () => 
     expect(toolResultTurn[0].result).toEqual(WEATHER_MUTATION);
     // The library-level continuation records the FOREIGN tool definitions,
     // lifted from the parent's own recorded step-0 model_input.
-    const parentTools = (parent.steps[0].payload as { tools: ToolDefinition[] }).tools;
+    const parentTools = (parent.steps[0].payload as unknown as { tools: ToolDefinition[] }).tools;
     expect(payload.tools).toEqual(parentTools);
     expect(payload.tools.map((t) => t.name)).toEqual(["get_weather", "send_email"]);
   });
@@ -414,7 +414,7 @@ describe("foreign cassette fork — CLI integration", () => {
     const child = await loadTrace(childPath);
     const continuation = child.steps[4];
     expect(continuation.type).toBe("model_input");
-    const tools = (continuation.payload as { tools: ToolDefinition[] }).tools;
+    const tools = (continuation.payload as unknown as { tools: ToolDefinition[] }).tools;
     expect(tools.map((t) => t.name)).toEqual(["search", "calendar", "booking"]);
   }, 30_000);
 

@@ -1,42 +1,62 @@
 {
   "name": "@ardaulas/blackbox",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Local, offline-by-default time-travel debugger for AI agents: record, replay, fork, mutate, diff, verify, and assert single-agent tool-using runs from a canonically hash-chained cassette.",
+  "version": "0.2.0",
+  "description": "A flight recorder for AI agents: record your Anthropic or OpenAI agent to a hash-chained cassette, replay it offline, fork it with one tool result changed, and diff to the first divergence.",
   "license": "MIT",
+  "author": "Arda Ulas Ozdemir",
+  "homepage": "https://arda-ulas.github.io/blackbox/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/arda-ulas/blackbox.git"
   },
+  "bugs": {
+    "url": "https://github.com/arda-ulas/blackbox/issues"
+  },
   "keywords": [
     "ai-agents",
-    "time-travel-debugger",
+    "agent-debugging",
+    "llm",
+    "anthropic",
+    "openai",
+    "record-replay",
     "cassette",
-    "replay",
-    "cli",
-    "offline",
-    "deterministic"
+    "time-travel-debugger",
+    "ci",
+    "testing"
   ],
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "blackbox": "bin/blackbox.js"
+    "blackbox": "dist/cli.js"
   },
   "files": [
-    "bin",
-    "src",
-    "fixtures",
+    "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
+  "sideEffects": false,
   "scripts": {
-    "test": "vitest",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/fixDeclarationImports.mjs && chmod +x dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepack": "npm run build",
+    "cli": "tsx src/cli.ts",
     "example:record": "tsx src/examples/record.ts",
     "example:replay": "tsx src/examples/replay.ts",
     "example:fork": "tsx src/examples/fork.ts",
-    "cli": "tsx src/cli.ts",
     "fixtures:generate": "tsx scripts/generateFixtures.ts",
     "example:real-proof": "tsx src/examples/realRunProof.ts",
     "example:real-tooluse-proof": "tsx src/examples/realToolUseProof.ts",
@@ -46,10 +66,8 @@
     "@anthropic-ai/sdk": "^0.129.0",
     "@types/node": "^24.0.0",
     "openai": "^7.23.0",
+    "tsx": "^4.23.0",
     "typescript": "~6.0.2",
     "vitest": "^5.0.2"
-  },
-  "dependencies": {
-    "tsx": "^4.23.0"
   }
 }

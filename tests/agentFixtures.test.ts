@@ -84,7 +84,7 @@ describe("FakeDeterministicModelClient", () => {
 
     // The original script array should be unaffected.
     expect(
-      (script[0] as { toolInput: { query: string } }).toolInput.query,
+      (script[0] as unknown as { toolInput: { query: string } }).toolInput.query,
     ).toBe("original");
   });
 });
