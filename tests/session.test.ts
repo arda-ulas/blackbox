@@ -676,3 +676,88 @@ describe("audit regressions", () => {
     expect(replayTrace(trace)).toMatchObject({ status: "error", failureReason: "agent_error" });
   });
 });
+
+describe("pre-tag audit regressions", () => {
+  const request = {
+    model: "claude-sonnet-5", max_tokens: 512, system: "Answer in one sentence.",
+    tools: [{ name: "weather", description: "Current weather", input_schema: { type: "object" as const, properties: { city: { type: "string" } } } }],
+    messages: [{ role: "user" as const, content: "Is Paris or Rome warmer today?" }],
+  };
+
+  it("a fork that skipped a prefix call neither reaches the live API nor writes a cassette at exit", async () => {
+    const { path } = await recordWeather();
+    const live = upstream([FINAL]);
+    const out = tmp("skip-live");
+    const bb = blackbox({
+      mode: "fork", cassette: path, out, forkAt: 5, forkSet: { city: "Rome", temp: 0 }, continueWith: "live",
+      baseFetch: live.fetch, logErrors: false,
+    });
+    const client = anthropicClient(bb);
+    const tools = bb.tools({ weather: weatherTool({}).fn });
+    const first = await client.messages.create(request);
+    const rome = first.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && (b.input as { city: string }).city === "Rome")!;
+    await tools.weather({ city: "Rome" });
+    await expect(
+      client.messages.create({
+        ...request,
+        messages: [...request.messages, { role: "assistant", content: first.content }, { role: "user", content: [{ type: "tool_result", tool_use_id: rome.id, content: "{}" }] }],
+      }),
+    ).rejects.toThrow(/\[blackbox\]/);
+    expect(live.calls).toBe(0);
+    bb.writeOnExit(0);
+    expect(() => readFileSync(out)).toThrow();
+  });
+
+  it("refuses a cassette containing even a very short known key", async () => {
+    const bb = blackbox({ mode: "record", out: tmp("tiny-key"), baseFetch: upstream([PARALLEL_WEATHER, FINAL]).fetch, logErrors: false });
+    const client = new Anthropic({ apiKey: "k3y", fetch: bb.fetch, maxRetries: 0 });
+    const leaky: Weather = async ({ city }) => ({ city, temp: 1, note: "k3y" }) as unknown as { city: string; temp: number };
+    await weatherAgent(client, bb.tools({ weather: leaky }));
+    await expect(bb.finish()).rejects.toThrow(/contains your API key/);
+  });
+
+  it("records an explicit null argument and replays it unchanged", async () => {
+    const path = tmp("null-arg");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([PARALLEL_WEATHER, FINAL]).fetch, logErrors: false });
+    const nullAgent = async (bb: BlackboxSession, fn: (input: null) => Promise<unknown>): Promise<void> => {
+      const client = anthropicClient(bb);
+      const tools = bb.tools({ weather: fn });
+      const first = await client.messages.create(request);
+      const uses = first.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      const results = [];
+      for (const use of uses) results.push({ type: "tool_result" as const, tool_use_id: use.id, content: JSON.stringify(await tools.weather(null)) });
+      await client.messages.create({ ...request, messages: [...request.messages, { role: "assistant", content: first.content }, { role: "user", content: results }] });
+    };
+    await nullAgent(rec, async () => ({ temp: 1 }));
+    await rec.finish();
+    expect(readTrace(path).steps[2].payload).toMatchObject({ toolInput: null });
+    const replay = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    await nullAgent(replay, async () => ({ temp: -1 }));
+    await expect(replay.finish()).resolves.toMatchObject({ status: "success" });
+  });
+
+  it("replays a wrapped tool the agent ran before its first model call", async () => {
+    const path = tmp("preload");
+    const preloadAgent = async (bb: BlackboxSession, profile: () => Promise<{ home: string }>): Promise<string> => {
+      const tools = bb.tools({ profile, weather: weatherTool({ Paris: 18, Rome: 24 }).fn });
+      const me = await tools.profile();
+      return weatherAgent(anthropicClient(bb), tools, `I live in ${me.home}. Is Paris or Rome warmer today?`);
+    };
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([PARALLEL_WEATHER, FINAL]).fetch, logErrors: false });
+    await preloadAgent(rec, async () => ({ home: "Lyon" }));
+    await rec.finish();
+    expect(readTrace(path).steps.slice(0, 3).map((s) => s.type)).toEqual(["tool_call", "tool_result", "model_input"]);
+    const replay = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    let ran = false;
+    expect(await preloadAgent(replay, async () => { ran = true; return { home: "never" }; })).toBe("Rome is warmer.");
+    expect(ran).toBe(false);
+    await expect(replay.finish()).resolves.toMatchObject({ status: "success" });
+  });
+
+  it("records OpenAI sampling penalties so strict replay notices when they change", async () => {
+    const { normalizeOpenAIRequest } = await import("../src/integrations/openai.ts");
+    const { ToolCallIds } = await import("../src/integrations/common.ts");
+    const input = normalizeOpenAIRequest({ model: "m", messages: [], presence_penalty: 2, frequency_penalty: 0.5, logit_bias: { "50256": -100 } }, new ToolCallIds());
+    expect(input["params"]).toEqual({ presencePenalty: 2, frequencyPenalty: 0.5, logitBias: { "50256": -100 } });
+  });
+});

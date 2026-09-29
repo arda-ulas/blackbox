@@ -68,10 +68,20 @@ export function launchEnv(options: LaunchOptions, reportPath: string, base: Node
   return env;
 }
 
-/** Quote one argument for cmd.exe (used only for .cmd/.bat launchers on Windows). */
-export function quoteForCmd(arg: string): string {
-  if (arg.length > 0 && !/[\s"&|<>^%()!]/.test(arg)) return arg;
-  return `"${arg.replace(/"/g, '""')}"`;
+// cmd.exe metacharacters, escaped with ^ (the approach of the cross-spawn package).
+const CMD_META = /([()\][%!^"`<>&|;, *?])/g;
+
+/**
+ * Quote one argument for a cmd.exe command line so it reaches the program
+ * unchanged: backslash-escape embedded quotes (and the backslashes before
+ * them), wrap in double quotes, then ^-escape every metacharacter. `.cmd` and
+ * `.bat` launchers parse their arguments a second time, so the ^-escaping is
+ * doubled for them. This also stops `%NAME%` from expanding.
+ */
+export function quoteForCmd(arg: string, batchLauncher = true): string {
+  let quoted = arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, "$1$1");
+  quoted = `"${quoted}"`.replace(CMD_META, "^$1");
+  return batchLauncher ? quoted.replace(CMD_META, "^$1") : quoted;
 }
 
 /**
@@ -80,7 +90,7 @@ export function quoteForCmd(arg: string): string {
  *  - a single argument containing spaces (`-- "node agent.js"`) is given to the
  *    shell to split, as the user intended;
  *  - on Windows, npm/npx-style `.cmd`/`.bat` launchers can only start through
- *    cmd.exe, so their arguments are quoted for it.
+ *    cmd.exe, so the command line is escaped for it.
  */
 export function spawnPlan(
   command: readonly string[],
@@ -90,7 +100,10 @@ export function spawnPlan(
   if (args.length === 0 && /\s/.test(program)) return { program, args: [], shell: true };
   if (platform === "win32") {
     const launcher = /\.(cmd|bat)$/i.test(program) || /^(npm|npx|pnpm|yarn|bun|tsx)$/i.test(program);
-    if (launcher) return { program: [program, ...args].map(quoteForCmd).join(" "), args: [], shell: true };
+    if (launcher) {
+      const line = [program.replace(CMD_META, "^$1"), ...args.map((arg) => quoteForCmd(arg))].join(" ");
+      return { program: line, args: [], shell: true };
+    }
   }
   return { program, args, shell: false };
 }

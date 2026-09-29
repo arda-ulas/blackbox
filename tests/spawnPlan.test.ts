@@ -11,18 +11,27 @@ describe("spawnPlan", () => {
   });
 
   it("spawns executables directly on Windows too", () => {
-    expect(spawnPlan(["node", "C:\\\\my dir\\\\agent.js"], "win32")).toEqual({ program: "node", args: ["C:\\\\my dir\\\\agent.js"], shell: false });
+    expect(spawnPlan(["node", "C:\\my dir\\agent.js"], "win32")).toEqual({ program: "node", args: ["C:\\my dir\\agent.js"], shell: false });
   });
 
-  it("quotes arguments for npm-style .cmd launchers on Windows", () => {
-    const plan = spawnPlan(["npx", "tsx", "my agent.ts", 'say "hi" & exit'], "win32");
+  it("escapes a .cmd launcher's command line for cmd.exe", () => {
+    const plan = spawnPlan(["npx", "tsx", "my agent.ts"], "win32");
     expect(plan.shell).toBe(true);
-    expect(plan.program).toBe('npx tsx "my agent.ts" "say ""hi"" & exit"');
+    expect(plan.program).toBe('npx ^^^"tsx^^^" ^^^"my^^^ agent.ts^^^"');
+  });
+});
+
+describe("quoteForCmd (cross-spawn escaping)", () => {
+  it("^-escapes percent signs so %VAR% cannot expand", () => {
+    expect(quoteForCmd("%PATH%", false)).toBe('^"^%PATH^%^"');
+    expect(quoteForCmd("%PATH%")).toBe('^^^"^^^%PATH^^^%^^^"');
   });
 
-  it("quotes only what cmd.exe would misread", () => {
-    expect(quoteForCmd("plain")).toBe("plain");
-    expect(quoteForCmd("")).toBe('""');
-    expect(quoteForCmd("50%")).toBe('"50%"');
+  it("escapes shell operators and embedded quotes", () => {
+    expect(quoteForCmd('say "hi" & exit', false)).toBe('^"say^ \\^"hi\\^"^ ^&^ exit^"');
+  });
+
+  it("doubles trailing backslashes before the closing quote", () => {
+    expect(quoteForCmd("C:\\dir\\", false)).toBe('^"C:\\dir\\\\^"');
   });
 });

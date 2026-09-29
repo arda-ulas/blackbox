@@ -240,6 +240,19 @@ describe("adaptClaudeCodeTranscript", () => {
     expect(verifyTrace(trace).pass).toBe(true);
   });
 
+  it("keeps completed results of a parallel round the session stopped in", () => {
+    const source = [
+      event("user", 0, { role: "user", content: "Check both." }),
+      event("assistant", 1, { role: "assistant", id: "m1", content: [{ type: "tool_use", id: "toolu_a", name: "Read", input: { file_path: "a" } }] }),
+      event("assistant", 2, { role: "assistant", id: "m1", content: [{ type: "tool_use", id: "toolu_b", name: "Read", input: { file_path: "b" } }] }),
+      event("user", 3, { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_b", content: "B" }] }),
+    ];
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "partial" });
+    expect(trace.steps.map((step) => step.type)).toEqual(["model_input", "model_output", "tool_call", "tool_call", "tool_result"]);
+    expect(trace.steps[4].payload).toMatchObject({ toolCallId: "call-1", result: "B" });
+    expect(replayTrace(trace).status).toBe("incomplete");
+  });
+
   it("skips sidechain (subagent) lines entirely", () => {
     const source = oneToolTranscript();
     source.splice(5, 0,

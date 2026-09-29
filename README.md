@@ -98,7 +98,7 @@ the answer. If the process exits before `finish()`, the cassette is still writte
 
 | Step | What happens |
 |---|---|
-| **record** | `bb.fetch` sits under the SDK client. Each model call is stored as two provider-neutral steps, request and response. Failed calls are not recorded. Wrapped tools store their arguments and results. Every step's SHA-256 covers its content and the previous step's hash, so any edit to a cassette is detectable. |
+| **record** | `bb.fetch` sits under the SDK client. Each model call is stored as two provider-neutral steps, request and response. Failed calls are not recorded. Wrapped tools store their arguments and results. Every step's SHA-256 covers its content and the previous step's hash: editing a step breaks the chain for `verify` unless every later hash is recomputed too, and comparing the last hash with a copy you trust catches even that. |
 | **replay** | Your agent runs again. Each request it sends is compared with the recorded one. On a match, the recorded response comes back in the SDK's own shape. On a mismatch, replay stops at the first difference and names the path, e.g. `messages[0].content`. Wrapped tools return their recorded results without running. If a prompt changes on every run (a timestamp, say), `--match sequence` serves the responses in order without comparing. |
 | **fork** | Replays the recording up to one tool result, returns your value instead, then continues with the live model (`--live`) or scripted replies (`--script`). Steps before the fork are copied verbatim, so their hashes match the parent's. |
 | **diff** | Reports the first divergent step, the value that changed, and whether the outcome changed (status, final answer, tool path). |
@@ -159,8 +159,8 @@ contains the API key it saw in the environment or the request headers.
   to change, no divergence report, and no tamper evidence.
 - **[backspin](https://github.com/zaibuchihuoji/backspin)** is the closest in shape: it records to a file, replays
   offline, branches with a changed value and diffs to the first divergence. It is Python-first (its TypeScript SDK
-  is not on npm), matches requests by fingerprint rather than field by field, and has no hash chain, so a fork's
-  prefix is not provably identical to its parent.
+  is not on npm), matches requests by fingerprint rather than field by field, and has no hash chain, so you cannot check that a
+  fork's shared prefix matches its parent by comparing hashes.
 
 ## Try it without an agent
 

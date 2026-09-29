@@ -353,19 +353,23 @@ export function adaptClaudeCodeTranscript(
     recorder.append("model_input", { messages: history, tools: toolDefs } as unknown as JsonValue, turn.timestamp);
     recorder.append("model_output", output, turn.timestamp);
 
+    // A session cut off while its last tools were running ends after this
+    // turn, incomplete: completed calls keep their results and unfinished ones
+    // keep only their tool_call. A missing result anywhere earlier is a
+    // malformed source.
+    const missing = calls.filter((call) => !results.has(call.providerCallId));
+    if (missing.length > 0 && turn !== lastModelTurn) {
+      throw new ClaudeCodeTranscriptError(
+        `transcript has no result for ${JSON.stringify(missing[0].toolName)} (called at ${where})`,
+      );
+    }
+
     const resultParts: MessagePart[] = [];
     for (const call of calls) {
       const entry = results.get(call.providerCallId);
       if (entry === undefined) {
-        // A session cut off while its last tools were running ends here,
-        // incomplete. A missing result anywhere earlier is a malformed source.
-        if (turn === lastModelTurn) {
-          recorder.append("tool_call", { toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput }, turn.timestamp);
-          return recorder.getTrace();
-        }
-        throw new ClaudeCodeTranscriptError(
-          `transcript has no result for ${JSON.stringify(call.toolName)} (called at ${where})`,
-        );
+        recorder.append("tool_call", { toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput }, turn.timestamp);
+        continue;
       }
       consumedResults.add(call.providerCallId);
       const timestamp = Math.max(entry.timestamp, turn.timestamp);
@@ -380,6 +384,8 @@ export function adaptClaudeCodeTranscript(
         resultParts.push({ type: "tool_result", toolCallId: call.toolCallId, toolName: call.toolName, result });
       }
     }
+
+    if (missing.length > 0) return recorder.getTrace();
 
     const assistant: MessagePart[] = [];
     if (text.length > 0) assistant.push({ type: "text", text });

@@ -189,7 +189,7 @@ The fork index may point to any step in the parent trace **except a `metadata` s
 | `model_input` | All steps before the model call | Agent loop starts from the mutated prompt — the most natural fork point |
 | `model_output` | Includes the preceding `model_input` | Agent loop starts fresh; first new child step is a new `model_input` at `forkIndex` |
 | `tool_call` | Includes the `model_input` and its `model_output` | Agent loop starts fresh with the prefix ending before tool execution |
-| `tool_result` | Includes the full tool round up to and including the result | Agent loop starts fresh; use `toolResultMutations` to inject a different result value |
+| `tool_result` | Includes the tool round up to its `tool_call` (the result itself is at `forkIndex` and is not copied) | Agent loop starts fresh; use `toolResultMutations` on an earlier `tool_result` to inject a different value |
 | `metadata` | **Not allowed** | `metadata` steps are terminal run markers; forking there has no meaningful continuation and is rejected |
 
 ### Tool-result mutation constraint

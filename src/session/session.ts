@@ -153,6 +153,7 @@ export class BlackboxSession {
       this.#parent = this.#loadParent();
     }
     if (this.mode === "fork") this.#checkForkPlan();
+    if (this.#parent) this.#round = this.#recordedRound(0, []);
     if (this.mode === "record" || this.mode === "fork") {
       openSessions.add(this);
       installExitHook();
@@ -301,6 +302,7 @@ export class BlackboxSession {
     input: string | URL | Request,
     init: RequestInit | undefined,
   ): Promise<Response> {
+    this.#checkPrefixClaimed();
     const startedAt = Date.now();
     const modelInput = this.#normalizeRequest(provider, body);
 
@@ -432,30 +434,42 @@ export class BlackboxSession {
     const output = outputStep.payload as unknown as NeutralOutput;
     this.#cursor += 2;
 
-    // Index this turn's recorded tool steps by call id.
-    const recorded = new Map<string, { call: TraceStep; result: TraceStep }>();
-    let scan = this.#cursor;
-    while (scan < parent.steps.length && parent.steps[scan].type !== "model_input") {
-      const step = parent.steps[scan];
-      if (step.type === "tool_call") {
-        const next = parent.steps[scan + 1];
-        const id = (step.payload as { toolCallId?: string }).toolCallId;
-        if (next?.type === "tool_result" && id !== undefined) recorded.set(id, { call: step, result: next });
-      }
-      scan++;
-    }
-    const calls = toolCallsOf(outputStep.payload);
-    this.#round = {
-      calls: calls.map((call) => {
-        this.#ids.register(call.toolCallId, call.toolName);
-        const entry: RoundCall = { ...call, claimed: false };
-        const steps = recorded.get(call.toolCallId);
-        if (steps) entry.recorded = steps;
-        return entry;
-      }),
-      extra: [],
-    };
+    this.#round = this.#recordedRound(this.#cursor, toolCallsOf(outputStep.payload));
     return this.#synthesize(provider, output, body, outputStep.index, outputStep.timestamp);
+  }
+
+  /**
+   * The recorded tool steps from `start` up to the next model_input, as a round:
+   * the model-requested calls first (in request order), then tool invocations
+   * the model did not request (in recorded order, e.g. a tool the agent ran
+   * before its first model call).
+   */
+  #recordedRound(start: number, requested: ToolCallRef[]): Round {
+    const parent = this.#parent as Trace;
+    const recorded = new Map<string, { call: TraceStep; result: TraceStep }>();
+    for (let scan = start; scan < parent.steps.length && parent.steps[scan].type !== "model_input"; scan++) {
+      const step = parent.steps[scan];
+      if (step.type !== "tool_call") continue;
+      const next = parent.steps[scan + 1];
+      const id = (step.payload as { toolCallId?: string }).toolCallId;
+      if (next?.type === "tool_result" && id !== undefined) recorded.set(id, { call: step, result: next });
+    }
+    const requestedIds = new Set(requested.map((call) => call.toolCallId));
+    const calls: RoundCall[] = requested.map((call) => {
+      this.#ids.register(call.toolCallId, call.toolName);
+      const entry: RoundCall = { ...call, claimed: false };
+      const steps = recorded.get(call.toolCallId);
+      if (steps) entry.recorded = steps;
+      return entry;
+    });
+    for (const [toolCallId, steps] of recorded) {
+      if (requestedIds.has(toolCallId)) continue;
+      const payload = steps.call.payload as { toolName?: string; toolInput?: JsonValue };
+      const toolName = payload.toolName ?? "unknown";
+      this.#ids.register(toolCallId, toolName);
+      calls.push({ toolCallId, toolName, toolInput: payload.toolInput ?? null, recorded: steps, claimed: false });
+    }
+    return { calls, extra: [] };
   }
 
   /**
@@ -618,7 +632,9 @@ export class BlackboxSession {
       recorder.append("tool_call", { toolCallId, toolName, toolInput }, pending.startedAt);
       recorder.append("tool_result", pending.done.payload, pending.done.at);
     };
-    for (const call of this.#round.calls) write(call.toolCallId, call.toolName, call.pending?.input ?? call.toolInput, call.pending);
+    for (const call of this.#round.calls) {
+      write(call.toolCallId, call.toolName, call.pending !== undefined ? call.pending.input : call.toolInput, call.pending);
+    }
     for (const extra of this.#round.extra) write(extra.toolCallId, extra.toolName, extra.input, extra);
     this.#round = { calls: [], extra: [] };
   }
@@ -768,7 +784,7 @@ export class BlackboxSession {
       const value = headers.get(name);
       if (value === null) continue;
       const secret = value.replace(/^Bearer\s+/i, "");
-      if (secret.length >= 4 && secret !== PLACEHOLDER_KEY) this.#secrets.add(secret);
+      if (secret.length > 0 && secret !== PLACEHOLDER_KEY) this.#secrets.add(secret);
     }
   }
 
@@ -805,6 +821,7 @@ export class BlackboxSession {
     if (this.#finished || this.#finishError !== undefined || !this.#recorder || this.#failure) return;
     if (this.mode === "fork" && !this.#forked) return;
     try {
+      this.#checkPrefixClaimed();
       this.#flushRound();
       if (this.#recorder.size() === 0) return;
       if (exitCode === 0) this.#appendTerminal({});

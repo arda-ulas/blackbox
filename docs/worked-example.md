@@ -107,8 +107,8 @@ npx blackbox replay runs/storm.json -- node examples/anthropic-agent.mjs
   `verify` noticing. It also makes the fork claim checkable: steps 0–2 of `storm.json` have the same hashes as
   steps 0–2 of `trip.json`.
 - **Why strict matching.** Replay compares every request field by field before answering it. A replay that passes
-  therefore shows your code is the code that made the recording, which a replay that answers blindly in order
-  cannot.
+  therefore shows your agent still sends exactly the recorded requests and tool calls, which a replay that answers
+  blindly in order cannot.
 - **Why fork at tool results.** Tool results are the facts from outside the model that an agent reasons over, and
   they are the facts most often wrong in production. Changing one and letting the model continue answers "what
   would it have done if…".

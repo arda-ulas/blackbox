@@ -21,7 +21,7 @@ Checked in September 2026. If something here is out of date, please open an issu
   and can continue a fork from scripted replies.
 - **[backspin](https://github.com/zaibuchihuoji/backspin)** is closest in shape: it records runs to a file, replays
   them offline, branches with a changed value and diffs to the first divergence. It is Python-first (its TypeScript
-  SDK is installed from GitHub), matches requests by fingerprint, and has no hash chain, so a branch's shared
-  prefix is not provably identical to its parent.
+  SDK is installed from GitHub), matches requests by fingerprint, and has no hash chain, so you cannot check a
+  branch's shared prefix against its parent by comparing hashes.
 - **HTTP recorders** make tests deterministic at the network level. They have no notion of a tool result to
   change, no divergence report, and no check that a recording was not edited.

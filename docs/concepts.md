@@ -19,8 +19,11 @@ Blackbox's own ids, `call-0`, `call-1`, and so on. See [trace format](./trace-fo
 ## Hash chain
 
 Every step stores a SHA-256 hash of its content and position together with the previous step's hash. Changing
-anything in a step changes its hash and every hash after it, so `verify` detects any edit. It is also how `diff`
-tells two cassettes apart: the first step whose hash differs is the first divergence.
+anything in a step's content changes its hash and every hash after it. `verify` recomputes the chain, so an edit
+that does not also recompute every later hash fails; comparing the final hash with one you kept elsewhere (a commit,
+a CI log) catches any change at all. The hash chain is also how `diff` tells two cassettes apart: the first step
+whose hash differs is the first divergence. It is not a signature: anyone can write a new, internally consistent
+cassette.
 
 ## Session
 

@@ -26,8 +26,8 @@ const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
   { label: "OPENAI_API_KEY", pattern: /OPENAI_API_KEY/g, maskable: false },
 ];
 
-/** Minimum length for a caller-supplied literal secret to be scanned for. */
-const MIN_LITERAL_LENGTH = 4;
+/** Every non-empty caller-supplied literal secret is scanned for. */
+const MIN_LITERAL_LENGTH = 1;
 
 function usableLiterals(literals: readonly (string | undefined)[]): string[] {
   return literals.filter(

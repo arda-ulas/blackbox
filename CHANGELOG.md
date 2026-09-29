@@ -69,8 +69,8 @@ The first release you can point at your own agent.
   tools, and `n > 1`. Each is rejected with a clear error rather than
   recorded incorrectly.
 - Extended-thinking blocks are left out of cassettes. Record and replay work
-  with thinking enabled, but `fork --live` on such an agent may be rejected by
-  the API.
+  with thinking enabled; `fork --live` on such an agent is refused up front
+  (use `--script`).
 
 ## [0.1.0] - 2026-08-21
 

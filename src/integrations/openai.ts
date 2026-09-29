@@ -40,6 +40,14 @@ const PARAMS: Record<string, string> = {
   parallel_tool_calls: "parallelToolCalls",
   seed: "seed",
   reasoning_effort: "reasoningEffort",
+  presence_penalty: "presencePenalty",
+  frequency_penalty: "frequencyPenalty",
+  logit_bias: "logitBias",
+  logprobs: "logprobs",
+  top_logprobs: "topLogprobs",
+  verbosity: "verbosity",
+  prediction: "prediction",
+  modalities: "modalities",
 };
 
 export function checkOpenAIRequest(body: Record<string, unknown>): void {
