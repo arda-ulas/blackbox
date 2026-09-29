@@ -35,3 +35,6 @@ dist-ssr
 # Docs site build output
 docs/.vitepress/dist
 docs/.vitepress/cache
+
+# A stray self-referential symlink (blackbox -> this repo) must never be committed
+/blackbox
