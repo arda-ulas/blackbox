@@ -83,6 +83,15 @@ function normalizeContent(
       unsupported(`"${String(type)}" content blocks`, "only text, tool_use and tool_result blocks can be recorded in this version");
     }
   }
+  if (role === "assistant") {
+    // Responses are recorded as one text (all text blocks joined) followed by
+    // the tool calls, so a replayed response comes back in that shape. Give the
+    // assistant turns of the history the same shape, so an unchanged agent
+    // produces the same normalized request in recording and in replay.
+    const texts = parts.flatMap((part) => (part.type === "text" && part.text.length > 0 ? [part.text] : []));
+    const others = parts.filter((part) => part.type !== "text");
+    return texts.length > 0 ? [{ type: "text", text: texts.join("\n\n") }, ...others] : others;
+  }
   return parts;
 }
 

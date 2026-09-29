@@ -8,7 +8,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 export type LaunchMode = "record" | "replay" | "fork";
@@ -43,8 +43,8 @@ export interface LaunchResult {
   report: SessionReport | undefined;
 }
 
-/** A placeholder so SDK constructors that insist on a key work offline. */
-export const PLACEHOLDER_KEY = "blackbox-offline-placeholder";
+export { PLACEHOLDER_KEY } from "../session/options.ts";
+import { PLACEHOLDER_KEY } from "../session/options.ts";
 
 export function launchEnv(options: LaunchOptions, reportPath: string, base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base, BLACKBOX_MODE: options.mode, BLACKBOX_REPORT: reportPath };
@@ -68,23 +68,50 @@ export function launchEnv(options: LaunchOptions, reportPath: string, base: Node
   return env;
 }
 
+/** Quote one argument for cmd.exe (used only for .cmd/.bat launchers on Windows). */
+export function quoteForCmd(arg: string): string {
+  if (arg.length > 0 && !/[\s"&|<>^%()!]/.test(arg)) return arg;
+  return `"${arg.replace(/"/g, '""')}"`;
+}
+
+/**
+ * How to start the agent command. Arguments are passed to the program directly
+ * (no shell re-parsing), except:
+ *  - a single argument containing spaces (`-- "node agent.js"`) is given to the
+ *    shell to split, as the user intended;
+ *  - on Windows, npm/npx-style `.cmd`/`.bat` launchers can only start through
+ *    cmd.exe, so their arguments are quoted for it.
+ */
+export function spawnPlan(
+  command: readonly string[],
+  platform: NodeJS.Platform,
+): { program: string; args: string[]; shell: boolean } {
+  const [program, ...args] = command;
+  if (args.length === 0 && /\s/.test(program)) return { program, args: [], shell: true };
+  if (platform === "win32") {
+    const launcher = /\.(cmd|bat)$/i.test(program) || /^(npm|npx|pnpm|yarn|bun|tsx)$/i.test(program);
+    if (launcher) return { program: [program, ...args].map(quoteForCmd).join(" "), args: [], shell: true };
+  }
+  return { program, args, shell: false };
+}
+
 export async function launch(options: LaunchOptions): Promise<LaunchResult> {
   const reportPath = join(tmpdir(), `blackbox-report-${process.pid}-${randomUUID()}.json`);
   const env = launchEnv(options, reportPath, process.env);
-  const [program, ...args] = options.command;
-  // `-- "node agent.js"` arrives as one argument; let the shell split it.
-  const viaShell = process.platform === "win32" || (args.length === 0 && /\s/.test(program));
+  const { program, args, shell } = spawnPlan(options.command, process.platform);
 
   // Let Ctrl-C reach the agent (same process group) and let it exit on its own.
   const ignoreInterrupt = (): void => {};
   process.on("SIGINT", ignoreInterrupt);
   try {
     const { exitCode, signal } = await new Promise<{ exitCode: number; signal: NodeJS.Signals | null }>((done, fail) => {
-      const child = spawn(program, args, { stdio: "inherit", env, shell: viaShell });
+      const child = spawn(program, args, { stdio: "inherit", env, shell });
       child.once("error", (error: NodeJS.ErrnoException) =>
         fail(error.code === "ENOENT" ? new Error(`could not start "${program}": command not found`) : error),
       );
-      child.once("exit", (code, sig) => done({ exitCode: code ?? 1, signal: sig }));
+      child.once("exit", (code, sig) =>
+        done({ exitCode: code ?? (sig ? 128 + (constants.signals[sig] ?? 0) : 1), signal: sig }),
+      );
     });
     let report: SessionReport | undefined;
     try {

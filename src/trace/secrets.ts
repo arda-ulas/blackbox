@@ -27,7 +27,7 @@ const CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
 ];
 
 /** Minimum length for a caller-supplied literal secret to be scanned for. */
-const MIN_LITERAL_LENGTH = 8;
+const MIN_LITERAL_LENGTH = 4;
 
 function usableLiterals(literals: readonly (string | undefined)[]): string[] {
   return literals.filter(

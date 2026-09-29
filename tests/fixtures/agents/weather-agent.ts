@@ -76,6 +76,11 @@ for (let turn = 0; turn < 5; turn++) {
 }
 
 if (process.env["AGENT_CRASH"] === "1") throw new Error("agent crashed after answering");
+if (process.env["AGENT_SIGINT"] === "1") {
+  // Simulate Ctrl-C before finish(): the recording must still be written.
+  process.kill(process.pid, "SIGINT");
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
+}
 console.log(`answer: ${answer}`);
 console.log(`upstream calls: ${upstreamCalls}`);
 await bb.finish();

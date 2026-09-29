@@ -45,7 +45,7 @@ import { terminalOutcome } from "../trace/traceOutcome.ts";
 import { CURRENT_TRACE_VERSION, type JsonObject, type JsonValue, type Trace, type TraceStep } from "../trace/TraceTypes.ts";
 import { verifyTrace } from "../trace/verifyTrace.ts";
 import { firstDifference, renderValue } from "./firstDifference.ts";
-import { resolveOptions, type BlackboxOptions, type ResolvedOptions } from "./options.ts";
+import { PLACEHOLDER_KEY, resolveOptions, type BlackboxOptions, type ResolvedOptions } from "./options.ts";
 
 type Provider = "anthropic" | "openai";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,6 +129,7 @@ export class BlackboxSession {
   #finished: FinishSummary | undefined;
   #finishError: unknown;
   #nextExtraId = 0;
+  #modelCallsInFlight = 0;
 
   // Replay / fork state.
   readonly #parent: Trace | undefined;
@@ -141,7 +142,7 @@ export class BlackboxSession {
     this.mode = this.#options.mode;
     for (const name of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]) {
       const value = env[name];
-      if (value !== undefined && value.length > 0) this.#secrets.add(value);
+      if (value !== undefined && value.length > 0 && value !== PLACEHOLDER_KEY) this.#secrets.add(value);
     }
 
     if (this.mode === "record") {
@@ -204,6 +205,7 @@ export class BlackboxSession {
             `the agent never invoked the tool whose result step ${String(this.#options.forkAt)} records`,
         );
       }
+      this.#checkPrefixClaimed();
       this.#flushRound();
       this.#appendTerminal(options);
       const trace = (this.#recorder as TraceRecorder).getTrace();
@@ -234,7 +236,9 @@ export class BlackboxSession {
     this.#collectSecrets(input, init);
 
     if (this.mode === "off") return this.#options.baseFetch(input, init);
-    if (this.#failure) return jsonResponse(400, errorBody(provider === "responses" ? "openai" : provider, this.#failure.message));
+    if (this.#failure) {
+      return jsonResponse(400, errorBody(provider === "responses" ? "openai" : provider, `[blackbox] ${this.#failure.message}`));
+    }
 
     try {
       if (provider === "responses") {
@@ -252,11 +256,22 @@ export class BlackboxSession {
         );
       }
 
-      const body = await this.#readBody(input, init);
-      if (this.mode === "record" || (this.mode === "fork" && this.#forked)) {
-        return await this.#liveCall(provider, body, input, init);
+      if (this.#modelCallsInFlight > 0) {
+        throw new BlackboxUnsupportedError(
+          "overlapping model calls in one session are not supported yet; await each call before the next, " +
+            "or give each concurrent conversation its own blackbox() session and cassette",
+        );
       }
-      return this.#replayCall(provider, body);
+      this.#modelCallsInFlight++;
+      try {
+        const body = await this.#readBody(input, init);
+        if (this.mode === "record" || (this.mode === "fork" && this.#forked)) {
+          return await this.#liveCall(provider, body, input, init);
+        }
+        return this.#replayCall(provider, body);
+      } finally {
+        this.#modelCallsInFlight--;
+      }
     } catch (error) {
       if (!(error instanceof BlackboxError)) throw error;
       return this.#fail(error, provider === "responses" ? "openai" : provider);
@@ -295,6 +310,17 @@ export class BlackboxSession {
       return this.#synthesize(provider, output, body, this.#recorder!.size() - 1, Date.now());
     }
 
+    const thinking = body["thinking"];
+    if (
+      this.mode === "fork" &&
+      provider === "anthropic" &&
+      typeof thinking === "object" && thinking !== null && (thinking as { type?: unknown }).type !== "disabled"
+    ) {
+      throw new BlackboxUnsupportedError(
+        "fork --live with extended thinking is not supported yet (cassettes leave thinking blocks out, and the API " +
+          "requires them on tool-use turns); continue the fork with a script instead",
+      );
+    }
     const response = await this.#options.baseFetch(input, init);
     if (!response.ok) return response;
     let parsed: unknown;
@@ -315,6 +341,7 @@ export class BlackboxSession {
   }
 
   #appendModelTurn(modelInput: JsonObject, startedAt: number, output: NeutralOutput, at: number): void {
+    this.#checkPrefixClaimed();
     this.#flushRound();
     const recorder = this.#recorder as TraceRecorder;
     recorder.append("model_input", modelInput, startedAt);
@@ -333,10 +360,10 @@ export class BlackboxSession {
         `the fork script ran out after ${script.length} response(s); add more model outputs to it or continue with --live`,
       );
     }
-    const index = this.#scriptIndex++;
+    this.#scriptIndex++;
     if (entry.type === "tool_calls") {
-      const calls = entry.calls.map((call, position) => ({
-        toolCallId: this.#ids.assign(`script-${index}-${position}`, call.toolName),
+      const calls = entry.calls.map((call) => ({
+        toolCallId: this.#ids.fresh(call.toolName),
         toolName: call.toolName,
         toolInput: call.toolInput ?? {},
       }));
@@ -388,7 +415,7 @@ export class BlackboxSession {
       if (difference) {
         throw new ReplayDivergenceError({
           stepIndex: inputStep.index,
-          path: difference.path,
+          path: this.#mask(difference.path),
           expected: this.#mask(renderValue(difference.expected)),
           actual: this.#mask(renderValue(difference.actual)),
           hint:
@@ -503,14 +530,60 @@ export class BlackboxSession {
     return this.#runLive(name, fn, args, input, call);
   }
 
-  /** Match an invocation to an unclaimed call of the current turn: name + input, then name (FIFO). */
+  /**
+   * Match an invocation to an unclaimed call of the current turn by name and
+   * arguments. When replaying (and for a fork's prefix), the arguments must equal
+   * the recorded invocation in strict mode; otherwise the first open call with
+   * that name is taken. Identical duplicate calls are matched in invocation order.
+   */
   #claimCall(name: string, input: JsonValue): RoundCall | undefined {
     const open = this.#round.calls.filter((call) => !call.claimed && call.toolName === name);
     const wanted = canonicalize(input);
-    const exact = open.find((call) => canonicalize(call.toolInput) === wanted);
-    const call = exact ?? open[0];
+    const expectedInput = (call: RoundCall): JsonValue =>
+      call.recorded ? ((call.recorded.call.payload as { toolInput?: JsonValue }).toolInput ?? null) : call.toolInput;
+    let call = open.find((candidate) => canonicalize(expectedInput(candidate)) === wanted);
+    if (call === undefined) {
+      const first = open[0];
+      if (first?.recorded && this.#options.match === "strict" && this.#checksRecordedInput(first)) {
+        throw this.#failTool(
+          new ReplayDivergenceError({
+            stepIndex: first.recorded.call.index,
+            path: `tool ${name} input`,
+            expected: this.#mask(renderValue(expectedInput(first))),
+            actual: this.#mask(renderValue(input)),
+            hint: "  The agent called the tool with different arguments than it did when recording.",
+          }),
+        );
+      }
+      call = first;
+    }
     if (call) call.claimed = true;
     return call;
+  }
+
+  /** Whether a recorded call is served from the cassette (so its arguments are checked). */
+  #checksRecordedInput(call: RoundCall): boolean {
+    if (this.mode === "replay") return true;
+    return this.mode === "fork" && call.recorded !== undefined && call.recorded.result.index <= (this.#options.forkAt as number);
+  }
+
+  /**
+   * In a fork, the copied prefix includes the tool steps recorded before the
+   * fork point; the agent must actually have run each of those calls again.
+   */
+  #checkPrefixClaimed(): void {
+    if (this.mode !== "fork" || !this.#forked || this.#options.match !== "strict") return;
+    const skipped = this.#round.calls.find(
+      (call) => call.recorded && !call.claimed && call.recorded.result.index < (this.#options.forkAt as number),
+    );
+    if (skipped?.recorded) {
+      throw new ReplayDivergenceError({
+        stepIndex: skipped.recorded.call.index,
+        path: `tool ${skipped.toolName}`,
+        expected: `the agent runs ${skipped.toolName} (${skipped.toolCallId}) before the fork point, as recorded`,
+        actual: "the agent moved on without running it",
+      });
+    }
   }
 
   async #runLive(name: string, fn: AnyFunction, args: unknown[], input: JsonValue, call: RoundCall | undefined): Promise<unknown> {
@@ -545,7 +618,7 @@ export class BlackboxSession {
       recorder.append("tool_call", { toolCallId, toolName, toolInput }, pending.startedAt);
       recorder.append("tool_result", pending.done.payload, pending.done.at);
     };
-    for (const call of this.#round.calls) write(call.toolCallId, call.toolName, call.toolInput, call.pending);
+    for (const call of this.#round.calls) write(call.toolCallId, call.toolName, call.pending?.input ?? call.toolInput, call.pending);
     for (const extra of this.#round.extra) write(extra.toolCallId, extra.toolName, extra.input, extra);
     this.#round = { calls: [], extra: [] };
   }
@@ -670,15 +743,17 @@ export class BlackboxSession {
   }
 
   #fail(error: BlackboxError, provider: Provider | undefined): Response {
+    error.message = this.#mask(error.message);
     this.#failure ??= error;
-    const message = `[blackbox] ${this.#mask(error.message)}`;
+    const message = `[blackbox] ${error.message}`;
     if (this.#options.logErrors) console.error(message);
     return jsonResponse(400, errorBody(provider, message));
   }
 
   #failTool(error: BlackboxError): BlackboxError {
+    error.message = this.#mask(error.message);
     this.#failure ??= error;
-    if (this.#options.logErrors) console.error(`[blackbox] ${this.#mask(error.message)}`);
+    if (this.#options.logErrors) console.error(`[blackbox] ${error.message}`);
     return error;
   }
 
@@ -693,7 +768,7 @@ export class BlackboxSession {
       const value = headers.get(name);
       if (value === null) continue;
       const secret = value.replace(/^Bearer\s+/i, "");
-      if (secret.length >= 8) this.#secrets.add(secret);
+      if (secret.length >= 4 && secret !== PLACEHOLDER_KEY) this.#secrets.add(secret);
     }
   }
 
@@ -767,6 +842,16 @@ function installExitHook(): void {
   process.once("exit", (code) => {
     for (const session of [...openSessions]) session.writeOnExit(code);
   });
+  // A signal (Ctrl-C) ends the process without the "exit" event, so write the
+  // cassettes first. If the agent has its own handler, leave shutdown to it;
+  // otherwise re-raise the signal so the process ends the way it would have.
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    const onSignal = (): void => {
+      for (const session of [...openSessions]) session.writeOnExit(signal === "SIGINT" ? 130 : 143);
+      if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
+    };
+    process.once(signal, onSignal);
+  }
 }
 
 function isNeutralOutput(value: unknown): value is NeutralOutput {

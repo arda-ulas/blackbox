@@ -39,6 +39,13 @@ export class ToolCallIds {
     return toolCallId;
   }
 
+  /** A new `call-N` for a call Blackbox itself serves (scripted fork replies). */
+  fresh(toolName: string): string {
+    const toolCallId = `call-${this.#next++}`;
+    this.#byProviderId.set(toolCallId, { toolCallId, toolName });
+    return toolCallId;
+  }
+
   /** Register a served (replayed) call whose provider id is its neutral id. */
   register(toolCallId: string, toolName: string): void {
     this.#byProviderId.set(toolCallId, { toolCallId, toolName });

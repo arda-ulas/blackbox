@@ -132,3 +132,14 @@ describe("blackbox fork -- <command> + diff", () => {
     expect(result.stderr).toContain("--live (your real API client) or --script <replies.json>");
   }, 60_000);
 });
+
+describe("Ctrl-C and argument handling", () => {
+  it("writes the recording when the agent is interrupted before finish()", async () => {
+    const out = join(DIR, "interrupted.json");
+    const result = await blackbox(["record", "--out", out, "--", ...AGENT], { ...RECORD_KEY, AGENT_SIGINT: "1" });
+    expect(result.code).toBe(130);
+    const trace = readTrace(out);
+    expect(trace.steps.filter((s) => s.type === "model_output")).toHaveLength(2);
+    expect(trace.steps.at(-1)?.payload).toMatchObject({ event: "run_failed", reason: "process_exit", exitCode: 130 });
+  }, 60_000);
+});

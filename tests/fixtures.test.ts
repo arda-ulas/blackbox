@@ -34,7 +34,7 @@ const PROJECT_ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "")
 // ---------------------------------------------------------------------------
 // Frozen expectations. These are hand-verified constants, not values recomputed
 // from the fixture at runtime: if a committed fixture's stored hash changes,
-// these fail. Regenerate deliberately (see docs/20_week_five_a_plan.md §7).
+// these fail. Regenerate deliberately (see docs/history/20_week_five_a_plan.md §7).
 // ---------------------------------------------------------------------------
 
 /** Final-step hash of each committed fixture. */

@@ -505,3 +505,174 @@ describe("OpenAI SDK", () => {
     expect(up.calls).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests from the pre-release audit
+// ---------------------------------------------------------------------------
+
+describe("audit regressions", () => {
+  it("a scripted fork with a tool round keeps call ids consistent, and the child replays strictly", async () => {
+    const { path } = await recordWeather();
+    const out = tmp("script-tools");
+    const fork = blackbox({
+      mode: "fork", cassette: path, out, forkAt: 3, forkSet: { city: "Paris", temp: 35 }, continueWith: "script",
+      script: [
+        { type: "tool_calls", calls: [{ toolCallId: "", toolName: "weather", toolInput: { city: "Oslo" } }] },
+        { type: "final_answer", text: "Paris is warmest." },
+      ],
+      baseFetch: noNetwork, logErrors: false,
+    });
+    const tool = weatherTool({ Paris: 0, Rome: 24, Oslo: 5 });
+    expect(await weatherAgent(anthropicClient(fork), fork.tools({ weather: tool.fn }))).toBe("Paris is warmest.");
+    await fork.finish();
+    const child = readTrace(out);
+    const ids = child.steps.filter((s) => s.type === "tool_result").map((s) => (s.payload as { toolCallId: string }).toolCallId);
+    expect(ids).toEqual(["call-0", "call-1", "call-2"]);
+    const lastInput = [...child.steps].reverse().find((s) => s.type === "model_input")?.payload;
+    expect(JSON.stringify(lastInput)).toContain('"toolCallId":"call-2"');
+    expect(JSON.stringify(lastInput)).not.toContain("call-3");
+
+    const replay = blackbox({ mode: "replay", cassette: out, baseFetch: noNetwork, logErrors: false });
+    expect(await weatherAgent(anthropicClient(replay), replay.tools({ weather: weatherTool({}).fn }))).toBe("Paris is warmest.");
+    await expect(replay.finish()).resolves.toMatchObject({ status: "success" });
+  });
+
+  it("records the arguments a tool was actually called with, and strict replay checks them", async () => {
+    const { path } = await recordWeather();
+    expect(readTrace(path).steps[2].payload).toEqual({ toolCallId: "call-0", toolName: "weather", toolInput: { city: "Paris" } });
+
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const client = anthropicClient(bb);
+    const tools = bb.tools({ weather: weatherTool({}).fn });
+    const first = await client.messages.create({
+      model: "claude-sonnet-5", max_tokens: 512, system: "Answer in one sentence.",
+      tools: [{ name: "weather", description: "Current weather", input_schema: { type: "object", properties: { city: { type: "string" } } } }],
+      messages: [{ role: "user", content: "Is Paris or Rome warmer today?" }],
+    });
+    expect(first.stop_reason).toBe("tool_use");
+    await expect(tools.weather({ city: "Oslo" })).rejects.toBeInstanceOf(ReplayDivergenceError);
+    await expect(bb.finish()).rejects.toThrow(/tool weather input/);
+  });
+
+  it("a fork fails when the agent skips a call recorded before the fork point", async () => {
+    const { path } = await recordWeather();
+    const bb = blackbox({
+      mode: "fork", cassette: path, out: tmp("skip"), forkAt: 5, forkSet: { city: "Rome", temp: 0 }, continueWith: "script",
+      script: [{ type: "final_answer", text: "x" }], baseFetch: noNetwork, logErrors: false,
+    });
+    const client = anthropicClient(bb);
+    const tools = bb.tools({ weather: weatherTool({}).fn });
+    const request = {
+      model: "claude-sonnet-5", max_tokens: 512, system: "Answer in one sentence.",
+      tools: [{ name: "weather", description: "Current weather", input_schema: { type: "object" as const, properties: { city: { type: "string" } } } }],
+      messages: [{ role: "user" as const, content: "Is Paris or Rome warmer today?" }],
+    };
+    const first = await client.messages.create(request);
+    const rome = first.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && (b.input as { city: string }).city === "Rome")!;
+    await tools.weather({ city: "Rome" }); // Paris (recorded before step 5) is never run
+    await expect(
+      client.messages.create({
+        ...request,
+        messages: [
+          ...request.messages,
+          { role: "assistant", content: first.content },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: rome.id, content: "{}" }] },
+        ],
+      }),
+    ).rejects.toThrow(/\[blackbox\]/);
+    await expect(bb.finish()).rejects.toThrow(/moved on without running it/);
+  });
+
+  it("refuses to write a short API key taken from the request headers", async () => {
+    const path = tmp("short-key");
+    const bb = blackbox({ mode: "record", out: path, baseFetch: upstream([PARALLEL_WEATHER, FINAL]).fetch, logErrors: false });
+    const client = new Anthropic({ apiKey: "k7proxy", fetch: bb.fetch, maxRetries: 0 });
+    const leaky: Weather = async ({ city }) => ({ city, temp: 1, note: "k7proxy" }) as unknown as { city: string; temp: number };
+    await weatherAgent(client, bb.tools({ weather: leaky }));
+    await expect(bb.finish()).rejects.toThrow(/contains your API key/);
+  });
+
+  it("masks known keys in divergence errors, including repeated ones", async () => {
+    const { path } = await recordWeather();
+    const secret = "proxy-secret-4242";
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const client = new Anthropic({ apiKey: secret, fetch: bb.fetch, maxRetries: 0 });
+    const tools = bb.tools({ weather: weatherTool({}).fn });
+    const first = await weatherAgent(client, tools, `my key is ${secret}`).then(() => "", (e: unknown) => String(e));
+    const second = await client.messages.create({ model: "m", max_tokens: 1, messages: [{ role: "user", content: "x" }] }).then(
+      () => "",
+      (e: unknown) => String(e),
+    );
+    const final = await bb.finish().then(() => "", (e: unknown) => String(e));
+    for (const message of [first, second, final]) expect(message).not.toContain(secret);
+    expect(second).toContain("[blackbox]");
+    expect(final).toContain("[redacted]");
+  });
+
+  it("replays an unchanged agent whose response interleaves text and tool calls", async () => {
+    const interleaved = anthropicMessage(
+      [
+        { type: "text", text: "First Paris." },
+        { type: "tool_use", id: "toolu_01CCCCCCCCCCCCCCCCCCCCCC", name: "weather", input: { city: "Paris" } },
+        { type: "text", text: "Then Rome." },
+        { type: "tool_use", id: "toolu_01DDDDDDDDDDDDDDDDDDDDDD", name: "weather", input: { city: "Rome" } },
+      ],
+      "tool_use",
+    );
+    const path = tmp("interleaved");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([interleaved, FINAL]).fetch, logErrors: false });
+    await weatherAgent(anthropicClient(rec), rec.tools({ weather: weatherTool({ Paris: 1, Rome: 2 }).fn }));
+    await rec.finish();
+    const replay = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    expect(await weatherAgent(anthropicClient(replay), replay.tools({ weather: weatherTool({}).fn }))).toBe("Rome is warmer.");
+    await expect(replay.finish()).resolves.toMatchObject({ status: "success" });
+  });
+
+  it("refuses fork --live for a thinking-enabled request, before any network call", async () => {
+    const path = tmp("thinking");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([PARALLEL_WEATHER, FINAL]).fetch, logErrors: false });
+    const thinkingAgent = async (client: Anthropic, tools: { weather: Weather }): Promise<string> => {
+      const messages: Anthropic.MessageParam[] = [{ role: "user", content: "Paris or Rome?" }];
+      for (let turn = 0; turn < 3; turn++) {
+        const response = await client.messages.create({ model: "m", max_tokens: 2048, thinking: { type: "enabled", budget_tokens: 1024 }, messages });
+        if (response.stop_reason !== "tool_use") return "done";
+        messages.push({ role: "assistant", content: response.content });
+        const uses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+        messages.push({
+          role: "user",
+          content: await Promise.all(uses.map(async (b) => ({ type: "tool_result" as const, tool_use_id: b.id, content: JSON.stringify(await tools.weather(b.input as { city: string })) }))),
+        });
+      }
+      return "too many";
+    };
+    await thinkingAgent(anthropicClient(rec), rec.tools({ weather: weatherTool({}).fn }));
+    await rec.finish();
+
+    const live = upstream([]);
+    const bb = blackbox({ mode: "fork", cassette: path, out: tmp("thinking-fork"), forkAt: 5, forkSet: {}, continueWith: "live", baseFetch: live.fetch, logErrors: false });
+    await expect(thinkingAgent(anthropicClient(bb), bb.tools({ weather: weatherTool({}).fn }))).rejects.toThrow(/extended thinking/);
+    expect(live.calls).toBe(0);
+  });
+
+  it("rejects overlapping model calls in one session", async () => {
+    const bb = blackbox({ mode: "record", out: tmp("overlap"), baseFetch: upstream([FINAL, FINAL]).fetch, logErrors: false });
+    const client = anthropicClient(bb);
+    const call = () => client.messages.create({ model: "m", max_tokens: 1, messages: [{ role: "user", content: "x" }] });
+    const results = await Promise.allSettled([call(), call()]);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    await expect(bb.finish()).rejects.toThrow(/overlapping model calls/);
+  });
+
+  it("records nothing for a call the provider rejects, and the run stays incomplete", async () => {
+    const path = tmp("401");
+    const denied = new Response(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "bad key" } }), {
+      status: 401, headers: { "content-type": "application/json" },
+    });
+    const bb = blackbox({ mode: "record", out: path, baseFetch: upstream([denied]).fetch, logErrors: false });
+    await expect(weatherAgent(anthropicClient(bb), bb.tools({ weather: weatherTool({}).fn }))).rejects.toThrow(/bad key/);
+    await bb.finish({ error: new Error("authentication failed") });
+    const trace = readTrace(path);
+    expect(trace.steps.map((s) => s.type)).toEqual(["metadata"]);
+    expect(replayTrace(trace)).toMatchObject({ status: "error", failureReason: "agent_error" });
+  });
+});

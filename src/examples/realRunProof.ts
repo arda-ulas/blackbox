@@ -40,7 +40,7 @@ const label = (s: string) => s.padEnd(16);
 // ---------------------------------------------------------------------------
 // No-tool executor — proof uses a final-text-only prompt.
 // Tool-use proof is explicitly out of scope for W4-C3; deferred until
-// structured transcript migration (Path B in docs/13_adapter_contract.md).
+// structured transcript migration (Path B in docs/history/13_adapter_contract.md).
 // ---------------------------------------------------------------------------
 
 const noTools: ToolExecutor = {

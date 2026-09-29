@@ -9,6 +9,9 @@ import type { NeutralOutput } from "../integrations/common.ts";
 import type { JsonValue } from "../trace/TraceTypes.ts";
 
 export type BlackboxMode = "off" | "record" | "replay" | "fork";
+
+/** The key the CLI sets for offline runs so SDK constructors start; never a secret. */
+export const PLACEHOLDER_KEY = "blackbox-offline-placeholder";
 export type MatchMode = "strict" | "sequence";
 export type ContinueMode = "live" | "script";
 
