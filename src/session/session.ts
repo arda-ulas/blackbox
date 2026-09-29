@@ -721,15 +721,22 @@ export class BlackboxSession {
     return trace;
   }
 
-  /** Safety net when the process exits without finish(): write what was recorded. */
-  writeOnExit(): void {
+  /**
+   * Safety net when the process exits without finish(): write what was recorded,
+   * ending it like finish() would on a clean exit and as run_failed otherwise.
+   */
+  writeOnExit(exitCode: number): void {
     openSessions.delete(this);
     if (this.#finished || this.#finishError !== undefined || !this.#recorder || this.#failure) return;
     if (this.mode === "fork" && !this.#forked) return;
     try {
       this.#flushRound();
+      if (this.#recorder.size() === 0) return;
+      if (exitCode === 0) this.#appendTerminal({});
+      else {
+        this.#recorder.append("metadata", { event: "run_failed", status: "error", reason: "process_exit", exitCode });
+      }
       const trace = this.#recorder.getTrace();
-      if (trace.steps.length === 0) return;
       this.#checkWritable(trace);
       const path = resolve(this.#options.out as string);
       mkdirSync(dirname(path), { recursive: true });
@@ -757,8 +764,8 @@ let exitHookInstalled = false;
 function installExitHook(): void {
   if (exitHookInstalled) return;
   exitHookInstalled = true;
-  process.once("exit", () => {
-    for (const session of [...openSessions]) session.writeOnExit();
+  process.once("exit", (code) => {
+    for (const session of [...openSessions]) session.writeOnExit(code);
   });
 }
 

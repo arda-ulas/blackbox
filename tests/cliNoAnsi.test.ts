@@ -49,7 +49,7 @@ const FORK_OUT_PATH = join(TEMP_DIR, "fork-out.json");
 
 beforeAll(async () => {
   await mkdir(TEMP_DIR, { recursive: true });
-  await runCli(["record", "--scenario", "success", "--out-dir", TEMP_DIR]);
+  await runCli(["demo", "--scenario", "success", "--out-dir", TEMP_DIR]);
   await runCli(["fork", "--trace", SUCCESS_PATH, "--out", FORK_OUT_PATH]);
 }, 60_000);
 
@@ -62,8 +62,8 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe("no ANSI on non-TTY stdout (success paths)", () => {
-  it("record", async () => {
-    const r = await runCli(["record", "--scenario", "success", "--out-dir", TEMP_DIR]);
+  it("demo", async () => {
+    const r = await runCli(["demo", "--scenario", "success", "--out-dir", TEMP_DIR]);
     expect(r.exitCode).toBe(0);
     expect(ANSI.test(r.stdout)).toBe(false);
   }, 30_000);
@@ -138,7 +138,7 @@ describe("no ANSI on non-TTY stderr (error / die paths)", () => {
   it("unknown subcommand", async () => {
     const r = await runCli(["badcmd"]);
     expect(r.exitCode).toBe(1);
-    expect(r.stderr).toContain("Unknown subcommand");
+    expect(r.stderr).toContain("Unknown command");
     expect(ANSI.test(r.stderr)).toBe(false);
   }, 15_000);
 
@@ -211,7 +211,7 @@ describe("no ANSI under NO_COLOR-present and CI-present", () => {
   it("error path under CI present stays escape-free on stderr", async () => {
     const r = await runCli(["badcmd"], { CI: "1" });
     expect(r.exitCode).toBe(1);
-    expect(r.stderr).toContain("Unknown subcommand");
+    expect(r.stderr).toContain("Unknown command");
     expect(ANSI.test(r.stderr)).toBe(false);
   }, 15_000);
 

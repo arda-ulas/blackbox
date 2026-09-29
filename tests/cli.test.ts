@@ -62,7 +62,7 @@ beforeAll(async () => {
   await mkdir(TEMP_DIR, { recursive: true });
 
   // Record both demo traces into TEMP_DIR.
-  recordResult = await runCli(["record", "--out-dir", TEMP_DIR]);
+  recordResult = await runCli(["demo", "--out-dir", TEMP_DIR]);
 
   // Fork the success trace with an explicit --out path.
   if (recordResult.exitCode === 0) {
@@ -108,7 +108,7 @@ describe("cli record", () => {
   });
 
   it("--scenario success creates only the success trace", async () => {
-    const result = await runCli(["record", "--scenario", "success", "--out-dir", TEMP_DIR]);
+    const result = await runCli(["demo", "--scenario", "success", "--out-dir", TEMP_DIR]);
     expect(result.exitCode).toBe(0);
     const trace = await loadTrace(SUCCESS_PATH);
     expect(() => validateTrace(trace)).not.toThrow();
@@ -255,7 +255,7 @@ describe("cli diff", () => {
     expect(result.stdout).toContain("no divergence");
   }, 15_000);
 
-  it("rejects a value on --semantic before printing any report output", async () => {
+  it("rejects a stray value after --semantic before printing any report output", async () => {
     const result = await runCli([
       "diff",
       "--parent", SUCCESS_PATH,
@@ -263,7 +263,7 @@ describe("cli diff", () => {
       "--semantic", "yes",
     ]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("--semantic is a boolean flag");
+    expect(result.stderr).toContain("not both");
     expect(result.stdout).not.toContain("Parent:");
     expect(result.stdout).not.toContain("blackbox · diff");
   }, 15_000);
@@ -307,10 +307,10 @@ describe("cli diff", () => {
 // ---------------------------------------------------------------------------
 
 describe("cli errors", () => {
-  it("unknown subcommand exits 1 and prints Unknown subcommand", async () => {
+  it("unknown subcommand exits 1 and prints Unknown command", async () => {
     const result = await runCli(["badcmd"]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Unknown subcommand");
+    expect(result.stderr).toContain("Unknown command");
   }, 15_000);
 
   it("diff with no flags exits 1 and prints Missing required flag", async () => {
@@ -331,8 +331,8 @@ describe("cli flag validation", () => {
     expect(result.stderr).toContain("Unknown flag: --bogus");
   }, 15_000);
 
-  it("record --bogus exits 1 and prints Unknown flag: --bogus", async () => {
-    const result = await runCli(["record", "--bogus"]);
+  it("demo --bogus exits 1 and prints Unknown flag: --bogus", async () => {
+    const result = await runCli(["demo", "--bogus"]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Unknown flag: --bogus");
   }, 15_000);
@@ -383,7 +383,7 @@ describe("cli default fork path", () => {
 
   beforeAll(async () => {
     // Ensure the project-root traces/example-trace.json exists.
-    await runCli(["record", "--scenario", "success"]);
+    await runCli(["demo", "--scenario", "success"]);
     // Fork with no flags → should derive output as traces/example-trace-fork.json.
     defaultForkResult = await runCli(["fork"]);
   }, 60_000);
@@ -617,7 +617,7 @@ describe("cli inspect", () => {
 
 describe("cli usage", () => {
   it("usage output includes list and inspect", async () => {
-    const result = await runCli([]); // no subcommand → printUsage()
+    const result = await runCli([]); // no subcommand → main help
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("list");
     expect(result.stdout).toContain("inspect");
@@ -766,4 +766,53 @@ describe("cli import", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("--from must be one of claude-code, chat-json");
   }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// help, version, positional arguments
+// ---------------------------------------------------------------------------
+
+describe("cli help", () => {
+  it("--help lists every command and exits 0", async () => {
+    const result = await runCli(["--help"]);
+    expect(result.exitCode).toBe(0);
+    for (const command of ["record", "replay", "fork", "diff", "verify", "assert", "inspect", "list", "import", "demo", "check"]) {
+      expect(result.stdout).toContain(`  ${command}`);
+    }
+  }, 15_000);
+
+  it("<command> --help prints that command's usage, flags and example", async () => {
+    const result = await runCli(["fork", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Usage:");
+    expect(result.stdout).toContain("--at <step>");
+    expect(result.stdout).toContain("Example:");
+  }, 15_000);
+
+  it("help <command> and -h work too", async () => {
+    expect((await runCli(["help", "diff"])).stdout).toContain("--semantic");
+    expect((await runCli(["verify", "-h"])).stdout).toContain("blackbox verify <cassette.json>");
+  }, 15_000);
+
+  it("--version prints the package version", async () => {
+    const result = await runCli(["--version"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim().split("\n").at(-1)).toMatch(/^\d+\.\d+\.\d+/);
+  }, 15_000);
+
+  it("record without a command points at demo", async () => {
+    const result = await runCli(["record", "--out", "x.json"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("blackbox demo");
+  }, 15_000);
+
+  it("accepts cassettes as positional arguments", async () => {
+    const parent = join(PROJECT_ROOT, "fixtures", "traces", "fork-parent.v2.json");
+    const child = join(PROJECT_ROOT, "fixtures", "traces", "fork-child.v2.json");
+    const diff = await runCli(["diff", parent, child]);
+    expect(diff.exitCode).toBe(0);
+    expect(diff.stdout).toContain("First divergence at index 3");
+    expect((await runCli(["verify", parent])).exitCode).toBe(0);
+    expect((await runCli(["diff", parent, child, "extra"])).stderr).toContain("Unexpected argument: extra");
+  }, 30_000);
 });

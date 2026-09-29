@@ -1,7 +1,9 @@
-// Unified Blackbox CLI entry point.
-// Usage: npm run cli -- <subcommand> [flags]
-// Subcommands: record, replay, fork, diff, list, inspect
+#!/usr/bin/env node
+// Blackbox CLI entry point. `blackbox --help` lists the commands; the help text
+// lives in cli/help.ts. record / replay / fork with `-- <command>` launch the
+// user's agent (cli/launch.ts); every other command works offline on cassettes.
 
+import { readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { basename, join, dirname, resolve } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
@@ -39,6 +41,9 @@ import {
   GLYPH,
 } from "./render/termStyle.ts";
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
+import { parseArgs, type ParsedArgs } from "./cli/args.ts";
+import { commandHelp, findCommand, mainHelp } from "./cli/help.ts";
+import { launch, type LaunchOptions, type LaunchResult } from "./cli/launch.ts";
 
 // ---------------------------------------------------------------------------
 // Color decisions — computed at the CLI boundary and threaded into every render
@@ -67,28 +72,8 @@ const c = palette(stdoutColorOn);
 const cErr = palette(stderrColorOn);
 
 // ---------------------------------------------------------------------------
-// Arg parser
+// Flag validation
 // ---------------------------------------------------------------------------
-
-function parseArgs(args: string[]): Record<string, string | boolean> {
-  const flags: Record<string, string | boolean> = {};
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-    if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      const next = args[i + 1];
-      if (next === undefined || next.startsWith("--")) {
-        flags[key] = true;
-      } else {
-        flags[key] = next;
-        i++;
-      }
-    }
-    i++;
-  }
-  return flags;
-}
 
 /** Die if any parsed flag is not in the allowed set for this subcommand. */
 function checkUnknownFlags(
@@ -144,39 +129,25 @@ function die(msg: string): never {
 // Usage
 // ---------------------------------------------------------------------------
 
-function printUsage(): void {
-  console.log(`${header("usage", colorOn)}
-
-Usage: blackbox <command> [flags]
-
-Inside this repo you can run the same CLI as: npm run cli -- <command> [flags]
-
-Commands:
-  record    Run demo agent traces and save cassettes to disk
-  replay    Replay a cassette offline (no model or tool calls)
-  fork      Fork a trace with a prompt or tool-result mutation
-  diff      Compare two cassettes (hash integrity by default; --semantic for re-recordings)
-  verify    Verify a cassette's schema, hash chain, neutrality, and replayability
-  assert    Assert a cassette holds as a CI regression test (verify + declared expectations)
-  check     Run the full offline loop (record→verify→fork→verify→diff) and report one verdict
-  list      List all trace cassettes in a directory
-  inspect   Print detailed info and step timeline for a cassette
-  import    Convert a Claude Code session (JSONL) or chat JSON transcript into a cassette
-
-Most demo commands have safe defaults; diff and assert require explicit trace arguments.
-`);
+function readVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: string };
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 // ---------------------------------------------------------------------------
-// record
+// demo — write the built-in sample cassettes
 // ---------------------------------------------------------------------------
 
-const RECORD_ALLOWED     = ["scenario", "out-dir"];
-const RECORD_VALUE_FLAGS = ["scenario", "out-dir"];
+const DEMO_ALLOWED     = ["scenario", "out-dir"];
+const DEMO_VALUE_FLAGS = ["scenario", "out-dir"];
 
-async function runRecord(flags: Record<string, string | boolean>): Promise<void> {
-  checkUnknownFlags(flags, RECORD_ALLOWED);
-  checkValueFlags(flags, RECORD_VALUE_FLAGS);
+async function runDemo(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, DEMO_ALLOWED);
+  checkValueFlags(flags, DEMO_VALUE_FLAGS);
 
   const scenario = str(flags["scenario"], "all");
   const outDir   = str(flags["out-dir"],  "traces");
@@ -187,7 +158,7 @@ async function runRecord(flags: Record<string, string | boolean>): Promise<void>
 
   await mkdir(outDir, { recursive: true });
 
-  console.log(`${header("record", colorOn)}  ${c.dim("— generating demo traces")}\n`);
+  console.log(`${header("demo", colorOn)}  ${c.dim("— writing the built-in sample cassettes")}\n`);
 
   if (scenario === "success" || scenario === "all") {
     const successScenario = "Book a hotel for Alice this weekend.";
@@ -887,18 +858,224 @@ async function runInspect(flags: Record<string, string | boolean>): Promise<void
 }
 
 // ---------------------------------------------------------------------------
+// record / replay / fork -- <command>: run the user's agent
+// ---------------------------------------------------------------------------
+
+const AGENT_RECORD_ALLOWED = ["out", "id"];
+const AGENT_REPLAY_ALLOWED = ["trace", "match"];
+const AGENT_FORK_ALLOWED   = ["trace", "at", "set", "out", "id", "live", "script", "match"];
+
+/** Launcher summaries go to stderr so the agent's own stdout stays pipeable. */
+function note(line: string): void {
+  console.error(line);
+}
+
+function requireString(flags: Record<string, string | boolean>, name: string, hint: string): string {
+  const value = flags[name];
+  if (typeof value !== "string") die(`Missing required flag: --${name} (${hint})`);
+  return value;
+}
+
+function matchFlag(flags: Record<string, string | boolean>): LaunchOptions["match"] {
+  const match = flags["match"];
+  if (match === undefined) return undefined;
+  if (match !== "strict" && match !== "sequence") die(`--match must be strict or sequence; got "${String(match)}"`);
+  return match;
+}
+
+function reportFailure(result: LaunchResult, what: string): never {
+  if (result.report?.error) note(`${errorPrefix(cErr)} ${result.report.error}`);
+  else note(`${errorPrefix(cErr)} ${what}`);
+  process.exit(result.exitCode !== 0 ? result.exitCode : 1);
+}
+
+function noSessionHint(mode: string): string {
+  return (
+    `the command finished without a Blackbox ${mode} session. In your agent, create one with ` +
+    "blackbox() from @ardaulas/blackbox, pass bb.fetch to your Anthropic or OpenAI client, and await bb.finish() at the end."
+  );
+}
+
+async function runRecordAgent(parsed: ParsedArgs): Promise<void> {
+  const { flags } = parsed;
+  checkUnknownFlags(flags, AGENT_RECORD_ALLOWED);
+  checkValueFlags(flags, AGENT_RECORD_ALLOWED);
+  const out = requireString(flags, "out", "where to write the cassette");
+  const options: LaunchOptions = { mode: "record", command: parsed.command as string[], out };
+  if (typeof flags["id"] === "string") options.traceId = flags["id"];
+
+  const result = await launch(options);
+  if (!result.report) reportFailure(result, noSessionHint("record"));
+  if (!result.report.ok) reportFailure(result, "recording failed");
+  note(
+    `${header("record", stderrColorOn)}  wrote ${out} ` +
+      `(${result.report.steps} steps, ${result.report.status})` +
+      (result.report.finished === false ? " — bb.finish() was not called; the status was inferred at exit" : ""),
+  );
+  process.exit(result.exitCode);
+}
+
+async function runReplayAgent(parsed: ParsedArgs): Promise<void> {
+  const { flags } = parsed;
+  checkUnknownFlags(flags, AGENT_REPLAY_ALLOWED);
+  checkValueFlags(flags, AGENT_REPLAY_ALLOWED);
+  const cassette = requireString(flags, "trace", "the cassette to replay");
+  const options: LaunchOptions = { mode: "replay", command: parsed.command as string[], cassette };
+  const match = matchFlag(flags);
+  if (match) options.match = match;
+
+  const result = await launch(options);
+  if (!result.report) reportFailure(result, noSessionHint("replay"));
+  if (!result.report.ok) reportFailure(result, "replay failed");
+  note(
+    `${header("replay", stderrColorOn)}  ${verdict(true, stderrColorOn)}  replayed ${result.report.replayedSteps} steps from ${cassette} ` +
+      `with no network calls (${result.report.status})`,
+  );
+  process.exit(result.exitCode);
+}
+
+async function runForkAgent(parsed: ParsedArgs): Promise<void> {
+  const { flags } = parsed;
+  checkUnknownFlags(flags, AGENT_FORK_ALLOWED);
+  checkValueFlags(flags, AGENT_FORK_ALLOWED.filter((name) => name !== "live"));
+  const cassette = requireString(flags, "trace", "the cassette to fork");
+  const out = requireString(flags, "out", "where to write the forked cassette");
+  const set = requireString(flags, "set", "the replacement tool result, as JSON");
+  try {
+    JSON.parse(set);
+  } catch {
+    die(`--set must be JSON; got ${set}. Quote strings: --set '"text"'`);
+  }
+  const at = parseIntFlag(flags, "at", -1);
+  if (at < 0) die("Missing required flag: --at (the tool_result step to replace; see `blackbox inspect`)");
+  if (resolve(out) === resolve(cassette)) die("--out must differ from the cassette you fork");
+  const live = flags["live"] === true;
+  const script = typeof flags["script"] === "string" ? flags["script"] : undefined;
+  if (live === (script !== undefined)) {
+    die("choose how the run continues after the fork point: --live (your real API client) or --script <replies.json>");
+  }
+
+  // Check the fork step before launching anything.
+  const parent = await loadTrace(cassette);
+  validateTrace(parent);
+  const step = parent.steps[at];
+  if (step?.type !== "tool_result") {
+    const toolResults = parent.steps.filter((s) => s.type === "tool_result").map((s) => s.index);
+    die(
+      `step ${at} is ${step ? `a ${step.type} step` : "past the end of the cassette"}; --at must be a tool_result step` +
+        (toolResults.length > 0 ? ` (${toolResults.join(", ")} in this cassette)` : " — this cassette has none; wrap your tools with bb.tools({...}) when recording"),
+    );
+  }
+
+  const options: LaunchOptions = {
+    mode: "fork",
+    command: parsed.command as string[],
+    cassette,
+    out,
+    forkAt: at,
+    forkSet: set,
+    continueWith: live ? "live" : "script",
+  };
+  if (script !== undefined) options.script = script;
+  if (typeof flags["id"] === "string") options.traceId = flags["id"];
+  const match = matchFlag(flags);
+  if (match) options.match = match;
+
+  const result = await launch(options);
+  if (!result.report) reportFailure(result, noSessionHint("fork"));
+  if (!result.report.ok) reportFailure(result, "fork failed");
+  note(
+    `${header("fork", stderrColorOn)}  wrote ${out} (${result.report.steps} steps, ${result.report.status}); ` +
+      `steps 0–${at - 1} are copied from ${cassette}, step ${at} is your new result`,
+  );
+  note(`  next: blackbox diff ${cassette} ${out}`);
+  process.exit(result.exitCode);
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
+const BOOLEAN_FLAGS: Record<string, string[]> = {
+  diff: ["semantic"],
+  fork: ["live"],
+};
+
+/** Move positional arguments onto the flag names each command already reads. */
+function applyPositionals(name: string, parsed: ParsedArgs): void {
+  const { flags, positionals } = parsed;
+  const names: Record<string, string[]> = {
+    replay: ["trace"],
+    fork: ["trace"],
+    diff: ["parent", "child"],
+    verify: ["trace"],
+    assert: ["trace"],
+    inspect: ["trace"],
+    list: ["dir"],
+  };
+  const slots = names[name] ?? [];
+  if (positionals.length > slots.length) {
+    die(`Unexpected argument: ${positionals[slots.length]}. See: blackbox ${name} --help`);
+  }
+  positionals.forEach((value, index) => {
+    const slot = slots[index];
+    if (flags[slot] !== undefined) die(`Give ${slot} either as an argument or as --${slot}, not both`);
+    flags[slot] = value;
+  });
+}
+
 const argv = process.argv as string[];
 const [,, subcommand, ...rest] = argv;
-const flags = parseArgs(rest ?? []);
 
 try {
+  if (subcommand === undefined || subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
+    const topic = subcommand === "help" ? rest[0] : undefined;
+    const spec = topic !== undefined ? findCommand(topic) : undefined;
+    if (topic !== undefined && spec === undefined) die(`Unknown command: "${topic}". Run blackbox --help`);
+    console.log(spec ? commandHelp(spec) : mainHelp(readVersion()));
+    process.exit(0);
+  }
+  if (subcommand === "--version" || subcommand === "-v") {
+    console.log(readVersion());
+    process.exit(0);
+  }
+
+  const spec = findCommand(subcommand);
+  if (spec === undefined) {
+    die(`Unknown command: "${subcommand}". Run blackbox --help to see the commands.`);
+  }
+  const parsed = parseArgs(rest, BOOLEAN_FLAGS[subcommand] ?? []);
+  if (parsed.help) {
+    console.log(commandHelp(spec));
+    process.exit(0);
+  }
+  applyPositionals(subcommand, parsed);
+  const { flags } = parsed;
+  const agentCommand = parsed.command !== undefined;
+  if (agentCommand && parsed.command!.length === 0) die(`Nothing to run after --. See: blackbox ${subcommand} --help`);
+  if (agentCommand && !["record", "replay", "fork"].includes(subcommand)) {
+    die(`${subcommand} does not run a command; remove "-- ${parsed.command!.join(" ")}"`);
+  }
+
   switch (subcommand) {
-    case "record":  await runRecord(flags);  break;
-    case "replay":  await runReplay(flags);  break;
-    case "fork":    await runFork(flags);    break;
+    case "record":
+      if (!agentCommand) {
+        die(
+          "record runs your agent: blackbox record --out run.json -- node agent.js\n" +
+            "For the built-in sample cassettes, run: blackbox demo",
+        );
+      }
+      await runRecordAgent(parsed);
+      break;
+    case "replay":  agentCommand ? await runReplayAgent(parsed) : await runReplay(flags); break;
+    case "fork":
+      if (agentCommand) await runForkAgent(parsed);
+      else {
+        await runFork(flags);
+        console.log();
+        console.log(c.dim("This fork continued with the built-in demo agent. To fork your own agent, add -- <command>; see blackbox fork --help."));
+      }
+      break;
     case "diff":    await runDiff(flags);    break;
     case "verify":  await runVerify(flags);  break;
     case "assert":  await runAssert(flags);  break;
@@ -906,14 +1083,7 @@ try {
     case "list":    await runList(flags);    break;
     case "inspect": await runInspect(flags); break;
     case "import":  await runImport(flags);  break;
-    default:
-      if (subcommand) {
-        console.error(
-          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, assert, check, list, inspect, import`,
-        );
-        process.exit(1);
-      }
-      printUsage();
+    case "demo":    await runDemo(flags);    break;
   }
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);
