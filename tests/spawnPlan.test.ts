@@ -14,8 +14,16 @@ describe("spawnPlan", () => {
     expect(spawnPlan(["node", "C:\\my dir\\agent.js"], "win32")).toEqual({ program: "node", args: ["C:\\my dir\\agent.js"], shell: false });
   });
 
+  it("spawns a real .exe found on PATH directly, even with a launcher-like name", () => {
+    const env = { PATH: "C:\\bun\\bin;C:\\npm", PATHEXT: ".COM;.EXE;.BAT;.CMD" };
+    const files = new Set(["C:\\bun\\bin\\bun.EXE", "C:\\npm\\npx.CMD"]);
+    const exists = (path: string) => files.has(path);
+    expect(spawnPlan(["bun", "agent.ts"], "win32", env, exists)).toEqual({ program: "bun", args: ["agent.ts"], shell: false });
+    expect(spawnPlan(["npx", "tsx", "agent.ts"], "win32", env, exists).shell).toBe(true);
+  });
+
   it("escapes a .cmd launcher's command line for cmd.exe", () => {
-    const plan = spawnPlan(["npx", "tsx", "my agent.ts"], "win32");
+    const plan = spawnPlan(["npx", "tsx", "my agent.ts"], "win32", { PATH: "C:\\npm" }, (path) => path === "C:\\npm\\npx.CMD");
     expect(plan.shell).toBe(true);
     expect(plan.program).toBe('npx ^^^"tsx^^^" ^^^"my^^^ agent.ts^^^"');
   });

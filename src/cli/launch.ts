@@ -7,7 +7,7 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -92,15 +92,35 @@ export function quoteForCmd(arg: string, batchLauncher = true): string {
  *  - on Windows, npm/npx-style `.cmd`/`.bat` launchers can only start through
  *    cmd.exe, so the command line is escaped for it.
  */
+/**
+ * Resolve a Windows command the way cmd.exe would (PATH × PATHEXT) and report
+ * whether it is a batch file. Only batch files (npm's `.cmd` shims, `.bat`)
+ * need cmd.exe; a real `.exe` is spawned directly.
+ */
+export function isBatchCommand(program: string, env: NodeJS.ProcessEnv, exists: (path: string) => boolean = existsSync): boolean {
+  if (/\.(cmd|bat)$/i.test(program)) return true;
+  if (/\.[a-z0-9]+$/i.test(program)) return false;
+  const extensions = (env["PATHEXT"] ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const directories = /[\\/]/.test(program) ? [""] : (env["PATH"] ?? env["Path"] ?? "").split(";").filter(Boolean);
+  for (const directory of directories) {
+    for (const extension of extensions) {
+      const candidate = directory ? `${directory.replace(/[\\/]+$/, "")}\\${program}${extension}` : `${program}${extension}`;
+      if (exists(candidate)) return /^\.(cmd|bat)$/i.test(extension);
+    }
+  }
+  return false;
+}
+
 export function spawnPlan(
   command: readonly string[],
   platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv = process.env,
+  exists: (path: string) => boolean = existsSync,
 ): { program: string; args: string[]; shell: boolean } {
   const [program, ...args] = command;
   if (args.length === 0 && /\s/.test(program)) return { program, args: [], shell: true };
   if (platform === "win32") {
-    const launcher = /\.(cmd|bat)$/i.test(program) || /^(npm|npx|pnpm|yarn|bun|tsx)$/i.test(program);
-    if (launcher) {
+    if (isBatchCommand(program, env, exists)) {
       const line = [program.replace(CMD_META, "^$1"), ...args.map((arg) => quoteForCmd(arg))].join(" ");
       return { program: line, args: [], shell: true };
     }

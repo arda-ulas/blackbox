@@ -79,7 +79,7 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 **0.2.0: the first release you can point at your own agent.** Record / replay / fork of a user's Anthropic
 (`messages.create`) or OpenAI (`chat.completions.create`) agent through the SDK `fetch` option, a CLI launcher
 (`blackbox record|replay|fork ... -- <command>`), `blackbox import` for Claude Code sessions, compiled package with
-no runtime dependencies, docs site on GitHub Pages (VitePress, `docs/`). 691 tests, fully offline.
+no runtime dependencies, docs site on GitHub Pages (VitePress, `docs/`). 700 tests, fully offline.
 
 - The cassette schema is still version 2; the `tool_calls` model-output shape and the `model` / `params` fields on
   model inputs are additive.

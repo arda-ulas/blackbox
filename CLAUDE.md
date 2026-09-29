@@ -16,7 +16,7 @@ with their plans in `docs/history/`).
   `import` for Claude Code sessions / chat JSON.
 - **Your own agent:** `blackbox()` session (`src/session/`) plugged into the official Anthropic / OpenAI Node SDK
   through its `fetch` option; wrapped tools via `bb.tools({...})`; CLI launcher `blackbox record|replay|fork ... -- <command>`.
-- **Tests:** 691 passing, fully offline, zero live calls, no API key.
+- **Tests:** 700 passing, fully offline, zero live calls, no API key.
 - **Packaging:** `@ardaulas/blackbox` 0.2.0, compiled to `dist/`, no runtime dependencies, Node 22+. `npm publish`
   is run by the owner (credentials never handled by an agent).
 - **Docs:** VitePress site from `docs/` (history excluded), deployed to GitHub Pages by `.github/workflows/docs.yml`.
