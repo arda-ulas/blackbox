@@ -14,6 +14,7 @@ import type {
   TraceStepType,
 } from "./TraceTypes.ts";
 import { toolCallsOf } from "./payloads.ts";
+import { leafDifferences } from "./jsonDiff.ts";
 
 // ---------------------------------------------------------------------------
 // Step-type labels
@@ -108,6 +109,9 @@ export function describeStep(step: TraceStep): string {
 /** Character budget for a rendered divergent value before it is elided. */
 const VALUE_BUDGET = 240;
 
+/** How many changed fields to list for an elided nested value. */
+const FIELD_LIMIT = 6;
+
 /**
  * The field within a step's payload that carries the interesting content for a
  * human diff: a tool result's `result`, a tool call's `toolInput`, a multi-call
@@ -162,10 +166,23 @@ export function describeDivergenceField(
 
   const header =
     sharedField !== null ? `  changed value (${sharedField}):` : "  changed value:";
+  const before = salientValue(parent, sharedField);
+  const after = salientValue(child, sharedField);
+  const lines = [header, `    parent: ${compactJson(before)}`, `    child:  ${compactJson(after)}`];
 
-  return [
-    header,
-    `    parent: ${compactJson(salientValue(parent, sharedField))}`,
-    `    child:  ${compactJson(salientValue(child, sharedField))}`,
-  ];
+  // A long nested value is cut off before the change may be visible; name the
+  // changed fields instead.
+  const elided = (JSON.stringify(before) ?? "").length > VALUE_BUDGET || (JSON.stringify(after) ?? "").length > VALUE_BUDGET;
+  const nested = before !== null && after !== null && typeof before === "object" && typeof after === "object";
+  if (elided && nested) {
+    const changes = leafDifferences(before, after, sharedField ?? "");
+    lines.push("  changed fields:");
+    for (const change of changes.slice(0, FIELD_LIMIT)) {
+      const from = change.before === undefined ? "(absent)" : compactJson(change.before, 60);
+      const to = change.after === undefined ? "(absent)" : compactJson(change.after, 60);
+      lines.push(`    ${change.path}: ${from} → ${to}`);
+    }
+    if (changes.length > FIELD_LIMIT) lines.push(`    … and ${changes.length - FIELD_LIMIT} more`);
+  }
+  return lines;
 }

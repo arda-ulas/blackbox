@@ -115,6 +115,37 @@ describe("describeDivergenceField", () => {
     expect(lines[2]).toContain('"available":false');
   });
 
+  it("names the changed fields when a long nested value is cut off", () => {
+    const reading = (value: string, ts: string) => ({
+      toolName: "get_telemetry",
+      result: {
+        vehicle_id: "VAN-14",
+        data: [
+          { path: "Vehicle.Powertrain.CombustionEngine.EngineCoolant.Temperature", dp: { value, ts } },
+          { path: "Vehicle.TraveledDistance", dp: { value: "84391200", ts } },
+          { path: "Vehicle.Diagnostics.DTCList", dp: { value: [], ts } },
+        ],
+      },
+    });
+    const lines = describeDivergenceField(
+      step("tool_result", reading("91", "2026-09-28T17:05:00Z")),
+      step("tool_result", reading("124", "2026-09-29T08:52:00Z")),
+    );
+    expect(lines[1].endsWith("…")).toBe(true);
+    expect(lines[3]).toBe("  changed fields:");
+    expect(lines[4]).toBe('    result.data[0].dp.value: "91" → "124"');
+    expect(lines[5]).toBe('    result.data[0].dp.ts: "2026-09-28T17:05:00Z" → "2026-09-29T08:52:00Z"');
+    expect(lines).toHaveLength(8);
+  });
+
+  it("keeps short values as they are, without a field list", () => {
+    const lines = describeDivergenceField(
+      step("tool_result", { toolName: "s", result: { a: 1 } }),
+      step("tool_result", { toolName: "s", result: { a: 2 } }),
+    );
+    expect(lines).toHaveLength(3);
+  });
+
   it("returns no block for a strict-prefix divergence (one side absent)", () => {
     const child = step("tool_result", { toolName: "s", result: {} });
     expect(describeDivergenceField(null, child)).toEqual([]);
