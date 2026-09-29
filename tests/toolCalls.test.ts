@@ -240,20 +240,27 @@ describe("neutrality audit for recorded agents", () => {
     expect(auditTraceNeutrality(trace).found).toContain("finish_reason");
   });
 
-  it("flags OpenAI provider ids anywhere, including inside user data", () => {
+  it("flags OpenAI provider ids at structural positions", () => {
+    const trace = traceWith({ toolCallId: "call_abcdefghijklmnopqrstuvwx", toolName: "x", result: 1 });
+    expect(auditTraceNeutrality(trace).found).toContain("call_");
+    const leaked = traceWith({ id: "chatcmpl-AbC123xyz", toolName: "x" });
+    expect(auditTraceNeutrality(leaked).found).toContain("chatcmpl-");
+  });
+
+  it("treats provider ids and env-var names inside tool results as the user's content", () => {
     const trace = traceWith({
       toolCallId: "call-0",
-      toolName: "x",
-      result: { id: "chatcmpl-AbC123xyz", tool: "call_abcdefghijklmnopqrstuvwx" },
+      toolName: "read_file",
+      result: 'const id = "toolu_01ABC"; process.env.ANTHROPIC_API_KEY; "sk-ant"',
     });
-    const found = auditTraceNeutrality(trace).found;
-    expect(found).toContain("chatcmpl-");
-    expect(found).toContain("call_");
+    expect(auditTraceNeutrality(trace)).toEqual({ ok: true, found: [] });
   });
 
   it("flags credentials inside user data", () => {
     const trace = traceWith({ toolCallId: "call-0", toolName: "x", result: "Authorization: Bearer abcdefghijklmnopqrstu" });
     expect(auditTraceNeutrality(trace).found).toContain("bearer-token");
+    const key = traceWith({ toolCallId: "call-0", toolName: "x", result: { env: "sk-ant-api03-abcdefghijklmnopqrstuvwxyz" } });
+    expect(auditTraceNeutrality(key).found).toContain("sk-ant");
   });
 });
 

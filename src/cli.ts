@@ -2,8 +2,8 @@
 // Usage: npm run cli -- <subcommand> [flags]
 // Subcommands: record, replay, fork, diff, list, inspect
 
-import { mkdir, readdir } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { mkdir, readdir, readFile } from "node:fs/promises";
+import { basename, join, dirname, resolve } from "node:path";
 import { TraceRecorder } from "./trace/TraceRecorder.ts";
 import { FakeDeterministicModelClient } from "./agent/modelClient.ts";
 import { ReactiveDemoModelClient } from "./agent/reactiveDemoModel.ts";
@@ -17,7 +17,10 @@ import {
 } from "./replay/CassetteReplay.ts";
 import { forkRun } from "./fork/forkRun.ts";
 import { formatDiffReport } from "./fork/diffTraces.ts";
-import { verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
+import { verifyTrace, verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
+import { toolCallSequence } from "./trace/traceOutcome.ts";
+import { adaptClaudeCodeTranscript, parseClaudeCodeJsonl } from "./ingest/claudeCodeTranscript.ts";
+import { adaptForeignTranscript } from "./ingest/foreignTranscript.ts";
 import { formatVerifyFailure } from "./trace/verifyExplain.ts";
 import { runSelfCheck } from "./workflow/selfCheck.ts";
 import {
@@ -158,6 +161,7 @@ Commands:
   check     Run the full offline loop (record→verify→fork→verify→diff) and report one verdict
   list      List all trace cassettes in a directory
   inspect   Print detailed info and step timeline for a cassette
+  import    Convert a Claude Code session (JSONL) or chat JSON transcript into a cassette
 
 Most demo commands have safe defaults; diff and assert require explicit trace arguments.
 `);
@@ -523,6 +527,60 @@ async function runVerify(flags: Record<string, string | boolean>): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
+// import — convert a transcript from another tool into a v2 cassette
+// ---------------------------------------------------------------------------
+
+const IMPORT_ALLOWED     = ["from", "in", "out", "id"];
+const IMPORT_VALUE_FLAGS = ["from", "in", "out", "id"];
+const IMPORT_FORMATS     = ["claude-code", "chat-json"];
+
+async function runImport(flags: Record<string, string | boolean>): Promise<void> {
+  checkUnknownFlags(flags, IMPORT_ALLOWED);
+  checkValueFlags(flags, IMPORT_VALUE_FLAGS);
+
+  const format = flags["from"];
+  if (typeof format !== "string") die(`Missing required flag: --from (${IMPORT_FORMATS.join(" | ")})`);
+  if (!IMPORT_FORMATS.includes(format)) {
+    die(`--from must be one of ${IMPORT_FORMATS.join(", ")}; got "${format}"`);
+  }
+  const inPath = flags["in"];
+  if (typeof inPath !== "string") die("Missing required flag: --in");
+  const outPath = flags["out"];
+  if (typeof outPath !== "string") die("Missing required flag: --out");
+  if (resolve(inPath) === resolve(outPath)) die("--out must differ from --in");
+  const traceId = str(flags["id"], basename(outPath).replace(/\.json$/, "") || "imported");
+
+  const raw = await readFile(inPath, "utf8");
+  const trace =
+    format === "claude-code"
+      ? adaptClaudeCodeTranscript(parseClaudeCodeJsonl(raw), { traceId })
+      : adaptForeignTranscript(JSON.parse(raw) as unknown, { traceId });
+
+  // Refuse to write a cassette that would not verify (for example one that
+  // carries a credential copied out of the source transcript).
+  const report = verifyTrace(trace);
+  console.log(header("import", colorOn));
+  console.log(kv("From:",   `${inPath} (${format})`, colorOn));
+  if (!report.pass) {
+    console.log(kv("Result:", verdict(false, colorOn), colorOn));
+    console.log();
+    for (const line of formatVerifyFailure(report)) console.log(line);
+    console.log();
+    console.log("Nothing was written.");
+    process.exit(1);
+  }
+
+  await mkdir(dirname(outPath), { recursive: true });
+  await saveTrace(trace, outPath);
+  const summary = replayTrace(trace);
+  console.log(kv("Out:",    outPath, colorOn));
+  console.log(kv("Steps:",  String(trace.steps.length), colorOn));
+  console.log(kv("Status:", summary.status, colorOn));
+  const tools = toolCallSequence(trace);
+  console.log(kv("Tools:",  tools.length > 0 ? tools.join(" → ") : "(none)", colorOn));
+}
+
+// ---------------------------------------------------------------------------
 // assert — verify a cassette + check declared expectations (CI regression test)
 // ---------------------------------------------------------------------------
 
@@ -847,10 +905,11 @@ try {
     case "check":   await runCheck(flags);   break;
     case "list":    await runList(flags);    break;
     case "inspect": await runInspect(flags); break;
+    case "import":  await runImport(flags);  break;
     default:
       if (subcommand) {
         console.error(
-          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, assert, check, list, inspect`,
+          `${errorPrefix(cErr)} Unknown subcommand: "${subcommand}". Valid: record, replay, fork, diff, verify, assert, check, list, inspect, import`,
         );
         process.exit(1);
       }

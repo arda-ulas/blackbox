@@ -706,3 +706,64 @@ describe("cli list/inspect flag validation", () => {
     expect(result.stderr).toContain("Missing value for --trace");
   }, 15_000);
 });
+
+// ---------------------------------------------------------------------------
+// import
+// ---------------------------------------------------------------------------
+
+describe("cli import", () => {
+  const IMPORT_DIR = join(tmpdir(), `blackbox-import-test-${Date.now()}`);
+  const CLAUDE_CODE_FIXTURE = join(PROJECT_ROOT, "fixtures", "import", "claude-code-session.jsonl");
+  const CHAT_FIXTURE = join(PROJECT_ROOT, "fixtures", "external", "chat-tool-use.foreign.json");
+
+  afterAll(async () => {
+    await rm(IMPORT_DIR, { recursive: true, force: true });
+  });
+
+  it("converts a Claude Code session with a parallel round into a verified cassette", async () => {
+    const out = join(IMPORT_DIR, "session.json");
+    const result = await runCli(["import", "--from", "claude-code", "--in", CLAUDE_CODE_FIXTURE, "--out", out]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Status:         success");
+    expect(result.stdout).toContain("Read → Bash");
+
+    const trace = await loadTrace(out);
+    expect(trace.id).toBe("session");
+    expect(trace.steps[1].payload).toMatchObject({ type: "tool_calls" });
+    const verify = await runCli(["verify", "--trace", out]);
+    expect(verify.exitCode).toBe(0);
+  }, 30_000);
+
+  it("converts a chat-json transcript and honors --id", async () => {
+    const out = join(IMPORT_DIR, "chat.json");
+    const result = await runCli(["import", "--from", "chat-json", "--in", CHAT_FIXTURE, "--out", out, "--id", "chat-run"]);
+    expect(result.exitCode).toBe(0);
+    expect((await loadTrace(out)).id).toBe("chat-run");
+  }, 15_000);
+
+  it("refuses to write a cassette that carries a credential", async () => {
+    const source = join(IMPORT_DIR, "leaky.jsonl");
+    const out = join(IMPORT_DIR, "leaky.json");
+    await mkdir(IMPORT_DIR, { recursive: true });
+    const lines = [
+      { type: "user", timestamp: "2026-09-29T09:00:00.000Z", message: { role: "user", content: "What is my key?" } },
+      {
+        type: "assistant",
+        timestamp: "2026-09-29T09:00:01.000Z",
+        message: { role: "assistant", content: [{ type: "text", text: "It is sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123" }] },
+      },
+    ];
+    await writeFile(source, lines.map((line) => JSON.stringify(line)).join("\n"));
+    const result = await runCli(["import", "--from", "claude-code", "--in", source, "--out", out]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("Nothing was written.");
+    expect(result.stdout).not.toContain("abcdefghijklmnopqrstuvwxyz0123");
+    await expect(loadTrace(out)).rejects.toThrow();
+  }, 15_000);
+
+  it("rejects an unknown --from format", async () => {
+    const result = await runCli(["import", "--from", "langchain", "--in", "x", "--out", "y"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--from must be one of claude-code, chat-json");
+  }, 15_000);
+});

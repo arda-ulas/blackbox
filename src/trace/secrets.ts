@@ -35,6 +35,20 @@ function usableLiterals(literals: readonly (string | undefined)[]): string[] {
   );
 }
 
+// Realistic key shapes only. Used inside user data (tool results, message text),
+// where source code that merely mentions "sk-ant" or an env-var name is normal.
+const STRONG_CREDENTIAL_PATTERNS: readonly CredentialPattern[] = [
+  { label: "sk-ant", pattern: /sk-ant-[A-Za-z0-9_-]{20,}/g, maskable: true },
+  { label: "sk-proj", pattern: /sk-proj-[A-Za-z0-9_-]{20,}/g, maskable: true },
+  { label: "sk-", pattern: /\bsk-[A-Za-z0-9_-]{32,}/g, maskable: true },
+  { label: "bearer-token", pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/g, maskable: true },
+];
+
+export interface FindCredentialsOptions {
+  /** Only realistic key shapes (plus literals); for scanning user content. */
+  strongOnly?: boolean;
+}
+
 /**
  * Labels of every credential found in `text`. A caller-supplied literal secret
  * is reported as `<api-key-value>`.
@@ -42,9 +56,11 @@ function usableLiterals(literals: readonly (string | undefined)[]): string[] {
 export function findCredentials(
   text: string,
   literals: readonly (string | undefined)[] = [],
+  options: FindCredentialsOptions = {},
 ): string[] {
   const found = new Set<string>();
-  for (const { label, pattern } of CREDENTIAL_PATTERNS) {
+  const patterns = options.strongOnly === true ? STRONG_CREDENTIAL_PATTERNS : CREDENTIAL_PATTERNS;
+  for (const { label, pattern } of patterns) {
     pattern.lastIndex = 0;
     if (pattern.test(text)) found.add(label);
   }

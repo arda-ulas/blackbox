@@ -95,10 +95,20 @@ const KEY_FORM_MARKERS: readonly string[] = [
   "OPENAI_API_KEY",
 ];
 
-// Payload keys whose values are the user's own data: tool inputs and results and
-// tool input schemas. Key-form markers are not checked below them; provider-id
-// and credential patterns still are.
-const USER_DATA_KEYS: ReadonlySet<string> = new Set(["toolInput", "result", "inputSchema"]);
+// Payload keys whose values are the user's own data: tool inputs, results and
+// errors, tool input schemas, and conversation text. Below them only realistic
+// credential shapes (and the literal API key) are flagged: a coding agent that
+// reads source code mentioning `toolu_` or `ANTHROPIC_API_KEY` has not leaked
+// anything. Everywhere else — ids, types, keys — the full rule set applies.
+const USER_DATA_KEYS: ReadonlySet<string> = new Set([
+  "toolInput",
+  "result",
+  "error",
+  "inputSchema",
+  "text",
+  "content",
+  "systemPrompt",
+]);
 
 // Provider-native ids, matched at a word boundary so an identifier that merely
 // contains the prefix (`send_msg_to_user`) is not flagged. Anthropic ids are
@@ -114,12 +124,14 @@ const PROVIDER_ID_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = 
 ];
 
 /** Provider-id and credential labels found in one string (a value or a key). */
-function stringFindings(text: string, apiKey: string | undefined): string[] {
+function stringFindings(text: string, apiKey: string | undefined, inUserData: boolean): string[] {
+  const literals = apiKey ? [apiKey] : [];
+  if (inUserData) return findCredentials(text, literals, { strongOnly: true });
   const found: string[] = [];
   for (const { label, pattern } of PROVIDER_ID_PATTERNS) {
     if (pattern.test(text)) found.push(label);
   }
-  found.push(...findCredentials(text, apiKey ? [apiKey] : []));
+  found.push(...findCredentials(text, literals));
   return found;
 }
 
@@ -133,8 +145,10 @@ function stringFindings(text: string, apiKey: string | undefined): string[] {
  *   signature of a raw provider object having been stored. Inside user data
  *   (`toolInput`, `result`, `inputSchema`) they are ordinary keys.
  * - provider ids (`toolu_…`, `msg_…`, `call_…`, `chatcmpl-…`, `resp_…`) and
- *   credentials (`sk-ant-…`, `sk-proj-…`, bearer tokens, the env-var names) are
- *   flagged in any string value or key, anywhere.
+ *   credential markers (`sk-ant`, `sk-proj-…`, bearer tokens, the env-var names)
+ *   are flagged in any string value or key at a structural position.
+ * - inside user data only realistic credential shapes (`sk-ant-` + 20 chars,
+ *   bearer tokens, …) are flagged.
  * - the literal `apiKey` value (when supplied) is flagged in any string value or
  *   key and reported as `<api-key-value>` — the key itself is never echoed.
  */
@@ -146,7 +160,7 @@ export function auditTraceNeutrality(trace: Trace, apiKey?: string): NeutralityR
     if (value === null) return;
 
     if (typeof value === "string") {
-      for (const label of stringFindings(value, key)) found.add(label);
+      for (const label of stringFindings(value, key, inUserData)) found.add(label);
       return;
     }
 
@@ -160,7 +174,7 @@ export function auditTraceNeutrality(trace: Trace, apiKey?: string): NeutralityR
         if (!inUserData && KEY_FORM_MARKERS.includes(k)) found.add(k);
         // Object keys are persisted data too — a provider id or secret smuggled
         // in as a JSON key is caught here.
-        for (const label of stringFindings(k, key)) found.add(label);
+        for (const label of stringFindings(k, key, inUserData)) found.add(label);
         visit(v, inUserData || USER_DATA_KEYS.has(k));
       }
     }

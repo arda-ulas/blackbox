@@ -140,19 +140,115 @@ describe("adaptClaudeCodeTranscript", () => {
     expect(verifyTrace(trace).pass).toBe(true);
   });
 
-  it("rejects parallel tool calls instead of flattening them", () => {
+  it("adapts parallel tool calls in one block list into a single tool_calls turn", () => {
     const source = oneToolTranscript();
     const assistant = source[3] as Record<string, unknown>;
     const message = assistant.message as Record<string, unknown>;
-    const blocks = message.content as Record<string, unknown>[];
-    blocks.push({ type: "tool_use", id: "toolu_native_456", name: "Bash", input: { command: "npm test" } });
-    expect(() => adaptClaudeCodeTranscript(source, { traceId: "parallel" })).toThrow(/parallel tool calls/);
+    (message.content as Record<string, unknown>[]).push({
+      type: "tool_use", id: "toolu_native_456", name: "Bash", input: { command: "npm test" },
+    });
+    const resultMessage = (source[4] as Record<string, unknown>).message as Record<string, unknown>;
+    (resultMessage.content as Record<string, unknown>[]).push({
+      type: "tool_result", tool_use_id: "toolu_native_456", content: "1 passing",
+    });
+
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "parallel" });
+    expect(trace.steps[1].payload).toEqual({
+      type: "tool_calls",
+      calls: [
+        { toolCallId: "call-0", toolName: "Read", toolInput: { file_path: "src/app.ts" } },
+        { toolCallId: "call-1", toolName: "Bash", toolInput: { command: "npm test" } },
+      ],
+    });
+    expect(trace.steps.map((step) => step.type).slice(0, 6)).toEqual([
+      "model_input", "model_output", "tool_call", "tool_result", "tool_call", "tool_result",
+    ]);
+    expect(toolCallSequence(trace)).toEqual(["Read", "Bash"]);
+    expect(verifyTrace(trace).pass).toBe(true);
   });
 
-  it("rejects sidechain messages", () => {
-    const sidechain = oneToolTranscript();
-    (sidechain[3] as Record<string, unknown>).isSidechain = true;
-    expect(() => adaptClaudeCodeTranscript(sidechain, { traceId: "sidechain" })).toThrow(/sidechain/);
+  it("merges one API message persisted across lines, with results interleaved", () => {
+    // Claude Code's real layout: one content block per line, sharing message.id,
+    // each tool result on its own user line written as soon as the tool finished.
+    const msg = (content: Record<string, unknown>[]) => ({
+      role: "assistant", id: "provider-api-message", stop_reason: "tool_use", content,
+    });
+    const source = [
+      event("user", 0, { role: "user", content: "Check both files." }),
+      event("assistant", 1, msg([{ type: "thinking", thinking: "private", signature: "sig" }])),
+      event("assistant", 2, msg([{ type: "text", text: "Reading both." }])),
+      event("assistant", 3, msg([{ type: "tool_use", id: "toolu_a1", name: "Read", input: { file_path: "a.ts" } }])),
+      event("user", 4, { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_b2", content: "B" }] }),
+      event("assistant", 5, msg([{ type: "tool_use", id: "toolu_b2", name: "Read", input: { file_path: "b.ts" } }])),
+      event("user", 6, { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_a1", content: [{ type: "text", text: "A" }] }] }),
+      event("assistant", 7, { role: "assistant", id: "provider-api-message-2", stop_reason: "end_turn", content: [{ type: "text", text: "Both read." }] }),
+    ];
+
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "split-lines" });
+    expect(trace.steps.map((step) => step.type)).toEqual([
+      "model_input", "model_output", "tool_call", "tool_result", "tool_call", "tool_result",
+      "model_input", "model_output", "metadata",
+    ]);
+    expect(trace.steps[1].payload).toMatchObject({ type: "tool_calls", text: "Reading both." });
+    expect(trace.steps[3].payload).toMatchObject({ toolCallId: "call-0", result: "A" });
+    expect(trace.steps[5].payload).toMatchObject({ toolCallId: "call-1", result: "B" });
+    const secondInput = trace.steps[6].payload as { messages: Array<{ role: string; content: unknown }> };
+    expect(secondInput.messages[1].content).toEqual([
+      { type: "text", text: "Reading both." },
+      { type: "tool_use", toolCallId: "call-0", toolName: "Read", toolInput: { file_path: "a.ts" } },
+      { type: "tool_use", toolCallId: "call-1", toolName: "Read", toolInput: { file_path: "b.ts" } },
+    ]);
+    expect(verifyTrace(trace).pass).toBe(true);
+    const serialized = JSON.stringify(trace);
+    expect(serialized).not.toContain("provider-api-message");
+    expect(serialized).not.toContain("toolu_a1");
+  });
+
+  it("records intermediate answers in a multi-turn session and ends on the last one", () => {
+    const source = oneToolTranscript();
+    source.push(
+      event("user", 5, { role: "user", content: [{ type: "text", text: "Now summarize." }] }),
+      event("assistant", 6, { role: "assistant", stop_reason: "end_turn", content: [{ type: "text", text: "Summary." }] }),
+    );
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "multi-turn" });
+    const finalInput = trace.steps.at(-3)?.payload as { messages: Array<{ role: string; content: unknown }> };
+    expect(finalInput.messages.slice(-2)).toEqual([
+      { role: "assistant", content: "Fixed the bug and the tests pass." },
+      { role: "user", content: "Now summarize." },
+    ]);
+    expect(replayTrace(trace)).toMatchObject({ status: "success", result: "Summary." });
+  });
+
+  it("leaves a session that ends after a tool round incomplete", () => {
+    const source = oneToolTranscript().slice(0, 5);
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "cut" });
+    expect(trace.steps.at(-1)?.type).toBe("tool_result");
+    expect(replayTrace(trace).status).toBe("incomplete");
+  });
+
+  it("rejects a tool call whose result never arrives before a later turn", () => {
+    const source = oneToolTranscript();
+    source.splice(4, 1);
+    expect(() => adaptClaudeCodeTranscript(source, { traceId: "missing" })).toThrow(/no result for "Read"/);
+  });
+
+  it("ends incomplete when the session stops while its last tool is running", () => {
+    const source = oneToolTranscript().slice(0, 4);
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "running" });
+    expect(trace.steps.map((step) => step.type)).toEqual(["model_input", "model_output", "tool_call"]);
+    expect(replayTrace(trace).status).toBe("incomplete");
+    expect(verifyTrace(trace).pass).toBe(true);
+  });
+
+  it("skips sidechain (subagent) lines entirely", () => {
+    const source = oneToolTranscript();
+    source.splice(5, 0,
+      { ...event("assistant", 4, { role: "assistant", content: [{ type: "tool_use", id: "toolu_sub", name: "Grep", input: {} }] }), isSidechain: true },
+      { ...event("user", 4, { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_sub", content: "x" }] }), isSidechain: true },
+    );
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "sidechain" });
+    expect(toolCallSequence(trace)).toEqual(["Read"]);
+    expect(JSON.stringify(trace)).not.toContain("Grep");
   });
 
   it("carries a follow-up human turn into the next recorded model input", () => {
