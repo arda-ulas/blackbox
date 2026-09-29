@@ -43,12 +43,13 @@
     "example:real-fork-proof": "tsx src/examples/realForkProof.ts"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
     "@types/node": "^24.0.0",
+    "openai": "^7.23.0",
     "typescript": "~6.0.2",
-    "vitest": "^4.1.9"
+    "vitest": "^5.0.2"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.110.0",
     "tsx": "^4.23.0"
   }
 }
