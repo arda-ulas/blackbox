@@ -25,7 +25,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run cli -- check
-      - name: Fleet-triage example stays fixed (preventive action pinned)
+      - name: Fleet-triage example, expected outcome of the run with the fix
         run: npm run cli -- assert examples/fleet-triage/cassettes/triage-fixed.json --expect-status success --expect-tools lookup_dtc,get_telemetry,open_work_order
       - name: Package smoke test (pack, clean install, npx blackbox, JS and TS consumers)
         run: node scripts/pack-smoke.mjs

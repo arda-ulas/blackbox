@@ -14,7 +14,7 @@ npx blackbox replay cassettes/triage-incident.json -- node agent.mjs
 npx blackbox inspect cassettes/triage-incident.json --step 5
 npx blackbox fork cassettes/triage-incident.json --at 5 --set @inputs/live-reading.json --out my-fork.json --script inputs/urgent-replies.json -- node agent.mjs
 npx blackbox diff cassettes/triage-incident.json my-fork.json
-npx blackbox assert cassettes/triage-fixed.json --expect-status success --expect-tools lookup_dtc,get_telemetry,open_work_order
+npm run check    # re-record with the current code and compare with the committed cassettes
 ```
 
 | File | What it is |
@@ -24,7 +24,7 @@ npx blackbox assert cassettes/triage-fixed.json --expect-status success --expect
 | `tools.mjs` | Four tools over `data/*.json`; `get_telemetry` carries the freshness check, `getTelemetryAsDeployed` the original bug |
 | `cassettes/triage-incident.json` | The incident: a routine order from a stale reading |
 | `cassettes/triage-hypothesis.json` | The incident forked at step 5 with the live reading |
-| `cassettes/triage-fixed.json` | A new run with the freshness check (pinned in CI) |
+| `cassettes/triage-fixed.json` | A new run with the freshness check; `npm run check` re-records and compares all three |
 | `inputs/` | The live reading and scripted model replies for a keyless fork |
 | `make-cassettes.mjs` | Regenerates the cassettes with a scripted stand-in model |
 

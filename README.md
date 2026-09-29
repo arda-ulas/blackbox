@@ -19,7 +19,7 @@ A fleet-maintenance agent kept an overheating van in service: its telemetry tool
 fault. The [fleet-triage example](https://arda-ulas.github.io/blackbox/example-fleet-triage) walks the investigation
 offline, with no API key: **reproduce** the run with `replay`, **isolate** the stale reading with `inspect`, **test**
 the hypothesis with `fork`, **confirm** the cause with `diff`, and **prevent** a recurrence with a freshness check and
-an `assert` pinned in CI. A second example, [what did my coding agent do?](https://arda-ulas.github.io/blackbox/example-claude-code),
+a re-record-and-compare check that fails if the fix is undone. A second example, [what did my coding agent do?](https://arda-ulas.github.io/blackbox/example-claude-code),
 imports a real Claude Code session.
 
 To see the whole loop in ten seconds with no agent of your own:

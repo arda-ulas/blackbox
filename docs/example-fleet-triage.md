@@ -18,9 +18,9 @@ and pin the fix.
 | Symptom | — | A routine work order for a van with an overtemperature code |
 | Reproduce | `replay` | The same routine answer, offline, no network |
 | Isolate | `inspect` | Step 5: a telemetry reading captured before the fault was set |
-| Test the hypothesis | `fork --at 5 --set …` | The fresh reading injected at step 5; the agent continues |
+| Test the hypothesis | `fork --at 5 --set …` | The fresh reading injected at step 5; the run continues with the live model (with a key) or scripted replies (without) |
 | Confirm the cause | `diff` | First divergence at step 5; the priority, the answer and the tool path change |
-| Preventive action | freshness check in `get_telemetry`, then `assert` in CI | Stale data is rejected, and the fixed behavior is pinned |
+| Preventive action | freshness check in `get_telemetry`; `npm run check` re-records and compares | Stale data is rejected; undoing the fix fails the check at step 5 |
 
 > Example data for illustration; not repair guidance. Telemetry uses [COVESA VSS 6.1](https://covesa.github.io/vehicle_signal_specification/)
 > signal paths, and each reading is a [VISS](https://github.com/COVESA/vehicle-information-service-specification)
@@ -145,6 +145,12 @@ Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 �
 Steps 0–4 were replayed and checked against the recording. After step 5 the tools ran for real: the urgent work order
 is in `work-orders.jsonl`.
 
+**What this shows, and what it does not.** Without a key, the model's replies after step 5 are the ones in
+`inputs/urgent-replies.json`: you state what a careful triager would answer, and Blackbox checks everything around
+it. The agent's code made the same requests up to step 5, took the new reading, turned those replies into an urgent
+work order, and the tools ran. How the model itself reasons from the fresh reading is tested with `--live` (see
+[With an API key](#with-an-api-key)), where the real model continues from step 5.
+
 ### 5. Confirm the cause
 
 ```bash
@@ -169,9 +175,10 @@ Outcome:        same final status (success), but the final answer changed
   child tools:   lookup_dtc → get_telemetry → open_work_order
 ```
 
-Everything before step 5 is hash-identical, so the telemetry is the whole difference. With a current reading, the
-agent drops the sensor theory, skips the service-history check and takes the van off the road. The cause is confirmed:
-the stale reading, not the agent's reasoning.
+Everything before step 5 is hash-identical, so the telemetry reading is the only input that changed. In the keyless
+walkthrough the new answer comes from the replies file; run the same fork with `--live` and the answer and tool path
+are the model's own response to the fresh reading. If the call changes, as here, the stale reading is confirmed as the
+cause.
 
 ### 6. Five whys
 
@@ -203,8 +210,9 @@ if (fresh(live)) {
 // no fresh reading: return the newest one with stale: true and a warning
 ```
 
-**The proof.** `cassettes/triage-fixed.json` is a new run of the same ticket with the fix in place. Replay it with the
-current code, and look at what the fixed tool returned at step 5:
+**The new run.** `cassettes/triage-fixed.json` is the same ticket recorded again with the fix in place (by
+`make-cassettes.mjs`, with the stand-in model). Replaying it with the current code shows the agent still sends the
+same requests, and `inspect` shows what the fixed tool returned at step 5:
 
 ```bash
 npx blackbox replay cassettes/triage-fixed.json -- node agent.mjs
@@ -219,7 +227,32 @@ Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 �
     "cache_rejected": "snapshot captured 2026-09-28T17:05:00Z, before P0217 was set at 2026-09-29T07:58:00Z"
 ```
 
-**The guard.** Pin the fixed behavior, so a regression fails a check instead of reaching a dispatcher:
+**The guard.** Replay alone cannot catch this regression: it serves recorded tool results, so it never runs
+`get_telemetry`. The guard records again instead. `npm run check` re-records the ticket offline with the current
+code and compares each run with the committed cassette, step by step:
+
+```bash
+npm run check
+```
+
+```text
+triage-incident.json: matches
+triage-hypothesis.json: matches
+triage-fixed.json: matches
+```
+
+Undo the freshness check and the same command fails, at the step that matters:
+
+```text
+triage-fixed.json no longer matches what the current code records:
+First divergence at index 5
+  ...
+  parent tools:  lookup_dtc → get_telemetry → open_work_order
+  child tools:   lookup_dtc → get_telemetry → get_service_history → open_work_order
+```
+
+This repository runs that check, including the undo, in its test suite. `assert` states the fixed run's expected
+outcome in a form a script can check:
 
 ```bash
 npx blackbox assert cassettes/triage-fixed.json --expect-status success --expect-tools lookup_dtc,get_telemetry,open_work_order
@@ -230,9 +263,6 @@ expectations
   status               pass  success
   tools                pass  lookup_dtc, get_telemetry, open_work_order
 ```
-
-This repository runs that assertion in CI, and replays the fixed cassette against the current agent code in its test
-suite, so a change that brings the old behavior back fails the build.
 
 ## With an API key
 

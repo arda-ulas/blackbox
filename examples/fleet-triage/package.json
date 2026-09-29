@@ -5,7 +5,8 @@
   "description": "Blackbox flagship example: a fleet-maintenance triage agent that trusted a stale telemetry reading.",
   "scripts": {
     "start": "node agent.mjs",
-    "make-cassettes": "node make-cassettes.mjs"
+    "make-cassettes": "node make-cassettes.mjs",
+    "check": "node make-cassettes.mjs --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

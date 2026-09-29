@@ -192,6 +192,42 @@ describe("fleet-triage example", () => {
     for (const [, index, hash] of quoted) expect(incident.steps[Number(index)].hash.startsWith(hash), `step ${index}`).toBe(true);
   });
 
+  const makeCassettesCheck = async (): Promise<Run> => {
+    const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: "1" };
+    delete env["ANTHROPIC_API_KEY"];
+    try {
+      const { stdout, stderr } = await execFileAsync(process.execPath, ["--import", TSX, "make-cassettes.mjs", "--check"], { cwd: dir, env });
+      return { code: 0, stdout, stderr };
+    } catch (error) {
+      const e = error as { code?: number; stdout?: string; stderr?: string };
+      return { code: typeof e.code === "number" ? e.code : 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+    }
+  };
+
+  it("guard: re-recording with the current code matches the committed cassettes", async () => {
+    const run = await makeCassettesCheck();
+    expect(run.code, run.stderr).toBe(0);
+    expect(run.stdout).toContain("triage-fixed.json: matches");
+  }, 60_000);
+
+  it("guard: undoing the freshness check fails the check at step 5 of the fixed run", async () => {
+    const toolsPath = join(dir, "tools.mjs");
+    const original = readFileSync(toolsPath, "utf8");
+    try {
+      writeFileSync(
+        toolsPath,
+        original.replace("export async function get_telemetry(", "async function getTelemetryFixed(") +
+          "\nexport const get_telemetry = getTelemetryAsDeployed;\n",
+      );
+      const run = await makeCassettesCheck();
+      expect(run.code).toBe(1);
+      expect(run.stderr).toContain("triage-fixed.json no longer matches");
+      expect(run.stderr).toContain("First divergence at index 5");
+    } finally {
+      writeFileSync(toolsPath, original);
+    }
+  }, 60_000);
+
   it("uses only the generic code title and standard VSS 6.1 paths", () => {
     const dtc = JSON.parse(readFileSync(join(FLEET, "data", "dtc-codes.json"), "utf8")) as Record<string, { title?: string }>;
     expect(Object.keys(dtc).filter((key) => !key.startsWith("_"))).toEqual(["P0217"]);

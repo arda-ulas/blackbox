@@ -36,7 +36,7 @@ Worked examples, and the small features they needed.
   because its telemetry tool served a snapshot cached before the fault.
   Reproduce with `replay`, isolate with `inspect`, test the hypothesis with
   `fork`, confirm with `diff`, then prevent a recurrence with a freshness check
-  and a cassette pinned in CI. Telemetry uses COVESA VSS 6.1 signal paths with
+  and a re-record-and-compare check (`npm run check`). Telemetry uses COVESA VSS 6.1 signal paths with
   VISS data points. Runs offline, with no API key.
 - **Example: what did my coding agent do?** (`examples/claude-code-session/`):
   a real, scrubbed Claude Code session imported, inspected, verified and

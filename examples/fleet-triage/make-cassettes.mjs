@@ -9,11 +9,15 @@
 // same ticket, record with your own key instead:
 //   npx blackbox record --out my-triage.json -- node agent.mjs
 //
-//   node make-cassettes.mjs
+//   node make-cassettes.mjs           regenerate the committed cassettes
+//   node make-cassettes.mjs --check   re-record with the current code and fail if
+//                                     behavior differs from the committed cassettes
 
 import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, rmSync } from "node:fs";
-import { blackbox } from "@ardaulas/blackbox";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { blackbox, diffTracesSemantic, formatDiffReport, loadTrace } from "@ardaulas/blackbox";
 import { runTriage } from "./triage.mjs";
 import * as fleet from "./tools.mjs";
 
@@ -104,16 +108,24 @@ async function run(clock, options, getTelemetry) {
   });
   const answer = await runTriage({ client, tools });
   const summary = await bb.finish();
-  console.log(`${summary.path}: ${summary.steps} steps, ${summary.status}\n  ${answer}`);
+  if (!check) console.log(`${summary.path}: ${summary.steps} steps, ${summary.status}\n  ${answer}`);
 }
 
-await run("2026-09-29T09:05:00Z", { mode: "record", out: here("cassettes/triage-incident.json"), traceId: "triage-incident", baseFetch: standInModel }, fleet.getTelemetryAsDeployed);
+// --check: re-record into a temporary directory with the current code and
+// compare each run with the committed cassette step by step (timestamps
+// ignored). A change in behavior, such as the freshness check being undone,
+// shows up as a divergence and exit code 1.
+const check = process.argv.includes("--check");
+const outDir = check ? mkdtempSync(join(tmpdir(), "fleet-triage-check-")) : here("cassettes");
+const out = (name) => join(outDir, name);
+
+await run("2026-09-29T09:05:00Z", { mode: "record", out: out("triage-incident.json"), traceId: "triage-incident", baseFetch: standInModel }, fleet.getTelemetryAsDeployed);
 await run(
   "2026-09-29T10:15:00Z",
   {
     mode: "fork",
-    cassette: here("cassettes/triage-incident.json"),
-    out: here("cassettes/triage-hypothesis.json"),
+    cassette: out("triage-incident.json"),
+    out: out("triage-hypothesis.json"),
     traceId: "triage-hypothesis",
     forkAt: 5,
     forkSet: json("inputs/live-reading.json"),
@@ -122,5 +134,22 @@ await run(
   },
   fleet.get_telemetry,
 );
-await run("2026-09-29T11:20:00Z", { mode: "record", out: here("cassettes/triage-fixed.json"), traceId: "triage-fixed", baseFetch: standInModel }, fleet.get_telemetry);
+await run("2026-09-29T11:20:00Z", { mode: "record", out: out("triage-fixed.json"), traceId: "triage-fixed", baseFetch: standInModel }, fleet.get_telemetry);
 rmSync(here("work-orders.jsonl"), { force: true });
+
+if (check) {
+  let failed = false;
+  for (const name of ["triage-incident.json", "triage-hypothesis.json", "triage-fixed.json"]) {
+    const committed = await loadTrace(here(`cassettes/${name}`));
+    const fresh = await loadTrace(out(name));
+    if (diffTracesSemantic(committed, fresh).hasDivergence) {
+      failed = true;
+      console.error(`\n${name} no longer matches what the current code records:`);
+      console.error(formatDiffReport(committed, fresh, { comparison: "semantic" }));
+    } else {
+      console.log(`${name}: matches`);
+    }
+  }
+  rmSync(outDir, { recursive: true, force: true });
+  process.exit(failed ? 1 : 0);
+}
