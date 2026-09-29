@@ -68,7 +68,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
     flags: [
       ["--at <step>", "Index of the recorded tool_result step to replace (see `blackbox inspect`)"],
-      ["--set <json>", "The replacement tool result, as JSON"],
+      ["--set <json>", "The replacement tool result, as JSON; --set @result.json reads it from a file"],
       ["--out <path>", "Where to write the forked cassette"],
       ["--live", "Continue after the fork point with your real API client"],
       ["--script <path>", "Continue after the fork point with scripted model replies"],

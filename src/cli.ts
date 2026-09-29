@@ -956,11 +956,18 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
   checkValueFlags(flags, AGENT_FORK_ALLOWED.filter((name) => name !== "live"));
   const cassette = requireString(flags, "trace", "the cassette to fork");
   const out = requireString(flags, "out", "where to write the forked cassette");
-  const set = requireString(flags, "set", "the replacement tool result, as JSON");
+  let set = requireString(flags, "set", "the replacement tool result, as JSON (or @file.json)");
+  if (set.startsWith("@")) {
+    try {
+      set = await readFile(set.slice(1), "utf8");
+    } catch (error) {
+      die(`could not read --set file ${set.slice(1)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   try {
     JSON.parse(set);
   } catch {
-    die(`--set must be JSON; got ${set}. Quote strings: --set '"text"'`);
+    die(`--set must be JSON; got ${set}. Quote strings: --set '"text"', or read a file: --set @result.json`);
   }
   const at = parseIntFlag(flags, "at", -1);
   if (at < 0) die("Missing required flag: --at (the tool_result step to replace; see `blackbox inspect`)");
