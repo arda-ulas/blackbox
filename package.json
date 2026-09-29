@@ -60,7 +60,9 @@
     "fixtures:generate": "tsx scripts/generateFixtures.ts",
     "example:real-proof": "tsx src/examples/realRunProof.ts",
     "example:real-tooluse-proof": "tsx src/examples/realToolUseProof.ts",
-    "example:real-fork-proof": "tsx src/examples/realForkProof.ts"
+    "example:real-fork-proof": "tsx src/examples/realForkProof.ts",
+    "proof:anthropic": "npm run build && scripts/live-proof.sh anthropic",
+    "proof:openai": "npm run build && scripts/live-proof.sh openai"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
