@@ -298,6 +298,28 @@ describe("replay", () => {
     expect((failure as Error).message).toContain("--match sequence");
   });
 
+  it("stops strict replay when the request names a different model", async () => {
+    const { path } = await recordWeather();
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const error = await anthropicClient(bb)
+      .messages.create({
+        model: "claude-opus-5",
+        max_tokens: 512,
+        system: "Answer in one sentence.",
+        tools: [{ name: "weather", description: "Current weather", input_schema: { type: "object", properties: { city: { type: "string" } } } }],
+        messages: [{ role: "user", content: "Is Paris or Rome warmer today?" }],
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    expect(isBlackboxError(error)).toBe(true);
+    const failure = await bb.finish().then(() => undefined, (e: unknown) => e);
+    expect(failure).toBeInstanceOf(ReplayDivergenceError);
+    expect((failure as ReplayDivergenceError).stepIndex).toBe(0);
+    expect((failure as ReplayDivergenceError).path).toBe("model");
+  });
+
   it("tolerates a changed request in sequence mode", async () => {
     const { path } = await recordWeather();
     const bb = blackbox({ mode: "replay", cassette: path, match: "sequence", baseFetch: noNetwork, logErrors: false });
