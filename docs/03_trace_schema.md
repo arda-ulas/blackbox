@@ -40,11 +40,33 @@ Capture all non-deterministic inputs needed to replay an agent run offline witho
 
 | Type | When recorded | Payload shape |
 |---|---|---|
-| `model_input` | Before every call to the model client | `ModelInput` — `messages` (each `content` is a `string` or a `MessagePart[]`, see below) and tool definitions |
-| `model_output` | After the model client returns | `ModelOutput` — either `{ type: "tool_call", toolCallId, toolName, toolInput }` or `{ type: "final_answer", text }` |
+| `model_input` | Before every call to the model client | `ModelInput` — `messages` (each `content` is a `string` or a `MessagePart[]`, see below), tool definitions, and optionally `systemPrompt`, `model`, and `params` (see below) |
+| `model_output` | After the model client returns | One of three shapes — see "Model output shapes" below |
 | `tool_call` | When the model requests a tool | `{ toolCallId: string, toolName: string, toolInput: JsonValue }` |
 | `tool_result` | After the tool executes (success or error) | `{ toolCallId, toolName, result: JsonValue }` or `{ toolCallId, toolName, error: string }` |
 | `metadata` | Terminal events and run-level markers | See terminal event payloads below |
+
+### Model output shapes
+
+| Shape | Written by | Payload |
+|---|---|---|
+| single tool call | the built-in agent loop | `{ type: "tool_call", toolCallId, toolName, toolInput }` |
+| tool calls | recorded agents (SDK wrappers) and transcript importers | `{ type: "tool_calls", calls: [{ toolCallId, toolName, toolInput }, …], text? }` |
+| final answer | everyone | `{ type: "final_answer", text }` |
+
+`tool_calls` carries every call the model requested in one turn (parallel tool use), in the order the model emitted them, plus any `text` the model wrote alongside them. Recorders and importers always use `tool_calls`, even for a single call; the built-in loop keeps the single-call shape so existing cassettes and their hashes are unchanged. Readers go through `toolCallsOf()` (`src/trace/payloads.ts`), which accepts both.
+
+After a `tool_calls` turn, each call's `tool_call` and `tool_result` steps follow in call order (`tool_call`, `tool_result`, `tool_call`, `tool_result`, …) regardless of the order the tools actually finished in. A recorded agent whose tools are not wrapped has no `tool_call`/`tool_result` steps; its tool results are visible only in the next `model_input`'s messages.
+
+### Optional `model_input` fields (recorded agents)
+
+| Field | Meaning |
+|---|---|
+| `systemPrompt` | The system prompt. For OpenAI, the leading `system`/`developer` messages joined in order. |
+| `model` | The model name the request asked for. |
+| `params` | Request controls that change behavior, in neutral names: `maxTokens`, `temperature`, `topP`, `toolChoice`, `responseFormat`, `stop`. Only those present in the request are recorded. |
+
+A recorded `tool_result` part in `messages` keeps the content exactly as the agent sent it to the provider (a string stays a string).
 
 The `toolCallId` is identical across the `model_output` (tool-call), `tool_call`, and `tool_result` steps of one tool round — that shared id is the whole correlation mechanism; nothing provider-native is stored.
 
@@ -59,7 +81,7 @@ The `toolCallId` is identical across the `model_output` (tool-call), `tool_call`
 | tool_result (success) | `{ type: "tool_result", toolCallId, toolName, result: JsonValue }` |
 | tool_result (error) | `{ type: "tool_result", toolCallId, toolName, error: string }` |
 
-A tool round therefore appears in the following `model_input`'s `messages` as an assistant turn `content: [{ type: "tool_use", toolCallId, toolName, toolInput }]` followed by a user turn `content: [{ type: "tool_result", toolCallId, toolName, result }]` (or the `error` variant). The `toolCallId` in the `tool_use` part equals the one in its paired `tool_result` part — a fresh adapter can rebuild a correlated provider request from the cassette alone.
+A tool round from the built-in loop appears in the following `model_input`'s `messages` as an assistant turn `content: [{ type: "tool_use", toolCallId, toolName, toolInput }]` followed by a user turn `content: [{ type: "tool_result", toolCallId, toolName, result }]` (or the `error` variant). The `toolCallId` in the `tool_use` part equals the one in its paired `tool_result` part — a fresh adapter can rebuild a correlated provider request from the cassette alone. A parallel round is one assistant turn holding every `tool_use` part (preceded by a `text` part when the model narrated), then one user turn holding every `tool_result` part, in call order.
 
 ## Terminal Metadata Payloads
 

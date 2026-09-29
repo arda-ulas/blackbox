@@ -12,6 +12,7 @@ import {
 } from "../agent/modelClient.ts";
 import { TraceRecorder } from "../trace/TraceRecorder.ts";
 import { runAgentLoop } from "../agent/agentLoop.ts";
+import { modelOutputText, toolCallsOf, type ToolCallRef } from "../trace/payloads.ts";
 
 export interface ForkOptions {
   parentTrace: Trace;
@@ -181,6 +182,7 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
     toolExecutor,
     recorder,
     prompt: promptMutation,
+    systemPrompt: prefixSystemPrompt(prefixSteps),
     maxSteps: maxSteps ?? 20,
     initialMessages,
     initialToolCallIndex,
@@ -197,6 +199,15 @@ export async function forkRun(options: ForkOptions): Promise<ForkResult> {
  * Rebuild the conversation Message[] from recorded prefix steps, substituting
  * mutated values wherever specified. The result is fed to the continuing agent
  * loop as initialMessages so it sees the corrected history.
+ *
+ * The history is seeded from the LAST `model_input` in the prefix — the exact
+ * messages the model saw on its most recent call — and then extended with the
+ * round recorded after it: one assistant message carrying any narration text
+ * plus every `tool_use` part of that turn (in call order), then one user message
+ * carrying every `tool_result` part. Grouping a parallel round into a single
+ * assistant/user pair matches what provider APIs require. A mutation always
+ * lands after that last `model_input` (forkRun rejects a model_input between a
+ * mutation and the fork point), so the seed never contains a stale result.
  */
 function reconstructMessages(
   prefixSteps: ReadonlyArray<TraceStep>,
@@ -212,37 +223,28 @@ function reconstructMessages(
     );
   }
 
-  // Seed from the recorded initial messages in the first model_input payload.
-  // Role is restricted to "user" | "assistant" matching the Message interface.
-  const firstPayload = firstStep.payload as {
-    messages?: Array<{ role: "user" | "assistant"; content: string }>;
-  };
-  const messages: Message[] = firstPayload.messages
-    ? firstPayload.messages.map((m) => ({ ...m }))
+  const seedIndex = lastIndexOfType(prefixSteps, "model_input");
+  const seedPayload = prefixSteps[seedIndex].payload as { messages?: Message[] };
+  const messages: Message[] = seedPayload.messages
+    ? seedPayload.messages.map((m) => structuredClone(m))
     : [];
 
-  // Carry the tool_use details forward from the model_output(tool_call) step so
-  // the reconstructed assistant turn keeps the original toolInput alongside the
-  // toolCallId/toolName the tool_result step also records.
-  let pending: { toolCallId: string; toolName: string; toolInput: JsonValue } | null = null;
+  let round: { calls: ToolCallRef[]; text?: string } | null = null;
+  const results = new Map<string, MessagePart>();
 
-  for (let i = 1; i < prefixSteps.length; i++) {
+  for (let i = seedIndex + 1; i < prefixSteps.length; i++) {
     const step = prefixSteps[i];
 
     if (step.type === "model_output") {
-      const out = step.payload as {
-        type?: string;
-        toolCallId?: string;
-        toolName?: string;
-        toolInput?: JsonValue;
-      };
-      if (out.type === "tool_call") {
-        pending = {
-          toolCallId: out.toolCallId ?? "",
-          toolName: out.toolName ?? "unknown",
-          toolInput: out.toolInput ?? null,
-        };
+      const calls = toolCallsOf(step.payload);
+      const text = modelOutputText(step.payload);
+      if (calls.length === 0) {
+        // A text-only turn (e.g. an intermediate answer before a follow-up).
+        if (text !== undefined) messages.push({ role: "assistant", content: text });
+        continue;
       }
+      round = { calls };
+      if (text !== undefined && text.length > 0) round.text = text;
     } else if (step.type === "tool_result") {
       const raw = step.payload as {
         toolCallId?: string;
@@ -251,39 +253,68 @@ function reconstructMessages(
         error?: string;
       };
       // Prefer the ids recorded on the tool_result step; fall back to the
-      // pending tool_use if an older/partial payload omitted them.
-      const toolCallId = raw.toolCallId ?? pending?.toolCallId ?? "";
-      const toolName = raw.toolName ?? pending?.toolName ?? "unknown";
-      const toolInput = pending?.toolInput ?? null;
+      // round's only call if an older/partial payload omitted them.
+      const fallback = round?.calls.length === 1 ? round.calls[0] : undefined;
+      const toolCallId = raw.toolCallId ?? fallback?.toolCallId ?? "";
+      const toolName = raw.toolName ?? fallback?.toolName ?? "unknown";
 
-      // Assistant turn: the structured tool_use that requested this result.
-      const toolUse: MessagePart = { type: "tool_use", toolCallId, toolName, toolInput };
-      messages.push({ role: "assistant", content: [toolUse] });
-
-      // User turn: the structured tool_result. A mutation always injects a
-      // result value; otherwise preserve the original result or error shape.
-      let toolResult: MessagePart;
+      // A mutation always injects a result value; otherwise preserve the
+      // original result or error shape.
+      let part: MessagePart;
       if (step.index in toolResultMutations) {
-        toolResult = {
-          type: "tool_result",
-          toolCallId,
-          toolName,
-          result: toolResultMutations[step.index],
-        };
+        part = { type: "tool_result", toolCallId, toolName, result: toolResultMutations[step.index] };
       } else if (raw.error !== undefined) {
-        toolResult = { type: "tool_result", toolCallId, toolName, error: raw.error };
+        part = { type: "tool_result", toolCallId, toolName, error: raw.error };
       } else {
-        toolResult = { type: "tool_result", toolCallId, toolName, result: raw.result ?? null };
+        part = { type: "tool_result", toolCallId, toolName, result: raw.result ?? null };
       }
-      messages.push({ role: "user", content: [toolResult] });
-
-      pending = null;
+      results.set(toolCallId, part);
     }
-    // model_input and tool_call steps carry no new message content here —
-    // the history is rebuilt incrementally from model_output/tool_result pairs.
+    // tool_call steps carry nothing the model_output did not already record.
+  }
+
+  if (round !== null) {
+    const missing = round.calls.filter((call) => !results.has(call.toolCallId));
+    if (missing.length > 0) {
+      throw new Error(
+        `forkRun: the fork point splits a tool round — no tool_result for ` +
+          `${missing.map((call) => `${call.toolName} (${call.toolCallId})`).join(", ")} ` +
+          `before the fork index; fork after the round's last tool_result`,
+      );
+    }
+    const assistant: MessagePart[] = [];
+    if (round.text !== undefined) assistant.push({ type: "text", text: round.text });
+    for (const call of round.calls) {
+      assistant.push({
+        type: "tool_use",
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        toolInput: call.toolInput,
+      });
+    }
+    messages.push({ role: "assistant", content: assistant });
+    messages.push({
+      role: "user",
+      content: round.calls.map((call) => results.get(call.toolCallId) as MessagePart),
+    });
   }
 
   return messages;
+}
+
+function lastIndexOfType(steps: ReadonlyArray<TraceStep>, type: TraceStep["type"]): number {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].type === type) return i;
+  }
+  return -1;
+}
+
+/** The system prompt recorded on the last model_input in the prefix, if any. */
+function prefixSystemPrompt(prefixSteps: ReadonlyArray<TraceStep>): string | undefined {
+  const index = lastIndexOfType(prefixSteps, "model_input");
+  if (index < 0) return undefined;
+  const systemPrompt = (prefixSteps[index].payload as { systemPrompt?: unknown }).systemPrompt;
+  return typeof systemPrompt === "string" ? systemPrompt : undefined;
 }
 
 /**
@@ -294,14 +325,15 @@ function reconstructMessages(
  */
 function nextToolCallIndex(prefixSteps: ReadonlyArray<TraceStep>): number {
   let max = -1;
+  const consider = (id: unknown): void => {
+    if (typeof id !== "string") return;
+    const m = /^call-(\d+)$/.exec(id);
+    if (m) max = Math.max(max, Number(m[1]));
+  };
   for (const step of prefixSteps) {
-    const id = (step.payload as { toolCallId?: unknown }).toolCallId;
-    if (typeof id === "string") {
-      const m = /^call-(\d+)$/.exec(id);
-      if (m) {
-        const n = Number(m[1]);
-        if (n > max) max = n;
-      }
+    consider((step.payload as { toolCallId?: unknown }).toolCallId);
+    if (step.type === "model_output") {
+      for (const call of toolCallsOf(step.payload)) consider(call.toolCallId);
     }
   }
   return max + 1;

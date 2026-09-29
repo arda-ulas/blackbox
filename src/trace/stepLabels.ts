@@ -13,6 +13,7 @@ import type {
   TraceStep,
   TraceStepType,
 } from "./TraceTypes.ts";
+import { toolCallsOf } from "./payloads.ts";
 
 // ---------------------------------------------------------------------------
 // Step-type labels
@@ -66,6 +67,11 @@ export function describeStep(step: TraceStep): string {
     case "model_output": {
       const out = p as { type?: string; toolName?: string; text?: string };
       if (out.type === "tool_call") return `Model → tool_call: ${out.toolName}`;
+      if (out.type === "tool_calls") {
+        const names = toolCallsOf(p).map((call) => call.toolName).join(", ");
+        const withText = typeof out.text === "string" && out.text.length > 0 ? " (with text)" : "";
+        return `Model → tool_calls: ${names}${withText}`;
+      }
       if (out.type === "final_answer") return `Model → final_answer: "${out.text}"`;
       return "Model → unknown output";
     }
@@ -104,8 +110,9 @@ const VALUE_BUDGET = 240;
 
 /**
  * The field within a step's payload that carries the interesting content for a
- * human diff: a tool result's `result`, a tool call's `toolInput`, a model
- * output's `text`. Returns null when no such well-known field is present, in
+ * human diff: a tool result's `result`, a tool call's `toolInput`, a multi-call
+ * model output's `calls` (checked before its narration `text`), a model output's
+ * `text`. Returns null when no such well-known field is present, in
  * which case the whole payload is the salient value.
  */
 function salientField(step: TraceStep): string | null {
@@ -114,6 +121,7 @@ function salientField(step: TraceStep): string | null {
     const obj = p as JsonObject;
     if ("result" in obj) return "result";
     if ("toolInput" in obj) return "toolInput";
+    if ("calls" in obj) return "calls";
     if ("text" in obj) return "text";
   }
   return null;
