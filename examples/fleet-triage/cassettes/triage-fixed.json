@@ -1,13 +1,13 @@
 {
   "version": 2,
   "id": "triage-fixed",
-  "createdAt": 1790707335417,
+  "createdAt": 1790680800350,
   "steps": [
     {
       "id": "triage-fixed:0",
       "index": 0,
       "type": "model_input",
-      "timestamp": 1790707335418,
+      "timestamp": 1790680801050,
       "payload": {
         "messages": [
           {
@@ -97,13 +97,13 @@
         }
       },
       "prevHash": null,
-      "hash": "971a06a6cb789e149a257b66c52fc14e69a944096d589b3e526c2198a09b93a5"
+      "hash": "6bfd273cd7df0782daafee715d672b1e7bd7e060a868fd0c607206d976b051a6"
     },
     {
       "id": "triage-fixed:1",
       "index": 1,
       "type": "model_output",
-      "timestamp": 1790707335418,
+      "timestamp": 1790680801400,
       "payload": {
         "type": "tool_calls",
         "calls": [
@@ -124,14 +124,14 @@
         ],
         "text": "I'll look up P0217 and pull VAN-14's latest telematics readings."
       },
-      "prevHash": "971a06a6cb789e149a257b66c52fc14e69a944096d589b3e526c2198a09b93a5",
-      "hash": "19dc4f0f7c9575ad8634e58e7709b4beb39a85e1408365eaa4a8a8cf47aa53da"
+      "prevHash": "6bfd273cd7df0782daafee715d672b1e7bd7e060a868fd0c607206d976b051a6",
+      "hash": "d087dec70d9c0c54231895270998e78a7c449a89d3a0ccfb317a11e31ec55a6a"
     },
     {
       "id": "triage-fixed:2",
       "index": 2,
       "type": "tool_call",
-      "timestamp": 1790707335418,
+      "timestamp": 1790680802450,
       "payload": {
         "toolCallId": "call-0",
         "toolName": "lookup_dtc",
@@ -139,14 +139,14 @@
           "code": "P0217"
         }
       },
-      "prevHash": "19dc4f0f7c9575ad8634e58e7709b4beb39a85e1408365eaa4a8a8cf47aa53da",
-      "hash": "010361a7e2a608535e59d5923bf2ea8e9d50bd8d378f1b64a481679c9741bb6b"
+      "prevHash": "d087dec70d9c0c54231895270998e78a7c449a89d3a0ccfb317a11e31ec55a6a",
+      "hash": "3ef380f2061d8de59da339406ec4102945b3a159fc88b46d4e42f7d37c2af1a7"
     },
     {
       "id": "triage-fixed:3",
       "index": 3,
       "type": "tool_result",
-      "timestamp": 1790707335418,
+      "timestamp": 1790680802800,
       "payload": {
         "toolCallId": "call-0",
         "toolName": "lookup_dtc",
@@ -164,14 +164,14 @@
           ]
         }
       },
-      "prevHash": "010361a7e2a608535e59d5923bf2ea8e9d50bd8d378f1b64a481679c9741bb6b",
-      "hash": "72f91ab991290de38056cf92d3b693c6b2edec65c043797e33cc100ac26ec876"
+      "prevHash": "3ef380f2061d8de59da339406ec4102945b3a159fc88b46d4e42f7d37c2af1a7",
+      "hash": "298cf40708eb568971e1c0538e21418c568d19bfce4715c8a94075197f5408cc"
     },
     {
       "id": "triage-fixed:4",
       "index": 4,
       "type": "tool_call",
-      "timestamp": 1790707335418,
+      "timestamp": 1790680803150,
       "payload": {
         "toolCallId": "call-1",
         "toolName": "get_telemetry",
@@ -179,14 +179,14 @@
           "vehicle_id": "VAN-14"
         }
       },
-      "prevHash": "72f91ab991290de38056cf92d3b693c6b2edec65c043797e33cc100ac26ec876",
-      "hash": "6b9e2ffd08d1035bc341af1173384777d54a971253e188068267db1edad77b2e"
+      "prevHash": "298cf40708eb568971e1c0538e21418c568d19bfce4715c8a94075197f5408cc",
+      "hash": "13955fb5c55147e43cfb641e611ce65ac58fb92d4b8b6f73d1b2e4e6816886c5"
     },
     {
       "id": "triage-fixed:5",
       "index": 5,
       "type": "tool_result",
-      "timestamp": 1790707335419,
+      "timestamp": 1790680803500,
       "payload": {
         "toolCallId": "call-1",
         "toolName": "get_telemetry",
@@ -221,14 +221,14 @@
           "cache_rejected": "snapshot captured 2026-09-28T17:05:00Z, before P0217 was set at 2026-09-29T07:58:00Z"
         }
       },
-      "prevHash": "6b9e2ffd08d1035bc341af1173384777d54a971253e188068267db1edad77b2e",
-      "hash": "65a476f97911b1f2f3df8449f30e5cd1fa580f3a8ce7fc99089849ec77fb8bbb"
+      "prevHash": "13955fb5c55147e43cfb641e611ce65ac58fb92d4b8b6f73d1b2e4e6816886c5",
+      "hash": "41abd26a732a8ffc360694ea04d421de9b276e106e444555c9b1d2d6630209cb"
     },
     {
       "id": "triage-fixed:6",
       "index": 6,
       "type": "model_input",
-      "timestamp": 1790707335420,
+      "timestamp": 1790680804200,
       "payload": {
         "messages": [
           {
@@ -359,14 +359,14 @@
           "maxTokens": 800
         }
       },
-      "prevHash": "65a476f97911b1f2f3df8449f30e5cd1fa580f3a8ce7fc99089849ec77fb8bbb",
-      "hash": "b5917aacc3c6c832cb4f4779c1b97cee0332b83d12c3ead4f7a46abda8ac8283"
+      "prevHash": "41abd26a732a8ffc360694ea04d421de9b276e106e444555c9b1d2d6630209cb",
+      "hash": "7285f193e154fea7d2c3040f02b00b8c63ef2a461904c6748a257a81fea55800"
     },
     {
       "id": "triage-fixed:7",
       "index": 7,
       "type": "model_output",
-      "timestamp": 1790707335421,
+      "timestamp": 1790680804550,
       "payload": {
         "type": "tool_calls",
         "calls": [
@@ -382,14 +382,14 @@
         ],
         "text": "Coolant is at 124 °C, above the 110 °C threshold for P0217 (the cached snapshot predated the fault, so this is the live reading). This is real overheating, so the van has to come off the road now."
       },
-      "prevHash": "b5917aacc3c6c832cb4f4779c1b97cee0332b83d12c3ead4f7a46abda8ac8283",
-      "hash": "4f6f83eaa05822d34dbed8f39708842d4bebdbdbbbd1692fcb0a53f95f7be6ef"
+      "prevHash": "7285f193e154fea7d2c3040f02b00b8c63ef2a461904c6748a257a81fea55800",
+      "hash": "9ba966aec0d3bcb1034b5107dd5c0fc8f50516312f29436ec68eaac539f19b63"
     },
     {
       "id": "triage-fixed:8",
       "index": 8,
       "type": "tool_call",
-      "timestamp": 1790707335422,
+      "timestamp": 1790680805600,
       "payload": {
         "toolCallId": "call-2",
         "toolName": "open_work_order",
@@ -399,14 +399,14 @@
           "action": "Remove from service now and do not drive. Tow to the depot and inspect the cooling system (coolant level, pump, fan, thermostat) before it returns."
         }
       },
-      "prevHash": "4f6f83eaa05822d34dbed8f39708842d4bebdbdbbbd1692fcb0a53f95f7be6ef",
-      "hash": "dda98c1c10090b3148f76710cd1b4088f84d1ec7c6b2e065cb929fd6ee830a2a"
+      "prevHash": "9ba966aec0d3bcb1034b5107dd5c0fc8f50516312f29436ec68eaac539f19b63",
+      "hash": "2fdb710ee79fb4923273f60e33b9620062dcf7d327ddb2a51ef59d9622a31fd5"
     },
     {
       "id": "triage-fixed:9",
       "index": 9,
       "type": "tool_result",
-      "timestamp": 1790707335422,
+      "timestamp": 1790680805950,
       "payload": {
         "toolCallId": "call-2",
         "toolName": "open_work_order",
@@ -417,14 +417,14 @@
           "status": "open"
         }
       },
-      "prevHash": "dda98c1c10090b3148f76710cd1b4088f84d1ec7c6b2e065cb929fd6ee830a2a",
-      "hash": "96b4dca88a56519257afa424689fd4a24fcc82d15e237e959323e1a007902d88"
+      "prevHash": "2fdb710ee79fb4923273f60e33b9620062dcf7d327ddb2a51ef59d9622a31fd5",
+      "hash": "91bde4088506d7c31f6fac47a079e65e9695bd933739a303d4ef5f91b02d0e04"
     },
     {
       "id": "triage-fixed:10",
       "index": 10,
       "type": "model_input",
-      "timestamp": 1790707335423,
+      "timestamp": 1790680806650,
       "payload": {
         "messages": [
           {
@@ -585,33 +585,33 @@
           "maxTokens": 800
         }
       },
-      "prevHash": "96b4dca88a56519257afa424689fd4a24fcc82d15e237e959323e1a007902d88",
-      "hash": "75d6d02a7e6cf3efdaa6d50d4b7e9bd903da5988aee201648533da1cdea4ea6a"
+      "prevHash": "91bde4088506d7c31f6fac47a079e65e9695bd933739a303d4ef5f91b02d0e04",
+      "hash": "6d355cb56f860d82a3f6c9f1b3d51c67c5e868f4e5d342991aee921430287187"
     },
     {
       "id": "triage-fixed:11",
       "index": 11,
       "type": "model_output",
-      "timestamp": 1790707335423,
+      "timestamp": 1790680807000,
       "payload": {
         "type": "final_answer",
         "text": "Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened urgent work order WO-9E2562 to tow it to the depot for a cooling-system inspection."
       },
-      "prevHash": "75d6d02a7e6cf3efdaa6d50d4b7e9bd903da5988aee201648533da1cdea4ea6a",
-      "hash": "d6d15c6e2aff6b2e0e6e1cbbff98a3ce64c811133bde89bb81bad41b39cb7dcb"
+      "prevHash": "6d355cb56f860d82a3f6c9f1b3d51c67c5e868f4e5d342991aee921430287187",
+      "hash": "a9d5557aa804e9b16c5a843d1150a6f2b6d8c29301a6cf56cc402b2b6ba2d844"
     },
     {
       "id": "triage-fixed:12",
       "index": 12,
       "type": "metadata",
-      "timestamp": 1790707335424,
+      "timestamp": 1790680808050,
       "payload": {
         "event": "run_completed",
         "status": "success",
         "result": "Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened urgent work order WO-9E2562 to tow it to the depot for a cooling-system inspection."
       },
-      "prevHash": "d6d15c6e2aff6b2e0e6e1cbbff98a3ce64c811133bde89bb81bad41b39cb7dcb",
-      "hash": "77617165e49be5cfacbcf8e339793f8e80980778c4e0394454e5760ddc52c07b"
+      "prevHash": "a9d5557aa804e9b16c5a843d1150a6f2b6d8c29301a6cf56cc402b2b6ba2d844",
+      "hash": "be3c25005927357e8d98ff6afa7e9c33e06b5213f0e4a1d5669db63e4b3d770f"
     }
   ]
 }

@@ -84,7 +84,16 @@ const standInModel = async (_input, init) => {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 };
 
-async function run(options, getTelemetry) {
+// Pin the clock so the cassettes' own timestamps fit the story: the alert at
+// 07:58, the live reading at 08:52, the triage run at 09:05, the investigation's
+// fork at 10:15 and the run with the fix at 11:20 (UTC, 2026-09-29).
+function pinClock(iso) {
+  let now = Date.parse(iso);
+  Date.now = () => (now += 350);
+}
+
+async function run(clock, options, getTelemetry) {
+  pinClock(clock);
   const bb = blackbox({ ...options, logErrors: true });
   const client = new Anthropic({ apiKey: "stand-in", fetch: bb.fetch, maxRetries: 0 });
   const tools = bb.tools({
@@ -98,8 +107,9 @@ async function run(options, getTelemetry) {
   console.log(`${summary.path}: ${summary.steps} steps, ${summary.status}\n  ${answer}`);
 }
 
-await run({ mode: "record", out: here("cassettes/triage-incident.json"), traceId: "triage-incident", baseFetch: standInModel }, fleet.getTelemetryAsDeployed);
+await run("2026-09-29T09:05:00Z", { mode: "record", out: here("cassettes/triage-incident.json"), traceId: "triage-incident", baseFetch: standInModel }, fleet.getTelemetryAsDeployed);
 await run(
+  "2026-09-29T10:15:00Z",
   {
     mode: "fork",
     cassette: here("cassettes/triage-incident.json"),
@@ -112,5 +122,5 @@ await run(
   },
   fleet.get_telemetry,
 );
-await run({ mode: "record", out: here("cassettes/triage-fixed.json"), traceId: "triage-fixed", baseFetch: standInModel }, fleet.get_telemetry);
+await run("2026-09-29T11:20:00Z", { mode: "record", out: here("cassettes/triage-fixed.json"), traceId: "triage-fixed", baseFetch: standInModel }, fleet.get_telemetry);
 rmSync(here("work-orders.jsonl"), { force: true });

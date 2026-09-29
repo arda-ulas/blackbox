@@ -1,5 +1,5 @@
 {
-  "_note": "Example data for illustration; not repair guidance. Signals are named with COVESA VSS 6.1 paths; each reading is a VISS v3 data point {value, ts}, with values as strings and ts as the capture time. `cache` holds snapshots synced at the depot; `live` is the vehicle's latest reading.",
+  "_note": "Example data for illustration; not repair guidance. Signals are named with COVESA VSS 6.1 paths; each reading is a VISS v3 data point {value, ts}, with values as strings (a JSON array of strings for array signals such as DTCList) and ts as the capture time. `cache` holds snapshots synced at the depot; `live` is the vehicle's latest reading.",
   "cache": {
     "VAN-14": [
       {

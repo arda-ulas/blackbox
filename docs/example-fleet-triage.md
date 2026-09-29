@@ -76,16 +76,16 @@ npx blackbox inspect cassettes/triage-incident.json
 ```
 
 ```text
-   0  model_input     ccaf8eec  Model called with 1 message(s)
-   1  model_output    10e61608  Model → tool_calls: lookup_dtc, get_telemetry (with text)
-   2  tool_call       89be93df  Tool called: lookup_dtc
-   3  tool_result     ae341823  Tool result: lookup_dtc → ok
-   4  tool_call       ec5fd2f5  Tool called: get_telemetry
-   5  tool_result     c1d68b7e  Tool result: get_telemetry → ok
-   6  model_input     ce3dad05  Model called with 3 message(s)
-   7  model_output    c02b670c  Model → tool_calls: get_service_history (with text)
+   0  model_input     f4dadc31  Model called with 1 message(s)
+   1  model_output    87030bbf  Model → tool_calls: lookup_dtc, get_telemetry (with text)
+   2  tool_call       e4b15efb  Tool called: lookup_dtc
+   3  tool_result     382a63da  Tool result: lookup_dtc → ok
+   4  tool_call       de735110  Tool called: get_telemetry
+   5  tool_result     a2044742  Tool result: get_telemetry → ok
+   6  model_input     0b0461cc  Model called with 3 message(s)
+   7  model_output    198b3de1  Model → tool_calls: get_service_history (with text)
    ...
-  11  model_output    e3fb9648  Model → tool_calls: open_work_order
+  11  model_output    7e078428  Model → tool_calls: open_work_order
   ...
 ```
 

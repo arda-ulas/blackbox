@@ -2,8 +2,9 @@
 // Example data for illustration; not repair guidance.
 //
 // Telemetry signals are named with COVESA VSS 6.1 paths, and each reading is a
-// VISS v3 data point { value, ts }: the value as a string, and ts the time the
-// value was captured.
+// VISS v3 data point { value, ts }: the value as a string (a JSON array of
+// strings for array signals such as DTCList), and ts the time the value was
+// captured.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";

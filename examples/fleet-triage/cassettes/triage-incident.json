@@ -1,13 +1,13 @@
 {
   "version": 2,
   "id": "triage-incident",
-  "createdAt": 1790707335364,
+  "createdAt": 1790672700350,
   "steps": [
     {
       "id": "triage-incident:0",
       "index": 0,
       "type": "model_input",
-      "timestamp": 1790707335389,
+      "timestamp": 1790672701050,
       "payload": {
         "messages": [
           {
@@ -97,13 +97,13 @@
         }
       },
       "prevHash": null,
-      "hash": "ccaf8eec62d8c42220bc538d80f036ea1deb83480acfaba5d69e318787846691"
+      "hash": "f4dadc31cbb3f378787db1d68abb7d6c1c990a76f4e26915d82e5aea09f4f046"
     },
     {
       "id": "triage-incident:1",
       "index": 1,
       "type": "model_output",
-      "timestamp": 1790707335392,
+      "timestamp": 1790672701400,
       "payload": {
         "type": "tool_calls",
         "calls": [
@@ -124,14 +124,14 @@
         ],
         "text": "I'll look up P0217 and pull VAN-14's latest telematics readings."
       },
-      "prevHash": "ccaf8eec62d8c42220bc538d80f036ea1deb83480acfaba5d69e318787846691",
-      "hash": "10e61608c33c20df0135b9c14de0bb79f678dd0c597c403653c4b22119f7d490"
+      "prevHash": "f4dadc31cbb3f378787db1d68abb7d6c1c990a76f4e26915d82e5aea09f4f046",
+      "hash": "87030bbfb918f9cd3103ea0172f0bf9702dde634eeebf146f36e3808d9578b3f"
     },
     {
       "id": "triage-incident:2",
       "index": 2,
       "type": "tool_call",
-      "timestamp": 1790707335394,
+      "timestamp": 1790672702450,
       "payload": {
         "toolCallId": "call-0",
         "toolName": "lookup_dtc",
@@ -139,14 +139,14 @@
           "code": "P0217"
         }
       },
-      "prevHash": "10e61608c33c20df0135b9c14de0bb79f678dd0c597c403653c4b22119f7d490",
-      "hash": "89be93df0fb0549108e99a1ea9cd1ddbea5f6ca5ed2e75eb0baa70ed1f475e55"
+      "prevHash": "87030bbfb918f9cd3103ea0172f0bf9702dde634eeebf146f36e3808d9578b3f",
+      "hash": "e4b15efbec48042062dfc6ceb952fb32d423f1d444b324e9a2fa754fecfca1f0"
     },
     {
       "id": "triage-incident:3",
       "index": 3,
       "type": "tool_result",
-      "timestamp": 1790707335394,
+      "timestamp": 1790672702800,
       "payload": {
         "toolCallId": "call-0",
         "toolName": "lookup_dtc",
@@ -164,14 +164,14 @@
           ]
         }
       },
-      "prevHash": "89be93df0fb0549108e99a1ea9cd1ddbea5f6ca5ed2e75eb0baa70ed1f475e55",
-      "hash": "ae3418232aa5423c28764da471b7c113607487678db4720863c8f4776d3a274e"
+      "prevHash": "e4b15efbec48042062dfc6ceb952fb32d423f1d444b324e9a2fa754fecfca1f0",
+      "hash": "382a63dab1583b5148349c9bcfdab75501a7197b73ad3d4eab0a47e03a7096b9"
     },
     {
       "id": "triage-incident:4",
       "index": 4,
       "type": "tool_call",
-      "timestamp": 1790707335394,
+      "timestamp": 1790672703150,
       "payload": {
         "toolCallId": "call-1",
         "toolName": "get_telemetry",
@@ -179,14 +179,14 @@
           "vehicle_id": "VAN-14"
         }
       },
-      "prevHash": "ae3418232aa5423c28764da471b7c113607487678db4720863c8f4776d3a274e",
-      "hash": "ec5fd2f5fa745cf655120fb214afde346320888cdcb6e2485599ce07cc2f3d79"
+      "prevHash": "382a63dab1583b5148349c9bcfdab75501a7197b73ad3d4eab0a47e03a7096b9",
+      "hash": "de735110f5d7be07f2ae35bb0aad72691e851c12a098a6ca7ad853365aa82675"
     },
     {
       "id": "triage-incident:5",
       "index": 5,
       "type": "tool_result",
-      "timestamp": 1790707335394,
+      "timestamp": 1790672703500,
       "payload": {
         "toolCallId": "call-1",
         "toolName": "get_telemetry",
@@ -217,14 +217,14 @@
           ]
         }
       },
-      "prevHash": "ec5fd2f5fa745cf655120fb214afde346320888cdcb6e2485599ce07cc2f3d79",
-      "hash": "c1d68b7e794d9fda001349ebadd23c4eea3610b9efda52ff0cb334c74a115cf4"
+      "prevHash": "de735110f5d7be07f2ae35bb0aad72691e851c12a098a6ca7ad853365aa82675",
+      "hash": "a20447424308600138e500ecb59e8bc6cc416a56622b5547bb6a98a642164d21"
     },
     {
       "id": "triage-incident:6",
       "index": 6,
       "type": "model_input",
-      "timestamp": 1790707335395,
+      "timestamp": 1790672704200,
       "payload": {
         "messages": [
           {
@@ -355,14 +355,14 @@
           "maxTokens": 800
         }
       },
-      "prevHash": "c1d68b7e794d9fda001349ebadd23c4eea3610b9efda52ff0cb334c74a115cf4",
-      "hash": "ce3dad05f0ca524d24e02920f3a1a9b09a0d00451897800acc60afaa3440b78a"
+      "prevHash": "a20447424308600138e500ecb59e8bc6cc416a56622b5547bb6a98a642164d21",
+      "hash": "0b0461cc0c9acd5d6c60165ef2f811e4cd29b8cd5ed59e65510616d6a19ec6bb"
     },
     {
       "id": "triage-incident:7",
       "index": 7,
       "type": "model_output",
-      "timestamp": 1790707335395,
+      "timestamp": 1790672704550,
       "payload": {
         "type": "tool_calls",
         "calls": [
@@ -376,14 +376,14 @@
         ],
         "text": "Coolant is at 91 °C, below the 110 °C threshold for P0217, so this looks like a sensor or circuit fault rather than real overheating. Checking recent service work."
       },
-      "prevHash": "ce3dad05f0ca524d24e02920f3a1a9b09a0d00451897800acc60afaa3440b78a",
-      "hash": "c02b670c333f8ea6d7fd63ee8ca025edda74204f9acc5ce5838b3f63f9f0929f"
+      "prevHash": "0b0461cc0c9acd5d6c60165ef2f811e4cd29b8cd5ed59e65510616d6a19ec6bb",
+      "hash": "198b3de1805788f67d8b6ce8df1b474cbcb4921f7252e46e43fb14911d4bbd6a"
     },
     {
       "id": "triage-incident:8",
       "index": 8,
       "type": "tool_call",
-      "timestamp": 1790707335396,
+      "timestamp": 1790672705600,
       "payload": {
         "toolCallId": "call-2",
         "toolName": "get_service_history",
@@ -391,14 +391,14 @@
           "vehicle_id": "VAN-14"
         }
       },
-      "prevHash": "c02b670c333f8ea6d7fd63ee8ca025edda74204f9acc5ce5838b3f63f9f0929f",
-      "hash": "9b6c0deb155459add018e62564e381c8ab59eb263868a173b990811706d2d867"
+      "prevHash": "198b3de1805788f67d8b6ce8df1b474cbcb4921f7252e46e43fb14911d4bbd6a",
+      "hash": "28927183d8015443cd1bfbf7c2f21368ec7a6386bb280f1b35a160840bec8df2"
     },
     {
       "id": "triage-incident:9",
       "index": 9,
       "type": "tool_result",
-      "timestamp": 1790707335396,
+      "timestamp": 1790672705950,
       "payload": {
         "toolCallId": "call-2",
         "toolName": "get_service_history",
@@ -411,14 +411,14 @@
           ]
         }
       },
-      "prevHash": "9b6c0deb155459add018e62564e381c8ab59eb263868a173b990811706d2d867",
-      "hash": "c79e0ecb075fe23aec15ede23e5cbb192fe6bc65038b03da3948e94b79a4ef49"
+      "prevHash": "28927183d8015443cd1bfbf7c2f21368ec7a6386bb280f1b35a160840bec8df2",
+      "hash": "0d3098d2a75c9f8b70c616637de60cc0ca8f1133cb61df1d593204dae83f4fa1"
     },
     {
       "id": "triage-incident:10",
       "index": 10,
       "type": "model_input",
-      "timestamp": 1790707335396,
+      "timestamp": 1790672706650,
       "payload": {
         "messages": [
           {
@@ -577,14 +577,14 @@
           "maxTokens": 800
         }
       },
-      "prevHash": "c79e0ecb075fe23aec15ede23e5cbb192fe6bc65038b03da3948e94b79a4ef49",
-      "hash": "3eb51da3f58ac4348c6c089407575350ba73f668e357c785b57ec3340bf1d9d2"
+      "prevHash": "0d3098d2a75c9f8b70c616637de60cc0ca8f1133cb61df1d593204dae83f4fa1",
+      "hash": "d3ce01c5bc068a659e84f0c7805daf8cef93aab444b8fe159edb3b30ad780c8e"
     },
     {
       "id": "triage-incident:11",
       "index": 11,
       "type": "model_output",
-      "timestamp": 1790707335397,
+      "timestamp": 1790672707000,
       "payload": {
         "type": "tool_calls",
         "calls": [
@@ -599,14 +599,14 @@
           }
         ]
       },
-      "prevHash": "3eb51da3f58ac4348c6c089407575350ba73f668e357c785b57ec3340bf1d9d2",
-      "hash": "e3fb96485bd40758e35a9e043e92d679cbfc58b7ac045c1dcfd36973e3a0a25c"
+      "prevHash": "d3ce01c5bc068a659e84f0c7805daf8cef93aab444b8fe159edb3b30ad780c8e",
+      "hash": "7e07842839a2e0c773b8b17357bfeff44f5158907002fdf9d7d994dc10172c23"
     },
     {
       "id": "triage-incident:12",
       "index": 12,
       "type": "tool_call",
-      "timestamp": 1790707335398,
+      "timestamp": 1790672708050,
       "payload": {
         "toolCallId": "call-3",
         "toolName": "open_work_order",
@@ -616,14 +616,14 @@
           "action": "Inspect the coolant temperature sensor and its wiring; the thermostat was replaced on 2026-08-02, so check its fitment. The van can stay in service until then."
         }
       },
-      "prevHash": "e3fb96485bd40758e35a9e043e92d679cbfc58b7ac045c1dcfd36973e3a0a25c",
-      "hash": "1c0b1b43330474f7501c89fd86c4048d60368718297090a54c9191e250bfb5cb"
+      "prevHash": "7e07842839a2e0c773b8b17357bfeff44f5158907002fdf9d7d994dc10172c23",
+      "hash": "2978903e3d3bad7a6906c9ede7724079b02a5d7a9347829f17c46c380ab94b30"
     },
     {
       "id": "triage-incident:13",
       "index": 13,
       "type": "tool_result",
-      "timestamp": 1790707335399,
+      "timestamp": 1790672708400,
       "payload": {
         "toolCallId": "call-3",
         "toolName": "open_work_order",
@@ -634,14 +634,14 @@
           "status": "open"
         }
       },
-      "prevHash": "1c0b1b43330474f7501c89fd86c4048d60368718297090a54c9191e250bfb5cb",
-      "hash": "f5ee30f8f7c3b7811023c0ea8abaf76fd9db45dffc2f15b4b2639b70e8e0583d"
+      "prevHash": "2978903e3d3bad7a6906c9ede7724079b02a5d7a9347829f17c46c380ab94b30",
+      "hash": "f8660cf58aa800da2d1e08b5d796a64b905a0e3ff5d095448696edaae33f0799"
     },
     {
       "id": "triage-incident:14",
       "index": 14,
       "type": "model_input",
-      "timestamp": 1790707335400,
+      "timestamp": 1790672709100,
       "payload": {
         "messages": [
           {
@@ -826,33 +826,33 @@
           "maxTokens": 800
         }
       },
-      "prevHash": "f5ee30f8f7c3b7811023c0ea8abaf76fd9db45dffc2f15b4b2639b70e8e0583d",
-      "hash": "84c1008b9a4882e0fdc4df860d36cb81cc731029bd5339724659b9f581e81edb"
+      "prevHash": "f8660cf58aa800da2d1e08b5d796a64b905a0e3ff5d095448696edaae33f0799",
+      "hash": "34da5923b6c231a0e78e05d0f513cdf65b3e59339709ee00b3f62200fdafaaa4"
     },
     {
       "id": "triage-incident:15",
       "index": 15,
       "type": "model_output",
-      "timestamp": 1790707335401,
+      "timestamp": 1790672709450,
       "payload": {
         "type": "final_answer",
         "text": "Routine: I opened work order WO-9610DE for VAN-14's next scheduled service. Coolant is normal at 91 °C, so P0217 most likely comes from the temperature sensor or its wiring, and the van can stay in service."
       },
-      "prevHash": "84c1008b9a4882e0fdc4df860d36cb81cc731029bd5339724659b9f581e81edb",
-      "hash": "cf99adbf58e1ab9c017cf7de0f3a21e8441612787daf60ebff27a8b6c84bac6a"
+      "prevHash": "34da5923b6c231a0e78e05d0f513cdf65b3e59339709ee00b3f62200fdafaaa4",
+      "hash": "303b58bd8fbbbf840bb9a5e2a60bc96ffdf03c356301c93cbc7d960900729160"
     },
     {
       "id": "triage-incident:16",
       "index": 16,
       "type": "metadata",
-      "timestamp": 1790707335402,
+      "timestamp": 1790672710500,
       "payload": {
         "event": "run_completed",
         "status": "success",
         "result": "Routine: I opened work order WO-9610DE for VAN-14's next scheduled service. Coolant is normal at 91 °C, so P0217 most likely comes from the temperature sensor or its wiring, and the van can stay in service."
       },
-      "prevHash": "cf99adbf58e1ab9c017cf7de0f3a21e8441612787daf60ebff27a8b6c84bac6a",
-      "hash": "522c5adefe634ab674286a517695d3cad0ba8265dfde709fb2e69477d82e90f6"
+      "prevHash": "303b58bd8fbbbf840bb9a5e2a60bc96ffdf03c356301c93cbc7d960900729160",
+      "hash": "f596cf35ebedaf6d9e6cc2724125ee8b273eaad1035c83839b7cc8cd128a9f1f"
     }
   ]
 }
