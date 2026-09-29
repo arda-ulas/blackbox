@@ -10,6 +10,9 @@ Core value: **active debugging** — not passive observability.
 record -> replay -> fork -> mutate -> continue -> diff
 ```
 
+Since 0.2 it records **the user's own agent** through the official Anthropic / OpenAI Node SDK `fetch` option
+(`src/session/`, `src/integrations/`), and ships as the npm package `@ardaulas/blackbox`.
+
 The local TypeScript CLI core comes before any UI, backend, or platform work. Do not conflate Blackbox with a generic observability dashboard, LLM monitoring platform, or hosted service.
 
 ---
@@ -21,15 +24,15 @@ Do not build any of the following unless the current milestone explicitly plans 
 - Web UI, dashboard, React components, design polish
 - Hosted backend, remote cassette storage, auth, sharing
 - LangChain, LlamaIndex, MCP proxy, agent frameworks, prompt platforms
-- Metrics charts, OTEL export, semantic diff, chaos fork
+- Metrics charts, OTEL export, chaos fork
 - Multi-agent orchestration, production SDK, timeline UI, branch graph
 
 **Invariants that apply to every milestone:**
 
-- **Fake deterministic model/tools remain default.** Fake, offline, deterministic model clients and `defaultFixtureTools()` are the default in all tests and CLI commands unless a milestone explicitly changes that: `FakeDeterministicModelClient` (scripted) on record/scripted paths, and `ReactiveDemoModelClient` (reactive, transcript-reading) on the fork/`check` continuation path (W7-A). Both are fake/offline with zero live calls and require no API key.
-- **Replay must never call the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`; it cannot inject live behavior by construction. This must remain true.
+- **Blackbox never makes a provider call of its own.** It never constructs a provider client. Live calls happen only in the user's agent, through the user's own client, under `blackbox record` or `blackbox fork --live`. The built-in demo commands (`demo`, `check`, `fork` without a command) use the fake deterministic clients (`FakeDeterministicModelClient`, `ReactiveDemoModelClient`) and `defaultFixtureTools()`, with zero live calls and no API key.
+- **Replay must never call the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`. Session replay (`blackbox replay -- <command>`) answers every intercepted model call from the cassette and never runs a wrapped tool; its base fetch refuses all network access. The analysis seam (`src/replay`, `src/trace`, diff, assert) must not import execution-side code; `tests/importBoundary.test.ts` enforces this.
 - **API keys must never be logged, recorded, or stored in traces.** No key, token, or credential may appear in `TraceStep.payload`, trace metadata, log output, or any file written to disk.
-- **Raw provider/SDK objects must never enter trace payloads.** Adapters catch SDK errors and normalize them to `ModelCallError` before re-throwing. Provider-native fields (`tool_use_id`, `usage`, `message.id`, etc.) must not appear in `ModelOutput` or `TraceStep.payload`.
+- **Raw provider/SDK objects must never enter trace payloads.** The integrations translate wire JSON field by field into neutral payloads; provider-native ids are mapped to `call-N`. Provider-native fields (`tool_use_id`, `usage`, `message.id`, etc.) must not appear in `TraceStep.payload` structure. The user's own tool data is exempt from provider-id checks but not from credential checks (see docs/trace-format.md).
 
 ---
 
@@ -51,10 +54,10 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ## Test Rule
 
-- **No live provider calls in the default test suite.** `npm test -- --run` must pass with zero real provider calls and no API key present.
-- **Provider integrations must use mocked/injected clients by default.** Adapters must accept an optional `client` injection parameter so tests can supply a fake without reading env vars.
-- **Live smoke tests are explicit opt-in and skipped by default.** Guard with `describe.skipIf(!process.env.ANTHROPIC_API_KEY)(...)` or equivalent. Live tests belong in a separate proof script, not in `npm test`.
-- **Existing `npm test` and CLI demo commands must keep passing** after every commit. Verify: `npm test -- --run`, `npm run cli -- record`, `npm run cli -- replay`, `npm run cli -- fork`.
+- **No live provider calls in the default test suite.** `npm test` must pass with zero real provider calls and no API key present.
+- **Provider integrations are tested through the real SDKs with an injected fake upstream** (`baseFetch`), so SDK request/response drift fails a test without any network.
+- **Live proofs are explicit opt-in and run by hand:** `npm run proof:anthropic` / `npm run proof:openai` (`scripts/live-proof.sh`). Never from `npm test` or CI.
+- **Every commit keeps these passing:** `npm run typecheck`, `npm test`, `npm run cli -- check`; before a release also `npm run build`, `node scripts/pack-smoke.mjs` and `npm run docs:build`.
 
 ---
 
@@ -73,27 +76,26 @@ This rule exists because missed assumptions at SDK boundaries produce bugs that 
 
 ## Current State
 
-**W14-A (npm packaging-readiness proof) is complete and tagged (`week-fourteen-package-readiness`).** All prior
-numbered milestones are closed and tagged; the full tag record is in the README "Release history" table, and the
-detailed build log is `docs/08_build_log.md`.
+**0.2.0: the first release you can point at your own agent.** Record / replay / fork of a user's Anthropic
+(`messages.create`) or OpenAI (`chat.completions.create`) agent through the SDK `fetch` option, a CLI launcher
+(`blackbox record|replay|fork ... -- <command>`), `blackbox import` for Claude Code sessions, compiled package with
+no runtime dependencies, docs site on GitHub Pages (VitePress, `docs/`). 691 tests, fully offline.
 
-- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`, plus the `assert` CI utility
-  and the `adaptForeignTranscript` ingest adapter (both outside the loop).
-- **Tests:** 583/583 passing, fully offline, zero live calls, no API key.
-- **Packaging:** Blackbox installs and runs as a local-tarball `blackbox` CLI (`npm pack` → install the `.tgz` →
-  `npx blackbox check`, byte-identical offline). It is **not** npm-published; `"private": true` is retained as the
-  structural publish guard, and publishing is a separate, explicit go/no-go — never an automatic follow-on.
+- The cassette schema is still version 2; the `tool_calls` model-output shape and the `model` / `params` fields on
+  model inputs are additive.
+- Release history is in `CHANGELOG.md`; the milestone plans and build log from the 0.1 engine work are in
+  `docs/history/` (not maintained).
+- Roadmap (not started): streaming, the OpenAI Responses API, a GitHub Action for `assert`, a static HTML diff
+  viewer, OpenTelemetry GenAI import, Vercel AI SDK and OpenAI Agents SDK integrations.
 
-Any milestone beyond W14-A is planned and Codex-audited before implementation. Do not start new product-surface work
-until it is scoped in a plan and audited. The durable guardrails above (Build Scope, Test Rule, invariants) hold on
-every milestone unless a future plan explicitly changes them.
+New product-surface work is planned and Codex-audited before implementation.
 
 ---
 
 ## Commit Hygiene
 
 - Every commit message must accurately reflect what changed (not what was intended).
-- Include `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` on Claude Code commits.
+- No AI attribution trailers (`Co-Authored-By: …`) on commits and no "Generated with" lines in PR descriptions. Product copy carries no AI disclosure.
 - Do not amend published commits. Create new commits to fix issues.
 - Do not skip pre-commit hooks (`--no-verify`).
 

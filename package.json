@@ -62,7 +62,11 @@
     "example:real-tooluse-proof": "tsx src/examples/realToolUseProof.ts",
     "example:real-fork-proof": "tsx src/examples/realForkProof.ts",
     "proof:anthropic": "npm run build && scripts/live-proof.sh anthropic",
-    "proof:openai": "npm run build && scripts/live-proof.sh openai"
+    "proof:openai": "npm run build && scripts/live-proof.sh openai",
+    "docs:cli": "tsx scripts/cliReference.ts",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "tsx scripts/cliReference.ts --check && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
@@ -70,6 +74,7 @@
     "openai": "^7.23.0",
     "tsx": "^4.23.0",
     "typescript": "~6.0.2",
+    "vitepress": "^1.6.4",
     "vitest": "^5.0.2"
   }
 }

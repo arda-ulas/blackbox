@@ -8,62 +8,39 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**W14-A (npm packaging-readiness proof) is complete and tagged (`week-fourteen-package-readiness`).** The engine
-scope is finished: the full loop was built and hardened across the numbered, tagged milestones, frozen against a committed
-regression corpus, made reviewer- and public-ready, extended with the `assert` CI utility and the
-`adaptForeignTranscript` ingest adapter, proven to fork/diff a foreign-origin cassette under unchanged semantics, and
-finally packaged as a local-tarball `blackbox` CLI. The per-milestone detail lives in the README "Release history" table
-and `docs/08_build_log.md`; the durable state is below.
+**0.2.0 is the first release you can point at your own agent** (planned in the career-os product brief of
+2026-09-29; the engine milestones before it are closed and tagged, `week-one-cli-proof` … `week-fourteen-package-readiness`,
+with their plans in `docs/history/`).
 
-- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check` (plus the `assert` CI utility and the `adaptForeignTranscript` ingest adapter, both outside the loop)
-- **Tests:** 583/583 passing, fully offline, zero live calls.
-- **Closed tags:**
-  - `week-one-cli-proof`
-  - `week-two-core-hardening`
-  - `week-three-cli-packaging`
-  - `week-four-anthropic-adapter-spike`
-  - `week-four-adapter-boundary`
-  - `week-four-structured-transcript-migration`
-  - `week-four-real-fork-proof`
-  - `week-four-cassette-verification`
-  - `week-four-fork-verify-workflow` (W4-G)
-  - `week-five-trace-fixture-corpus` (W5-A)
-  - `week-five-public-demo-readiness` (W5-B)
-  - `week-six-diff-inspect-ergonomics` (W6-A)
-  - `week-six-verify-replay-explanations` (W6-B)
-  - `week-six-release-freeze` (W6-C)
-  - `week-seven-reactive-fake-model` (W7-A)
-  - `week-seven-behavioral-outcome-diff` (W7-B)
-  - `week-eight-terminal-polish` (W8-A)
-  - `week-eight-readme-hero` (W8-B)
-  - `week-nine-cassette-assert` (W9-A)
-  - `week-nine-public-readiness` (W9-B public-readiness release tag)
-  - `week-ten-foreign-transcript-adapter` (W10-A)
-  - `week-eleven-foreign-fork-proof` (W11-A)
-  - `week-twelve-reviewer-demo-path` (W12-A)
-  - `week-thirteen-worked-case-study` (W13-A)
-  - `week-fourteen-package-readiness` (W14-A)
-- **Packaging:** installs and runs as a local-tarball `blackbox` CLI, verified offline; **not** npm-published
-  (`"private": true` retained; publishing is a separate, explicit go/no-go).
+- **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`, plus `assert` for CI and
+  `import` for Claude Code sessions / chat JSON.
+- **Your own agent:** `blackbox()` session (`src/session/`) plugged into the official Anthropic / OpenAI Node SDK
+  through its `fetch` option; wrapped tools via `bb.tools({...})`; CLI launcher `blackbox record|replay|fork ... -- <command>`.
+- **Tests:** 691 passing, fully offline, zero live calls, no API key.
+- **Packaging:** `@ardaulas/blackbox` 0.2.0, compiled to `dist/`, no runtime dependencies, Node 22+. `npm publish`
+  is run by the owner (credentials never handled by an agent).
+- **Docs:** VitePress site from `docs/` (history excluded), deployed to GitHub Pages by `.github/workflows/docs.yml`.
 
 ## Hard Guardrails
 
-These hold on every milestone unless a future milestone is explicitly scoped to change them:
+These hold on every release unless a plan explicitly scoped and audited changes them:
 
-- **No UI / backend / dashboard.** No web UI, React, hosted backend, remote storage, auth, sharing, or observability platform.
-- **No Anthropic CLI wiring.** Live provider calls are opt-in, proof-script only — run manually by the human, never from the default CLI or tests.
-- **No live tests in `npm test`.** The default suite passes with zero real provider calls and no API key present.
-- **No new provider adapter unless explicitly scoped** in a planned milestone.
-- **Default CLI and `npm test` are fake/offline.** Fake/offline deterministic model clients + `defaultFixtureTools()` are the default everywhere: `FakeDeterministicModelClient` (scripted) for record/scripted paths and `ReactiveDemoModelClient` (reactive fork/`check` continuation) — both zero live calls, no key.
-- **Replay never calls the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`.
-- **`traces/` is git-ignored; no traces are committed.**
+- **No UI / backend / dashboard.** No web UI, hosted backend, remote storage, auth, sharing, or observability platform.
+- **Blackbox never makes a provider call of its own.** It never constructs a provider client. Live calls happen only in
+  the user's agent, through the user's client, under `blackbox record` or `blackbox fork --live`.
+- **No live tests in `npm test` or CI.** Live proofs (`npm run proof:anthropic|openai`) are run by hand.
+- **Replay never calls the model, provider, or tools.** `replayTrace(trace)` takes only a `Trace`; session replay
+  answers from the cassette and never runs wrapped tools. The analysis seam's imports are checked by
+  `tests/importBoundary.test.ts`.
+- **`traces/` is git-ignored; no user traces are committed** (the committed fixtures live in `fixtures/`).
 - **API keys / raw provider objects never enter traces, logs, or disk** (see `AGENTS.md` invariants).
+- **No AI attribution** in commits (no `Co-Authored-By` trailers), PR descriptions, or product copy.
 
 ## Agent Workflow
 
 - **Claude Code (Sonnet/Opus):** patches docs, plans, or small implementation slices — only when prompted, and only within the current scope.
 - **Codex:** repo-aware audit before any push or tag, and before risky transitions.
-- **Sequencing:** every numbered milestone through W14-A (npm packaging-readiness proof, `docs/35_week_fourteen_a_plan.md`) is closed and tagged. The engine scope is finished; the npm publish remains a separate, explicit go/no-go (`"private": true` retained until then). Any further product-surface work is planned and Codex-audited before implementation.
+- **Sequencing:** plan → Codex audit of the plan → implement in commit-sized slices with tests → Codex audit of the diff → release. The npm publish itself is the owner's step.
 
 ## Core Loop
 
@@ -80,11 +57,9 @@ These hold on every milestone unless a future milestone is explicitly scoped to 
 
 ## Next Safest Task
 
-The engine is scope-complete and packaged. The default next action is **presentation / portfolio packaging** — making
-the public repo, README, DEMO, and docs read cleanly for a cold reviewer — **not** more engine work. Do not add new
-engine features, a dashboard/UI/backend/observability surface, or a LangChain/LangGraph/MCP integration unless it is
-first scoped in a plan and Codex-audited. The npm publish stays a separate, explicit go/no-go (`"private": true`
-retained until then).
+After 0.2.0 ships, the roadmap in `CHANGELOG.md` ("Planned") is the order of work: streaming support first, then the
+OpenAI Responses API, then a GitHub Action that runs `blackbox assert`. Each starts as a scoped plan that Codex
+audits before implementation. Do not add a dashboard, hosted service, or framework integration without such a plan.
 
 ## Response Format
 

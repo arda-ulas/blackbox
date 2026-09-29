@@ -1,0 +1,30 @@
+---
+layout: home
+hero:
+  name: Blackbox
+  text: Time-travel debugger for AI agents
+  tagline: Record a run of your own Anthropic or OpenAI agent. Replay it offline, fork it with one tool result changed, and diff to the first step where the runs part.
+  actions:
+    - theme: brand
+      text: Quickstart
+      link: /quickstart
+    - theme: alt
+      text: How it works
+      link: /concepts
+    - theme: alt
+      text: GitHub
+      link: https://github.com/arda-ulas/blackbox
+features:
+  - title: Record your own agent
+    details: "Pass bb.fetch to the official SDK client and wrap your tools. Model calls and tool results go into a hash-chained JSON cassette."
+  - title: Replay with no network
+    details: "Your real code runs again against the cassette. Requests are checked field by field, and the first difference is named. No API key needed."
+  - title: Fork and diff
+    details: "Hand the agent a different tool result at any recorded step, continue live or from scripted replies, and see the first divergence and the new answer."
+  - title: Pin it in CI
+    details: "blackbox assert and blackbox replay turn a committed cassette into an offline regression test."
+---
+
+<img src="/hero.svg" alt="blackbox diff output: first divergence at step 3 and the two final answers" style="margin-top: 2rem; border-radius: 12px;" />
+
+_Blackbox is unrelated to Blackbox AI, the coding assistant._

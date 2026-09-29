@@ -232,7 +232,7 @@ async function main(argv: string[]): Promise<void> {
     for (const d of drift) console.error(`  - ${d}`);
     console.error(
       "\nIf this change is deliberate, regenerate with `npm run fixtures:generate -- --write` " +
-        "and update the frozen hashes in tests/fixtures.test.ts (see docs/20_week_five_a_plan.md §7).",
+        "and update the frozen hashes in tests/fixtures.test.ts (see docs/history/20_week_five_a_plan.md §7).",
     );
     process.exit(1);
   }
