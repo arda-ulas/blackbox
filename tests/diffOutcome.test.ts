@@ -140,6 +140,19 @@ describe("formatOutcomeDiff", () => {
     expect(same).toContain("Outcome:");
     expect(same).not.toContain("parent tools:");
   });
+
+  it("shows both answers (or failure reasons) when they changed under the same status", () => {
+    const answers = formatOutcomeDiff(diffOutcome(succeeded("Booked."), succeeded("No rooms.")));
+    expect(answers).toContain("  parent answer: Booked.");
+    expect(answers).toContain("  child answer:  No rooms.");
+
+    const reasons = formatOutcomeDiff(diffOutcome(failed("timeout"), failed("unknown_tool")));
+    expect(reasons).toContain("  parent reason: timeout");
+
+    const flipped = formatOutcomeDiff(diffOutcome(succeeded("Booked."), failed("timeout")));
+    expect(flipped).not.toContain("answer:");
+    expect(formatOutcomeDiff(diffOutcome(succeeded("Same."), succeeded("Same.")))).not.toContain("answer:");
+  });
 });
 
 // ---------------------------------------------------------------------------

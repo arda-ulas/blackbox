@@ -36,6 +36,9 @@ export interface OutcomeDiff {
   toolSequenceChanged: boolean;
   parentTools: string[];
   childTools: string[];
+  /** Terminal result strings (final answer, or failure reason for an error run). */
+  parentResult?: string;
+  childResult?: string;
   /** True only when status, terminal result, AND tool sequence all match. */
   behaviorallyEquivalent: boolean;
   /** One-line human verdict (see the precedence in diffOutcome). */
@@ -95,7 +98,7 @@ export function diffOutcome(parentTrace: Trace, childTrace: Trace): OutcomeDiff 
     verdict = "no behavioral change: the divergence did not alter the run outcome";
   }
 
-  return {
+  const diff: OutcomeDiff = {
     parentStatus: parent.status,
     childStatus: child.status,
     statusChanged,
@@ -106,6 +109,11 @@ export function diffOutcome(parentTrace: Trace, childTrace: Trace): OutcomeDiff 
     behaviorallyEquivalent,
     verdict,
   };
+  const parentResult = terminalResult(parent);
+  const childResult = terminalResult(child);
+  if (parentResult !== undefined) diff.parentResult = parentResult;
+  if (childResult !== undefined) diff.childResult = childResult;
+  return diff;
 }
 
 /** Render a tool sequence for the diff readout (empty → "(none)"). */
@@ -114,11 +122,17 @@ function renderTools(tools: string[]): string {
 }
 
 /**
- * Render the one-line `Outcome:` verdict, followed by the two tool sequences
- * only when they differ. Provider-neutral text.
+ * Render the one-line `Outcome:` verdict, followed by the two final answers (or
+ * failure reasons) when they changed under the same status, and the two tool
+ * sequences when they differ. Provider-neutral text.
  */
 export function formatOutcomeDiff(outcome: OutcomeDiff): string {
   const lines = [`Outcome:        ${outcome.verdict}`];
+  if (!outcome.statusChanged && outcome.finalAnswerChanged) {
+    const label = outcome.parentStatus === "error" ? "reason" : "answer";
+    lines.push(`  parent ${label}: ${outcome.parentResult ?? "(none)"}`);
+    lines.push(`  child ${label}:  ${outcome.childResult ?? "(none)"}`);
+  }
   if (outcome.toolSequenceChanged) {
     lines.push(`  parent tools:  ${renderTools(outcome.parentTools)}`);
     lines.push(`  child tools:   ${renderTools(outcome.childTools)}`);
