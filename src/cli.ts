@@ -21,6 +21,7 @@ import { forkRun } from "./fork/forkRun.ts";
 import { formatDiffReport } from "./fork/diffTraces.ts";
 import { verifyTrace, verifyTraceFile, type VerifyReport } from "./trace/verifyTrace.ts";
 import { toolCallSequence } from "./trace/traceOutcome.ts";
+import { describeStep } from "./trace/stepLabels.ts";
 import { adaptClaudeCodeTranscript, parseClaudeCodeJsonl } from "./ingest/claudeCodeTranscript.ts";
 import { adaptForeignTranscript } from "./ingest/foreignTranscript.ts";
 import { formatVerifyFailure } from "./trace/verifyExplain.ts";
@@ -813,8 +814,8 @@ async function runList(flags: Record<string, string | boolean>): Promise<void> {
 // inspect
 // ---------------------------------------------------------------------------
 
-const INSPECT_ALLOWED     = ["trace"];
-const INSPECT_VALUE_FLAGS = ["trace"];
+const INSPECT_ALLOWED     = ["trace", "step"];
+const INSPECT_VALUE_FLAGS = ["trace", "step"];
 
 async function runInspect(flags: Record<string, string | boolean>): Promise<void> {
   checkUnknownFlags(flags, INSPECT_ALLOWED);
@@ -824,6 +825,21 @@ async function runInspect(flags: Record<string, string | boolean>): Promise<void
 
   const trace   = await loadTrace(tracePath);
   validateTrace(trace);
+
+  if (flags["step"] !== undefined) {
+    const index = parseIntFlag(flags, "step", -1);
+    const step = trace.steps[index];
+    if (step === undefined) die(`--step ${index} is past the end of the cassette (${trace.steps.length} steps: 0–${trace.steps.length - 1})`);
+    console.log(`${header("inspect", colorOn)}  ${c.dim(`${tracePath} · step ${index}`)}\n`);
+    console.log(kv("Type:",    step.type, colorOn));
+    console.log(kv("Summary:", describeStep(step), colorOn));
+    console.log(kv("Hash:",    step.hash, colorOn));
+    console.log(kv("Time:",    new Date(step.timestamp).toISOString(), colorOn));
+    console.log();
+    console.log(JSON.stringify(step.payload, null, 2));
+    return;
+  }
+
   const summary = replayTrace(trace);
 
   const W = 20; // inspect uses a wider label column for its longer labels

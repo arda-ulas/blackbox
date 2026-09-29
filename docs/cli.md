@@ -131,18 +131,20 @@ blackbox assert runs/weather.json --expect-status success --expect-tools weather
 
 ### `inspect`
 
-Show a cassette's metadata and step timeline.
+Show a cassette's metadata and step timeline, or one step in full.
 
 ```text
-blackbox inspect <cassette.json>
+blackbox inspect <cassette.json> [--step N]
 ```
 
 | Flag | Meaning |
 |---|---|
+| `--step <N>` | Print step N in full: its type, hash, time and complete payload |
 | `--trace <path>` | The cassette, instead of the positional argument |
 
 ```bash
 blackbox inspect runs/weather.json
+blackbox inspect runs/weather.json --step 3
 ```
 
 ### `list`

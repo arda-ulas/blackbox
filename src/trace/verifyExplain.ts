@@ -28,7 +28,7 @@ export function suggestedAction(name: VerifyInvariantName): string {
     case "schema_version":
       return (
         "The cassette is missing a version, unsupported, malformed, or unreadable. " +
-        "Older cassettes are not migrated — re-record with `npm run cli -- record`."
+        "Older cassettes are not migrated — re-record the run (`blackbox record --out <file> -- <command>`)."
       );
     case "hash_chain":
       return (

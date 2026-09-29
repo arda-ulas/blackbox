@@ -121,10 +121,13 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "inspect",
     group: "Cassettes",
-    summary: "Show a cassette's metadata and step timeline",
-    usage: ["blackbox inspect <cassette.json>"],
-    flags: [["--trace <path>", "The cassette, instead of the positional argument"]],
-    examples: ["blackbox inspect runs/weather.json"],
+    summary: "Show a cassette's metadata and step timeline, or one step in full",
+    usage: ["blackbox inspect <cassette.json> [--step N]"],
+    flags: [
+      ["--step <N>", "Print step N in full: its type, hash, time and complete payload"],
+      ["--trace <path>", "The cassette, instead of the positional argument"],
+    ],
+    examples: ["blackbox inspect runs/weather.json", "blackbox inspect runs/weather.json --step 3"],
   },
   {
     name: "list",
@@ -192,9 +195,9 @@ export function commandHelp(spec: CommandSpec): string {
 
 export function mainHelp(version: string): string {
   const lines = [
-    `Blackbox ${version}: a flight recorder for AI agents.`,
+    `Blackbox ${version}: a time-travel debugger for AI agents.`,
     "Record your agent's run to a hash-chained cassette, replay it offline, fork it with one",
-    "fact changed, and diff to the first step where behavior diverged.",
+    "tool result changed, and diff to the first step where the runs part.",
     "",
     "Usage: blackbox <command> [flags]",
   ];

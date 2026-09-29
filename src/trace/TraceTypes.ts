@@ -79,7 +79,7 @@ export interface TraceStepHashInput {
  * transcript parts (MessagePart) carrying a deterministic `toolCallId`, and the
  * tool_call/tool_result step payloads carry that id. v1 cassettes used the
  * legacy `[tool_call:<name>]` / `JSON.stringify(result)` string encoding and are
- * no longer loadable; re-record them with `npm run cli -- record`.
+ * no longer loadable; re-record the run.
  */
 export const CURRENT_TRACE_VERSION = 2;
 
