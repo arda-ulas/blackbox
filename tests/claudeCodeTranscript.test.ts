@@ -253,6 +253,18 @@ describe("adaptClaudeCodeTranscript", () => {
     expect(replayTrace(trace).status).toBe("incomplete");
   });
 
+  it("imports a subagent's own transcript, where every line is a sidechain", () => {
+    const source = oneToolTranscript().map((line) =>
+      (line as { type?: string }).type === "user" || (line as { type?: string }).type === "assistant"
+        ? { ...(line as object), isSidechain: true, agentId: "agent-1" }
+        : line,
+    );
+    const trace = adaptClaudeCodeTranscript(source, { traceId: "subagent" });
+    expect(toolCallSequence(trace)).toEqual(["Read"]);
+    expect(replayTrace(trace)).toMatchObject({ status: "success", result: "Fixed the bug and the tests pass." });
+    expect(verifyTrace(trace).pass).toBe(true);
+  });
+
   it("skips sidechain (subagent) lines entirely", () => {
     const source = oneToolTranscript();
     source.splice(5, 0,

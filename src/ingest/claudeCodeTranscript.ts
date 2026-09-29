@@ -22,8 +22,10 @@
 //
 // The run is `run_completed` when its last model turn is a final answer and
 // incomplete otherwise. Provider ids, model/usage/stop metadata and thinking
-// blocks are dropped. Sidechain (subagent) lines are skipped: the subagent's
-// work reaches the root session only through its tool result.
+// blocks are dropped. Sidechain (subagent) lines in a main session are
+// skipped: the subagent's work reaches the root session only through its tool
+// result. A subagent's own transcript file (every line a sidechain) imports
+// as a session of its own.
 
 import { type Message, type MessagePart, type ToolDefinition } from "../agent/modelClient.ts";
 import { type ToolCallRef } from "../trace/payloads.ts";
@@ -148,6 +150,15 @@ function sourceLines(input: unknown): SourceLine[] {
     throw new ClaudeCodeTranscriptError("Claude Code transcript must be a non-empty event array");
   }
 
+  // A subagent's own transcript (Claude Code saves them as
+  // <session>/subagents/agent-*.jsonl) marks every message as a sidechain; in
+  // that file the sidechain IS the session. In a main session file, sidechain
+  // lines are a subagent's work and are skipped.
+  const messageEvents = input.filter(
+    (event): event is Record<string, unknown> => isRecord(event) && (event["type"] === "user" || event["type"] === "assistant"),
+  );
+  const subagentTranscript = messageEvents.length > 0 && messageEvents.every((event) => event["isSidechain"] === true);
+
   const lines: SourceLine[] = [];
   for (let sourceIndex = 0; sourceIndex < input.length; sourceIndex++) {
     const event = input[sourceIndex];
@@ -155,7 +166,7 @@ function sourceLines(input: unknown): SourceLine[] {
       throw new ClaudeCodeTranscriptError(`events[${sourceIndex}] must be an object`);
     }
     if (event["type"] !== "user" && event["type"] !== "assistant") continue;
-    if (event["isSidechain"] === true) continue;
+    if (event["isSidechain"] === true && !subagentTranscript) continue;
     const message = event["message"];
     if (!isRecord(message)) {
       throw new ClaudeCodeTranscriptError(`events[${sourceIndex}].message must be an object`);
