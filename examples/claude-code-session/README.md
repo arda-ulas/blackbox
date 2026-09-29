@@ -1,7 +1,7 @@
 # Claude Code session example
 
 `session.jsonl` is a real Claude Code session: a subagent that added a regression test to this repository (commit
-`46f091b`). It was scrubbed before publishing: absolute paths became repo-relative, and the model's private thinking
+`46f091b`). It was scrubbed before publishing: absolute paths became repo-relative, provider ids became placeholders, session metadata was dropped, and the model's private thinking
 and the harness's context messages were removed.
 
 ```bash

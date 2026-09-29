@@ -220,16 +220,26 @@ describe("Claude Code session example", () => {
     expect(trace.steps[24]).toMatchObject({ type: "tool_call", payload: { toolName: "Edit" } });
   });
 
-  it("is scrubbed: no absolute paths, identities, thinking, or harness context", () => {
+  it("is scrubbed: no absolute paths, identities, provider ids, thinking, or harness context", () => {
     const events = raw.trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
+    const uuids = new Set(events.map((event) => event["uuid"]));
     for (const event of events) {
       expect(["user", "assistant"]).toContain(event["type"]);
-      expect(Object.keys(event).sort()).toEqual(
-        ["isSidechain", "message", "parentUuid", "timestamp", "type", "uuid"].filter((key) => key in event).sort(),
-      );
-      expect(event["isMeta"]).toBeUndefined();
+      expect(Object.keys(event).sort()).toEqual(["isSidechain", "message", "parentUuid", "timestamp", "type", "uuid"]);
+      const parent = event["parentUuid"];
+      if (parent !== null) expect(uuids.has(parent), `dangling parentUuid ${String(parent)}`).toBe(true);
+      const message = event["message"] as Record<string, unknown>;
+      for (const key of Object.keys(message)) expect(["role", "content", "id", "stop_reason"]).toContain(key);
+      if (message["id"] !== undefined) expect(message["id"]).toMatch(/^msg_example_\d+$/);
+      if (Array.isArray(message["content"])) {
+        for (const block of message["content"] as Array<Record<string, unknown>>) {
+          expect(["text", "tool_use", "tool_result"]).toContain(block["type"]);
+          if (block["type"] === "tool_use") expect(block["id"]).toMatch(/^toolu_example_\d+$/);
+          if (block["type"] === "tool_result") expect(block["tool_use_id"]).toMatch(/^toolu_example_\d+$/);
+        }
+      }
     }
-    for (const forbidden of [/\/Users\//, /\/private\//, /\/home\//, /ardaulas/i, /ozdemir/i, /@gmail/, /"thinking"/, /"signature"/, /worktree-agent/, /sessionId/, /"cwd"/]) {
+    for (const forbidden of [/\/Users\//, /\/private\//, /\/home\//, /ardaulas/i, /ozdemir/i, /@gmail/, /worktrees\//, /agent-[0-9a-f]{8,}/, /sessionId/, /"cwd"/, /system-reminder/]) {
       expect(raw).not.toMatch(forbidden);
     }
   });
