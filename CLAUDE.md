@@ -8,9 +8,9 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**0.2.1 adds worked examples to 0.2.0, the first release you can point at your own agent** (planned in the career-os product brief of
-2026-09-29; the engine milestones before it are closed and tagged, `week-one-cli-proof` … `week-fourteen-package-readiness`,
-with their plans in `docs/history/`).
+**0.2.1 adds worked examples to 0.2.0, the first release you can point at your own agent.** The engine milestones
+before it are closed and tagged (`week-one-cli-proof` … `week-fourteen-package-readiness`), with their plans in
+`docs/history/`.
 
 - **Core loop:** `record → replay → fork → mutate → continue → diff → verify → check`, plus `assert` for CI and
   `import` for Claude Code sessions / chat JSON.

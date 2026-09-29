@@ -64,8 +64,8 @@ recorded tool result, and can continue a fork from scripted replies.
 and tool calls into one file, replays offline, and `backspin diff` reports the first step where two runs differ
 ([README](https://raw.githubusercontent.com/zaibuchihuoji/backspin/HEAD/README.md)). It is Python-first (PyPI 0.5.1);
 its TypeScript SDK installs from a GitHub branch and exports an OpenAI capture wrapper, without Anthropic capture or
-`branch()` ([TS SDK](https://raw.githubusercontent.com/zaibuchihuoji/backspin/main/sdks/typescript/src/index.ts)). A
-local proxy mode, which its README describes as working with any framework and language. Replay matches a fingerprint of the model and messages and falls back
+`branch()` ([TS SDK](https://raw.githubusercontent.com/zaibuchihuoji/backspin/main/sdks/typescript/src/index.ts)). It
+also has a local proxy mode, which its README describes as working with any framework and language. Replay matches a fingerprint of the model and messages and falls back
 to call order ([format spec](https://raw.githubusercontent.com/zaibuchihuoji/backspin/main/docs/format-spec.md)). Its
 what-if feature changes a recorded LLM answer and replays the rest from the recording
 ([replay.py](https://raw.githubusercontent.com/zaibuchihuoji/backspin/main/backspin/replay.py)). The format spec uses

@@ -134,8 +134,9 @@ See [CI usage](https://arda-ulas.github.io/blackbox/ci).
 npx blackbox import --from claude-code --in ~/.claude/projects/<project>/<session>.jsonl --out runs/session.json
 ```
 
-Now you can fork and diff a session Claude Code ran. The importer handles parallel tool calls and multi-turn
-sessions, and writes the cassette only if it passes `verify`.
+Now you can inspect, verify, diff and assert a session Claude Code ran; an imported session cannot be re-run
+([example](https://arda-ulas.github.io/blackbox/example-claude-code)). The importer handles parallel tool calls,
+multi-turn sessions and subagent transcripts, and writes the cassette only if it passes `verify`.
 
 ## What it doesn't do
 

@@ -17,8 +17,9 @@ npx blackbox inspect runs/session.json
 - Parallel tool calls become one `tool_calls` step followed by each call's result, in call order.
 - Multi-turn sessions keep every human turn and intermediate answer. The run ends with the last answer.
 - Thinking blocks, token usage, model names and provider ids are dropped.
-- Subagent (sidechain) messages are skipped; the subagent's result still appears as the tool result in the main
-  session.
+- Subagent (sidechain) messages inside a main session are skipped; the subagent's result still appears as the tool
+  result in the main session. A subagent's own transcript (`<session>/subagents/agent-*.jsonl`, where every line is a
+  sidechain) imports as a session of its own.
 - A session that stopped while a tool was running is imported as `incomplete`.
 - Tool definitions are not in the transcript, so the cassette lists the tool names it observed.
 

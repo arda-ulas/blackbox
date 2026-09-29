@@ -8,8 +8,10 @@ The session here is real. A Claude Code subagent was asked to add one regression
 did: that test landed as commit
 [`46f091b`](https://github.com/arda-ulas/blackbox/commit/46f091b). The transcript in
 [`examples/claude-code-session/session.jsonl`](https://github.com/arda-ulas/blackbox/blob/master/examples/claude-code-session/session.jsonl)
-was scrubbed before publishing: absolute paths became repo-relative, and the model's private thinking and the
-harness's context messages were removed. Everything else is as recorded.
+was scrubbed before publishing: absolute paths became repo-relative; the model's private thinking and the harness's
+context messages were removed; session and machine metadata (ids, working directory, version, model and usage fields)
+was dropped; and message and tool-call ids were replaced with placeholders. The messages, tool calls and tool results
+are as recorded.
 
 ## Import it
 
