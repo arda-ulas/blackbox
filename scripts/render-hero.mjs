@@ -1,6 +1,8 @@
 // Render the README / docs hero from real CLI output on the committed fleet
-// example, as a short animated terminal recording (lines appear in order; with
-// prefers-reduced-motion everything is shown at once).
+// example, as a short animated terminal recording: lines appear in order. The
+// text is visible by default and only hidden during each line's delay, so a
+// viewer that does not run SVG animations (or prefers reduced motion) shows the
+// whole recording at once.
 //
 //   npm run build && node scripts/render-hero.mjs
 
@@ -61,11 +63,11 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${
   <rect width="100%" height="100%" rx="14" fill="#0d1117"/>
   <circle cx="26" cy="22" r="6" fill="#30363d"/><circle cx="46" cy="22" r="6" fill="#30363d"/><circle cx="66" cy="22" r="6" fill="#30363d"/>
   <style>
-    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: ${FONT}px; white-space: pre; fill: #8b949e; opacity: 0; animation: show 0.01s forwards; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: ${FONT}px; white-space: pre; fill: #8b949e; animation: show 0.2s backwards; }
     .cmd { fill: #58a6ff; }
     .hi { fill: #e6edf3; font-weight: 600; }
-    @keyframes show { to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { text { animation: none; opacity: 1; } }
+    @keyframes show { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { text { animation: none; } }
   </style>
 ${rows.join("\n")}
 </svg>

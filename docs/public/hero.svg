@@ -2,11 +2,11 @@
   <rect width="100%" height="100%" rx="14" fill="#0d1117"/>
   <circle cx="26" cy="22" r="6" fill="#30363d"/><circle cx="46" cy="22" r="6" fill="#30363d"/><circle cx="66" cy="22" r="6" fill="#30363d"/>
   <style>
-    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 22px; white-space: pre; fill: #8b949e; opacity: 0; animation: show 0.01s forwards; }
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 22px; white-space: pre; fill: #8b949e; animation: show 0.2s backwards; }
     .cmd { fill: #58a6ff; }
     .hi { fill: #e6edf3; font-weight: 600; }
-    @keyframes show { to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { text { animation: none; opacity: 1; } }
+    @keyframes show { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { text { animation: none; } }
   </style>
   <text x="44" y="80" class="cmd" style="animation-delay:0.20s">$ npx blackbox inspect cassettes/triage-incident.json --step 5</text>
   <text x="44" y="111" class="out" style="animation-delay:1.10s">  get_telemetry result for VAN-14:</text>
