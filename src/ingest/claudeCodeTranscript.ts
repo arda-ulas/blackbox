@@ -276,8 +276,10 @@ export function adaptClaudeCodeTranscript(
       }
       results.set(callId, { block, where: `${where}.tool_result`, timestamp: timestampOf(line.event, where) });
     }
-    const text = humanText(line.message);
-    if (text.length > 0) turns.push({ kind: "human", text, timestamp: timestampOf(line.event, where) });
+    // A user message the person typed is a human turn even when it is empty; a
+    // line that only carries tool results is not.
+    const typed = typeof line.message["content"] === "string" || contentBlocks(line.message).some((block) => block["type"] !== "tool_result");
+    if (typed) turns.push({ kind: "human", text: humanText(line.message), timestamp: timestampOf(line.event, where) });
   }
 
   const firstModel = turns.find((turn): turn is ModelTurn => turn.kind === "model");

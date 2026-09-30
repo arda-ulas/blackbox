@@ -49,6 +49,7 @@ import { envApiKeys } from "./session/options.ts";
 import { sameFile } from "./session/sameFile.ts";
 import { auditTraceNeutrality } from "./trace/neutrality.ts";
 import { parseJson } from "./trace/parseJson.ts";
+import { hashCanonical } from "./trace/hash.ts";
 
 // ---------------------------------------------------------------------------
 // Color decisions — computed at the CLI boundary and threaded into every render
@@ -319,7 +320,7 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   // explicit --out equal to --trace and the footgun where --trace lacks a
   // ".json" suffix (so the derived default output collides with the input).
   // Compare file identity so "./a.json", "a.json", a symlink or a hard link to it match.
-  if (sameFile(outPath, tracePath)) {
+  if (sameFile(resolve(outPath), resolve(tracePath))) {
     die(`Refusing to overwrite the parent trace at ${resolve(tracePath)}. Pass an explicit --out.`);
   }
 
@@ -523,7 +524,7 @@ async function runImport(flags: Record<string, string | boolean>): Promise<void>
   if (typeof inPath !== "string") die("Missing required flag: --in");
   const outPath = flags["out"];
   if (typeof outPath !== "string") die("Missing required flag: --out");
-  if (sameFile(inPath, outPath)) die("--out must differ from --in");
+  if (sameFile(resolve(inPath), resolve(outPath))) die("--out must differ from --in");
   const traceId = str(flags["id"], basename(outPath).replace(/\.json$/, "") || "imported");
 
   const raw = await readFile(inPath, "utf8");
@@ -944,11 +945,24 @@ function checkedReport(result: LaunchResult, options: LaunchOptions): SessionRep
         `Leave them out when you run the agent under blackbox ${mode}.`,
     );
   if (report.mode !== mode) override(`ran in ${JSON.stringify(report.mode ?? "unknown")} mode, not ${mode}`);
-  if (options.cassette !== undefined && (report.cassette === undefined || !sameFile(report.cassette, options.cassette))) {
+  // Paths are resolved the way the launcher hands them to the session.
+  const sameAs = (used: string | undefined, asked: string): boolean => used !== undefined && sameFile(used, resolve(asked));
+  if (options.cassette !== undefined && !sameAs(report.cassette, options.cassette)) {
     override(`used ${report.cassette ?? "no cassette"}, not ${options.cassette}`);
   }
-  if (options.out !== undefined && (report.out === undefined || !sameFile(report.out, options.out))) {
+  if (options.out !== undefined && !sameAs(report.out, options.out)) {
     override(`wrote ${report.out ?? "nothing"}, not ${options.out}`);
+  }
+  if (mode !== "record" && report.match !== (options.match ?? "strict")) {
+    override(`matched requests with ${JSON.stringify(report.match ?? "unknown")}, not ${options.match ?? "strict"}`);
+  }
+  if (mode === "fork") {
+    if (report.forkAt !== options.forkAt) override(`forked at step ${String(report.forkAt)}, not ${String(options.forkAt)}`);
+    if (options.forkSet !== undefined && report.forkSet !== hashCanonical(JSON.parse(options.forkSet) as JsonValue)) {
+      override("used another replacement result than --set");
+    }
+    if (report.continueWith !== options.continueWith) override(`continued with ${String(report.continueWith)}, not ${String(options.continueWith)}`);
+    if (options.script !== undefined && !sameAs(report.script, options.script)) override(`used the script ${report.script ?? "(none)"}, not ${options.script}`);
   }
   if (!report.ok) reportFailure(result, `${mode} failed`);
   return report;
@@ -985,7 +999,7 @@ async function runReplayAgent(parsed: ParsedArgs): Promise<void> {
   const report = checkedReport(result, options);
   note(
     `${header("replay", stderrColorOn)}  ${verdict(true, stderrColorOn)}  replayed ${report.replayedSteps} steps from ${cassette} ` +
-      `with no network calls (${report.status})`,
+      `with no model calls sent (${report.status})`,
   );
   process.exit(result.exitCode);
 }
@@ -1012,15 +1026,16 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
   }
   const at = parseIntFlag(flags, "at", -1);
   if (at < 0) die("Missing required flag: --at (the tool_result step to replace; see `blackbox inspect`)");
-  if (sameFile(out, cassette)) die("--out must differ from the cassette you fork");
+  if (sameFile(resolve(out), resolve(cassette))) die("--out must differ from the cassette you fork");
   const live = flags["live"] === true;
   const script = typeof flags["script"] === "string" ? flags["script"] : undefined;
   if (live === (script !== undefined)) {
     die("choose how the run continues after the fork point: --live (your real API client) or --script <replies.json>");
   }
-  if (script !== undefined && sameFile(out, script)) die("--out must differ from the --script file");
+  // Resolved as the launcher resolves them, so the check sees the file the session writes.
+  if (script !== undefined && sameFile(resolve(out), resolve(script))) die("--out must differ from the --script file");
   const setFlag = String(flags["set"]);
-  if (setFlag.startsWith("@") && sameFile(out, setFlag.slice(1))) die("--out must differ from the --set file");
+  if (setFlag.startsWith("@") && sameFile(resolve(out), resolve(setFlag.slice(1)))) die("--out must differ from the --set file");
 
   // Check the fork step before launching anything.
   const parent = await loadTrace(cassette);

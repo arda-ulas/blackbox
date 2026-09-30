@@ -35,9 +35,15 @@ export interface SessionReport {
   replayedSteps?: number;
   finished?: boolean;
   error?: string;
-  /** The files the session actually used (absolute). */
+  /** What the session actually used: files (absolute) and options. */
   cassette?: string;
   out?: string;
+  match?: string;
+  forkAt?: number;
+  /** SHA-256 of the canonical replacement result. */
+  forkSet?: string;
+  continueWith?: string;
+  script?: string;
 }
 
 export interface LaunchResult {

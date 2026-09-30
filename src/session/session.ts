@@ -150,6 +150,7 @@ export class BlackboxSession {
     if (this.#options.cassette !== undefined) this.#options.cassette = resolve(this.#options.cassette);
     for (const { value } of envApiKeys(env)) this.#secrets.add(value);
 
+    this.#checkReportPath();
     this.#claimLauncherReport(options);
 
     if (this.mode === "record") {
@@ -839,6 +840,17 @@ export class BlackboxSession {
       throw new BlackboxError(
         `fork refuses to write its output over the cassette it forks: ${out} is the same file as ${cassette}; choose another out path`,
       );
+    }
+  }
+
+  /** The status report never lands on the cassette the session reads or writes. */
+  #checkReportPath(): void {
+    const { reportPath, cassette, out } = this.#options;
+    if (reportPath === undefined) return;
+    for (const file of [cassette, out]) {
+      if (file !== undefined && sameFile(reportPath, file)) {
+        throw new BlackboxError(`the report path ${reportPath} is the same file as ${file}; choose another reportPath`);
+      }
     }
   }
 

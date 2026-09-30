@@ -250,6 +250,15 @@ export function normalizeOpenAIResponse(response: Record<string, unknown>, ids: 
     calls.push({ toolCallId: ids.assign(String(call["id"]), toolName), toolName, toolInput: parseArguments(fn["arguments"]) });
   }
 
+  // A replay gives tool calls null content (unless there is text) and a final
+  // answer string content, as the API does; the other forms cannot come back.
+  const content = message["content"];
+  if (refusal === undefined && calls.length > 0 && content === "") {
+    unsupported("tool calls with empty-string content", "a replay would return null content");
+  }
+  if (refusal === undefined && calls.length === 0 && typeof content !== "string") {
+    unsupported("a response with no content, tool calls or refusal", "a replay would return empty-string content");
+  }
   if (calls.length > 0) {
     // A replay answers tool calls with finish_reason tool_calls (or length).
     if (finish !== "tool_calls" && finish !== "length") {
