@@ -121,11 +121,13 @@ A committed cassette is a regression test that runs without a key:
 
 ```bash
 npx blackbox assert runs/trip.json --expect-status success --expect-tools get_weather,get_weather
-npx blackbox replay runs/trip.json -- node agent.js   # fails if your agent's requests changed
+npx blackbox replay runs/trip.json -- node agent.js   # fails if a compared part of a request changed
 ```
 
-`replay` exits non-zero at the first request your agent sends differently from the recording, so a prompt or
-tool-schema change shows up as a failing check with the exact step and field.
+`replay` exits non-zero at the first request that differs from the recording in a
+[compared field](https://arda-ulas.github.io/blackbox/trace-format#what-replay-compares), so a prompt or tool-schema
+change shows up as a failing check with the exact step and field. It also fails if the agent skips a recorded call
+or tool, or ends with a different result.
 See [CI usage](https://arda-ulas.github.io/blackbox/ci).
 
 ## Import a Claude Code session

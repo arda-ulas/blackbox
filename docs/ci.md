@@ -29,9 +29,10 @@ exactly. It exits `0` only if everything passes. Expectations are optional:
 npx blackbox replay runs/trip.json -- node agent.js
 ```
 
-This runs your current agent code against the cassette. It fails, naming the step and field, as soon as the agent
-sends a request different from the recording: a changed prompt, a renamed tool, a new parameter. It also fails if
-the agent calls a wrapped tool with different arguments, or stops early. When the change is intended, re-record the
+This runs your current agent code against the cassette. It fails, naming the step and field, as soon as a request
+differs from the recording in a [compared field](./trace-format#what-replay-compares): a changed prompt, a renamed
+tool, a changed sampling control. It also fails if the agent calls a wrapped tool with different arguments, skips a
+recorded call or tool, stops early, or ends with a different result or error. When the change is intended, re-record the
 cassette and commit it with the change.
 
 ## GitHub Actions

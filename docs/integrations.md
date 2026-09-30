@@ -17,7 +17,9 @@ const client = new Anthropic({ fetch: bb.fetch });
 - **Kept as params:** `max_tokens`, `temperature`, `top_p`, `top_k`, `tool_choice`, `stop_sequences`,
   `output_config`, `thinking`.
 - **Not supported yet:** streaming (`stream: true`, `messages.stream()`), images and documents, and server-side
-  tools such as web search. Each raises an error that says what to use instead.
+  tools such as web search. Each raises an error that says what to use instead. Some fields and responses a replay
+  could not give back are refused too, such as `strict` tools and a `stop_sequence` stop: see
+  [limitations](./limitations#refused-request-and-response-fields).
 - **Extended thinking:** thinking blocks are left out of the cassette. Recording and replaying a thinking-enabled
   agent works; `fork --live` for one is refused, because the API requires the thinking blocks on tool-use turns.
 
@@ -36,7 +38,9 @@ const client = new OpenAI({ fetch: bb.fetch });
 - **Kept as params:** `max_tokens` / `max_completion_tokens`, `temperature`, `top_p`, `tool_choice`,
   `response_format`, `stop`, `parallel_tool_calls`, `seed`, `reasoning_effort`.
 - **Not supported yet:** the Responses API (`client.responses.create`), streaming, image/audio/file parts, custom
-  tools, `n > 1`, and system messages after the conversation starts.
+  tools, `n > 1`, and system messages after the conversation starts. Some fields and responses a replay could not
+  give back are refused too, such as `strict` tools, message names and `logprobs`: see
+  [limitations](./limitations#refused-request-and-response-fields).
 - The OpenAI SDK refuses to start without a key. Under `blackbox replay` and `blackbox fork --script`, the CLI sets a
   placeholder `OPENAI_API_KEY` (and `ANTHROPIC_API_KEY`) when none is set. Nothing is sent with it.
 
@@ -73,7 +77,9 @@ await bb.finish({ error });                  // record a failed run
   `finish()` (without one, the last model reply) must equal the recorded outcome. Otherwise it throws a
   `ReplayDivergenceError`.
 - Await every model and tool call before `finish()`. If one is still running, `finish()` throws and writes nothing.
-- Once `finish()` has been called, the session refuses further calls: a model request gets a `[blackbox]` error and
+  Likewise, await each wrapped tool before the next model call: a tool still running when a model call is made or
+  returns is refused, because its steps could not be written in order.
+- In record, replay and fork mode, once `finish()` has been called, the session refuses further calls: a model request gets a `[blackbox]` error and
   is not sent, and a wrapped tool throws without running.
 - If the process exits (or gets Ctrl-C) before `finish()`, a record or fork cassette is still written. A non-zero
   exit is recorded as `run_failed`, and so is an exit while a wrapped call was still running.

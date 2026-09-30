@@ -40,28 +40,43 @@ Each fix has a regression test that reproduces its probe
   setting the current run's, so an exported `BLACKBOX_MATCH=sequence` (or a
   stale output or script path) no longer changes a run.
 - **`finish()` with calls still running refuses to write**, instead of saving a
-  success cassette without them, and every call after `finish()` is refused:
-  requests are not sent and wrapped tools do not run. A process that exits with
-  calls in flight is recorded as `run_failed` (`calls_in_flight`).
+  success cassette without them, and in record, replay and fork mode every call
+  after `finish()` is refused: requests are not sent and wrapped tools do not
+  run. A wrapped tool still running when a model call is made or returns is
+  refused too. A process that exits with calls in flight is recorded as
+  `run_failed` (`calls_in_flight`), and a `finish()` after that exit is refused.
+- **The CLI checks what the session actually did.** If `blackbox()` options set
+  in code override the launcher (another mode, cassette or output file), `record`,
+  `replay` and `fork` fail instead of reporting the requested run. A replay that
+  diverged reports why even when the agent crashes before `finish()`.
 - **A Claude Code import keeps a trailing unanswered user message**, as the
   last request, and the session imports as `incomplete` instead of reporting
   the earlier answer as its success.
 - **Diagnostics never quote raw input.** JSON parse errors (`--set @file`,
-  `--payload-json`, cassettes, fork scripts, chat JSON) give a line and column,
-  not the content; hash-chain errors no longer quote a stored hash, prevHash or
-  index; `verify` masks the supplied key in every detail; importer errors no
-  longer quote ids or roles.
+  `--payload-json`, cassettes, fork scripts, chat JSON) name the input and, when
+  the parser reports one, a position, never the content; hash-chain errors no
+  longer quote a stored hash or prevHash, or an index that is not an integer;
+  `verify` rejects unknown step types and masks the supplied key in every
+  detail; importer errors no longer quote ids, roles or object keys.
 - **`import` refuses a transcript containing your API key** (the value of
-  `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`), the same refusal `record` makes.
+  `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, trimmed as the SDKs trim it), the
+  same refusal `record` makes.
 - **A fork never writes over its parent.** The session API, not only the CLI,
   refuses an output that is the same file as the cassette: the same path, a
-  symlink or a hard link to it.
+  symlink or a hard link to it, checked with paths fixed when the session
+  starts. The CLI fork also refuses an output that is its `--script` or `--set`
+  file.
 - **Fields a cassette cannot carry are refused, not replayed altered**, with a
   `BlackboxUnsupportedError` naming the field: OpenAI audio, the legacy
   `functions` API, message `name`, `strict` function tools and a
   `content_filter` finish; Anthropic `strict` tools, a `stop_sequence` or
   `model_context_window_exceeded` stop, and a response with several text blocks
-  or text after a tool call. The list is on the limitations page.
+  or text after a tool call. Also refused: OpenAI tool calls that did not end
+  with `finish_reason: "tool_calls"`, `logprobs`, `annotations`,
+  `web_search_options`, content together with a refusal, and both max-token
+  fields; Anthropic `citations`, `stop_details` and a `container`. An empty
+  OpenAI final answer now replays as `""`, and a JSON-encoded string argument
+  keeps its encoding. The list is on the limitations page.
 - `scripts/live-proof.sh` checks the provider's key before it starts and exits
   with a one-line instruction.
 

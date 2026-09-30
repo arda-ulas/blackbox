@@ -88,13 +88,14 @@ compares the result with the recorded `model_input`. Compared:
   `modalities`.
 
 Not compared: any other request field (for example `metadata`, `user`, `service_tier`, `store`, `cache_control`),
-thinking blocks in the history, provider tool-call ids (they become `call-N`), and how a message's text is split into
-blocks or parts. Wrapped tools' arguments are compared with the recorded arguments.
+thinking blocks in the history, provider tool-call ids (they become `call-N`), how an assistant turn's text is split
+into blocks, and how OpenAI message text is split into content parts. Wrapped tools' arguments are compared with the
+recorded arguments.
 
-Fields the cassette cannot carry are refused with a `BlackboxUnsupportedError` when recording and when replaying,
-so they are never replayed changed; the list is on the [limitations](./limitations#refused-request-and-response-fields)
-page. A replayed response carries the recorded text, tool calls and stop (end of turn, tool use, length or refusal),
-with zero usage and Blackbox's own ids.
+The fields listed on the [limitations](./limitations#refused-request-and-response-fields) page are refused with a
+`BlackboxUnsupportedError` rather than recorded, because a replay could not give them back. A replayed response
+carries the recorded text, tool calls and stop (end of turn, tool use, length or refusal), with zero usage and
+Blackbox's own ids; the limitations page lists what else a replayed response does not reproduce.
 
 ## Structured Transcript (`MessagePart`)
 
@@ -168,8 +169,9 @@ The `hash` field of each step is a SHA-256 of the canonical JSON serialization o
 | `id` | **No** — excluded so hash is reproducible without knowing the run id |
 | `hash` | **No** — excluded to avoid circularity |
 
-The trace's own fields (`id`, `version`, `parentId`, `forkedFromStepId`, `createdAt`) are not part of any step's
-hash either, so `verify` and `diff` do not detect a change to them or to a step's `id`. Hash-chaining them is planned
+The trace's own fields (`id`, `parentId`, `forkedFromStepId`, `createdAt`) are not part of any step's hash either,
+so `verify` and `diff` do not detect a change to them or to a step's `id`. (`verify` does reject any `version`
+other than 2.) Hash-chaining them is planned
 for a future format version (v3).
 
 Canonical serialization: object keys sorted lexicographically, recursively. Array order preserved. No whitespace.

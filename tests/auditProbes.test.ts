@@ -735,6 +735,35 @@ describe("#2 / #4 fields the cassette cannot carry are refused, never replayed a
       expectRefused(await recordAnthropic(full), /model_context_window_exceeded/);
     });
 
+    it("other response fields a replay would drop are refused too", async () => {
+      const withLogprobs = {
+        ...(OK as Record<string, unknown>),
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "hi", refusal: null },
+            finish_reason: "stop",
+            logprobs: { content: [{ token: "hi", logprob: -0.1, bytes: null, top_logprobs: [] }], refusal: null },
+          },
+        ],
+      };
+      expectRefused(await recordOpenAI(withLogprobs), /logprobs in a response/);
+      expectRefused(
+        await recordOpenAI(openaiCompletion({ content: "hi", annotations: [{ type: "url_citation", url_citation: { url: "https://example.com", title: "t", start_index: 0, end_index: 2 } }] }, "stop")),
+        /annotations/,
+      );
+      expectRefused(await recordOpenAI(openaiCompletion({ content: "partial", refusal: "no" }, "stop")), /both content and a refusal/);
+      expectRefused(await recordOpenAI(OK, { web_search_options: {} }), /web_search_options/);
+      expectRefused(
+        await recordAnthropic(anthropicMessage([{ type: "text", text: "A", citations: [{ type: "char_location", cited_text: "A", document_index: 0, start_char_index: 0, end_char_index: 1 }] }], "end_turn")),
+        /citations/,
+      );
+      expectRefused(
+        await recordAnthropic(anthropicMessage([{ type: "text", text: "no" }], "refusal", { stop_details: { type: "refusal", category: "cyber", explanation: "x" } })),
+        /stop_details/,
+      );
+    });
+
     it("one text block, then tool calls, still records and replays unchanged", async () => {
       const path = await recordAnswerA();
       const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
@@ -778,5 +807,229 @@ describe("#11 the live proof checks the provider's key before it starts", () => 
     const result = await proof(["gemini"]);
     expect(result.code).toBe(2);
     expect(result.stderr).toContain("usage: scripts/live-proof.sh anthropic|openai");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Variants found while verifying the 0.2.2 fixes
+// ---------------------------------------------------------------------------
+
+describe("variants: a tool running across a model call (#6)", () => {
+  async function toolTurnSession(): Promise<{ bb: BlackboxSession; path: string; tools: { notify: (input: { to: string }) => Promise<string> }; effects: string[]; release: () => void }> {
+    const path = tmp("tool-across-call");
+    const toolTurn = anthropicMessage([{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "notify", input: { to: "ops" } }], "tool_use");
+    const final = anthropicMessage([{ type: "text", text: "done" }], "end_turn");
+    const bb = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn, final]), logErrors: false });
+    const effects: string[] = [];
+    let release!: () => void;
+    const gateOpen = new Promise<void>((resolve) => (release = resolve));
+    const tools = bb.tools({
+      notify: async ({ to }: { to: string }) => {
+        effects.push(to);
+        await gateOpen;
+        return "sent";
+      },
+    });
+    return { bb, path, tools, effects, release };
+  }
+
+  it("a fire-and-forget tool still running at the next model call is refused, and nothing is written", async () => {
+    const { bb, path, tools, release } = await toolTurnSession();
+    await ask(bb);
+    const running = tools.notify({ to: "ops" });
+    await expect(ask(bb)).rejects.toThrow(/still running/);
+    release();
+    await running;
+    await expect(bb.finish()).rejects.toBeInstanceOf(BlackboxUnsupportedError);
+    expect(() => readFileSync(path)).toThrow();
+  });
+
+  it("a tool started while a model call is in flight is refused when the call returns", async () => {
+    const { bb, path, tools, release } = await toolTurnSession();
+    const call = ask(bb);
+    const running = tools.notify({ to: "ops" });
+    await expect(call).rejects.toThrow(/still running/);
+    release();
+    await running;
+    await expect(bb.finish()).rejects.toBeInstanceOf(BlackboxUnsupportedError);
+    expect(() => readFileSync(path)).toThrow();
+  });
+
+  it("a finish() after the process-exit write is refused and does not rewrite the cassette", async () => {
+    const { bb, path, tools, release } = await toolTurnSession();
+    await ask(bb);
+    void tools.notify({ to: "ops" });
+    bb.writeOnExit(130);
+    const written = readFileSync(path, "utf8");
+    release();
+    await expect(bb.finish()).rejects.toThrow(/already ended/);
+    expect(readFileSync(path, "utf8")).toBe(written);
+  });
+});
+
+describe("variants: the CLI checks what the session actually did (#5, #10)", () => {
+  async function recorded(name: string): Promise<string> {
+    const cassette = join(DIR, `${name}.json`);
+    const result = await cli(["record", "--out", cassette, "--", ...AGENT], { ANTHROPIC_API_KEY: "sk-test-launcher-000000000" });
+    expect(result.code, result.stderr).toBe(0);
+    return cassette;
+  }
+
+  it("a replay whose agent records instead (explicit options in code) fails, not PASS", async () => {
+    const cassette = await recorded("explicit-replay");
+    const other = join(DIR, "explicit-replay-elsewhere.json");
+    const result = await cli(["replay", cassette, "--", ...AGENT], { AGENT_EXPLICIT_MODE: "record", AGENT_EXPLICIT_OUT: other });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("override the CLI");
+    expect(result.stderr).not.toContain("✓");
+  }, 60_000);
+
+  it("a record whose agent writes another file fails, not 'wrote <out>'", async () => {
+    const out = join(DIR, "explicit-record.json");
+    const other = join(DIR, "explicit-record-elsewhere.json");
+    const result = await cli(["record", "--out", out, "--", ...AGENT], { ANTHROPIC_API_KEY: "sk-test-launcher-000000000", AGENT_EXPLICIT_OUT: other });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("override the CLI");
+  }, 60_000);
+
+  it("a replay that diverges and crashes the agent reports the divergence, not a missing session", async () => {
+    const cassette = await recorded("crash-divergence");
+    const result = await cli(["replay", cassette, "--", ...AGENT], { AGENT_PROMPT: "A different prompt" });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("replay diverged");
+    expect(result.stderr).not.toContain("without a Blackbox");
+  }, 60_000);
+
+  it("fork refuses an --out that is its --script file", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const cassette = await recorded("fork-script-out");
+    const script = join(DIR, "fork-script-out-replies.json");
+    writeFileSync(script, "[]");
+    const result = await cli(["fork", cassette, "--at", "3", "--set", "1", "--out", script, "--script", script, "--", ...AGENT]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("--out must differ from the --script file");
+    expect(readFileSync(script, "utf8")).toBe("[]");
+  }, 60_000);
+});
+
+describe("variants: response fields and requests (#2, #4)", () => {
+  const completion = (choice: object): object => ({
+    id: "chatcmpl-FAKEFAKEFAKE",
+    object: "chat.completion",
+    created: 1_790_000_000,
+    model: "gpt-5",
+    choices: [{ index: 0, logprobs: null, ...choice }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  });
+
+  async function openaiRoundTrip(response: object, request: Record<string, unknown> = {}): Promise<{ recorded?: unknown; replayed?: unknown; error?: unknown }> {
+    const OpenAI = (await import("openai")).default;
+    const path = tmp("openai-roundtrip");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([response]), logErrors: false });
+    const body = { model: "gpt-5", messages: [{ role: "user", content: "hi" }], ...request } as never;
+    let recorded: unknown;
+    try {
+      recorded = await new OpenAI({ apiKey: API_KEY, fetch: rec.fetch, maxRetries: 0 }).chat.completions.create(body);
+      await rec.finish();
+    } catch (error) {
+      return { error: await rec.finish().then(() => error, (e: unknown) => e) };
+    }
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const replayed = await new OpenAI({ apiKey: API_KEY, fetch: bb.fetch, maxRetries: 0 }).chat.completions.create(body);
+    await bb.finish();
+    return { recorded, replayed };
+  }
+
+  it("tool calls that ended with finish_reason stop (a forced tool_choice) are refused", async () => {
+    const forced = completion({
+      message: { role: "assistant", content: null, refusal: null, tool_calls: [{ id: "call_abc", type: "function", function: { name: "f", arguments: "{}" } }] },
+      finish_reason: "stop",
+    });
+    const { error } = await openaiRoundTrip(forced, { tool_choice: { type: "function", function: { name: "f" } } });
+    expect(error).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(String(error)).toContain("finish_reason");
+  });
+
+  it("an empty final answer replays as an empty string, not null", async () => {
+    const empty = completion({ message: { role: "assistant", content: "", refusal: null }, finish_reason: "length" });
+    const { recorded, replayed } = await openaiRoundTrip(empty);
+    const text = (r: unknown): unknown => (r as { choices: Array<{ message: { content: unknown } }> }).choices[0].message.content;
+    expect(text(recorded)).toBe("");
+    expect(text(replayed)).toBe("");
+  });
+
+  it("a JSON-encoded string argument keeps its encoding on replay", async () => {
+    const encoded = JSON.stringify(JSON.stringify({ a: 1 }));
+    const call = completion({
+      message: { role: "assistant", content: null, refusal: null, tool_calls: [{ id: "call_abc", type: "function", function: { name: "f", arguments: encoded } }] },
+      finish_reason: "tool_calls",
+    });
+    const { replayed } = await openaiRoundTrip(call);
+    const args = (replayed as { choices: Array<{ message: { tool_calls: Array<{ function: { arguments: string } }> } }> }).choices[0].message.tool_calls[0].function.arguments;
+    expect(args).toBe(encoded);
+  });
+
+  it("a request with both max_tokens and max_completion_tokens is refused", async () => {
+    const { error } = await openaiRoundTrip(completion({ message: { role: "assistant", content: "hi", refusal: null }, finish_reason: "stop" }), {
+      max_tokens: 10,
+      max_completion_tokens: 20,
+    });
+    expect(String(error)).toContain("both max_tokens and max_completion_tokens");
+  });
+});
+
+describe("variants: diagnostics and keys (#8)", () => {
+  it("import refuses the environment key even with surrounding whitespace", async () => {
+    const { writeFileSync, existsSync } = await import("node:fs");
+    const key = "opaque-synthetic-key-with-padding";
+    const source = join(DIR, "padded.jsonl");
+    writeFileSync(
+      source,
+      [
+        { type: "user", timestamp: "2026-09-29T10:01:00.000Z", message: { role: "user", content: `key ${key}` } },
+        { type: "assistant", timestamp: "2026-09-29T10:02:00.000Z", message: { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "ok" }] } },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n"),
+    );
+    const out = join(DIR, "padded.json");
+    const result = await cli(["import", "--from", "claude-code", "--in", source, "--out", out], { ANTHROPIC_API_KEY: `  ${key}\n` });
+    expect(result.code).toBe(1);
+    expect(existsSync(out)).toBe(false);
+  }, 60_000);
+
+  it("an importer error does not print an object key from the source", async () => {
+    const { adaptForeignTranscript } = await import("../src/ingest/foreignTranscript.ts");
+    const { parseJson } = await import("../src/trace/parseJson.ts");
+    const key = "SYNTHETIC_SECRET_KEY_NAME";
+    const transcript = parseJson(
+      JSON.stringify({
+        messages: [
+          { role: "user", content: "hi", timestamp: 1 },
+          { role: "assistant", content: null, timestamp: 2, tool_calls: [{ id: "c1", type: "function", function: { name: "f", arguments: `{"${key}": 1e400}` } }] },
+          { role: "tool", tool_call_id: "c1", content: "ok", timestamp: 3 },
+          { role: "assistant", content: "done", timestamp: 4 },
+        ],
+      }),
+      "transcript",
+    );
+    expect(() => adaptForeignTranscript(transcript, { traceId: "t" })).toThrow(/number must be finite/);
+    try {
+      adaptForeignTranscript(transcript, { traceId: "t" });
+    } catch (error) {
+      expect(String(error)).not.toContain(key);
+    }
+  });
+
+  it("verify rejects an unknown step type without quoting it", async () => {
+    const { verifyTrace } = await import("../src/trace/verifyTrace.ts");
+    const { hashTraceStepInput } = await import("../src/trace/hash.ts");
+    const trace = readTrace(await recordAnswerA());
+    const step = trace.steps[2];
+    (step as { type: string }).type = "SYNTHETIC_SECRET_TYPE";
+    step.hash = hashTraceStepInput({ index: step.index, type: step.type, timestamp: step.timestamp, payload: step.payload, prevHash: step.prevHash });
+    const report = verifyTrace(trace);
+    expect(report.pass).toBe(false);
+    expect(JSON.stringify(report)).not.toContain("SYNTHETIC_SECRET_TYPE");
   });
 });
