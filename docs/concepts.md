@@ -18,10 +18,14 @@ Blackbox's own ids, `call-0`, `call-1`, and so on. See [trace format](./trace-fo
 
 ## Hash chain
 
-Every step stores a SHA-256 hash of its content and position together with the previous step's hash. Changing
-anything in a step's content changes its hash and every hash after it. `verify` recomputes the chain, so an edit
+Every step stores a SHA-256 hash of its index, type, timestamp and payload together with the previous step's hash.
+Changing any of those changes the step's hash and every hash after it. `verify` recomputes the chain, so an edit
 that does not also recompute every later hash fails; comparing the final hash with one you kept elsewhere (a commit,
-a CI log) catches any change at all. The hash chain is also how `diff` tells two cassettes apart: the first step
+a CI log) catches an edit to the steps even when every later hash was recomputed.
+
+The chain does not cover the cassette's top-level fields (`id`, `parentId`, `forkedFromStepId`, `createdAt`) or
+each step's `id` (see [hash input](./trace-format#hash-input)). Those can be changed without `verify` or `diff`
+noticing. Covering them is planned for a future cassette format version. The hash chain is also how `diff` tells two cassettes apart: the first step
 whose hash differs is the first divergence. It is not a signature: anyone can write a new, internally consistent
 cassette.
 
@@ -47,7 +51,8 @@ cassette is deterministic.
 In replay mode nothing is forwarded. For each request your agent makes, the session:
 
 1. normalizes it the same way the recording was normalized,
-2. compares it with the recorded `model_input`, field by field, and stops at the first difference,
+2. compares it with the recorded `model_input` ([what is compared](./trace-format#what-replay-compares)) and stops
+   at the first difference,
 3. answers with the recorded response, rebuilt in the SDK's own response shape.
 
 Wrapped tools return their recorded results without running, after the same check on their arguments. At `finish()`

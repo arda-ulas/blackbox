@@ -103,12 +103,13 @@ npx blackbox replay runs/storm.json -- node examples/anthropic-agent.mjs
 
 ## Design notes
 
-- **Why a hash chain.** Each step's hash covers the previous step's hash, so a cassette cannot be edited without
-  `verify` noticing. It also makes the fork claim checkable: steps 0–2 of `storm.json` have the same hashes as
+- **Why a hash chain.** Each step's hash covers the previous step's hash, so a step's content cannot be edited
+  without `verify` noticing unless every later hash is recomputed (the cassette's top-level fields and step ids are
+  not covered). It also makes the fork claim checkable: steps 0–2 of `storm.json` have the same hashes as
   steps 0–2 of `trip.json`.
-- **Why strict matching.** Replay compares every request field by field before answering it. A replay that passes
-  therefore shows your agent still sends exactly the recorded requests and tool calls, which a replay that answers
-  blindly in order cannot.
+- **Why strict matching.** Replay compares each request with the recorded one before answering it
+  ([what is compared](./trace-format#what-replay-compares)). A replay that passes therefore shows your agent still
+  sends the recorded requests and tool calls, which a replay that answers blindly in order cannot.
 - **Why fork at tool results.** Tool results are the facts from outside the model that an agent reasons over, and
   they are the facts most often wrong in production. Changing one and letting the model continue answers "what
   would it have done if…".

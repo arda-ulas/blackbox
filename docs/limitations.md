@@ -15,6 +15,27 @@ something that cannot be replayed.
 - **Extended thinking on `fork --live`.** Thinking blocks are not stored, so a live continuation cannot send them
   back. Record, replay and `fork --script` work.
 
+## Refused request and response fields
+
+The cassette's provider-neutral steps cannot carry these yet. Rather than record them and replay something
+different, Blackbox refuses them with a `BlackboxUnsupportedError` naming the field, when recording and when
+replaying:
+
+| Provider | Refused | Why |
+|---|---|---|
+| OpenAI | the `audio` request field, and `audio` in a response or in the history | audio output is not recorded |
+| OpenAI | the legacy `functions` / `function_call` request fields, a `function_call` in a response or the history | use `tools` |
+| OpenAI | a message `name` (`messages[i].name`) | not recorded; two requests differing only in `name` would match |
+| OpenAI | `strict: true` on a function tool | not recorded (`strict: false`, the default, records like leaving it out) |
+| OpenAI | a response with `finish_reason: "content_filter"` | it would replay as a normal stop |
+| Anthropic | `strict: true` on a tool | not recorded (`strict: false` records like leaving it out) |
+| Anthropic | a response with `stop_reason: "stop_sequence"` | the matched sequence is not recorded; it would replay as `end_turn` |
+| Anthropic | a response with `stop_reason: "model_context_window_exceeded"` | it would replay as `max_tokens` |
+| Anthropic | a response with more than one text block, or text after a tool call | a replay returns one text block before the tool calls |
+
+Other request fields that are not in the [compared list](./trace-format#what-replay-compares) (for example
+`metadata`, `user`, `service_tier`) are recorded as absent and not compared.
+
 ## By design
 
 - **Replay covers what goes through Blackbox.** Model calls through `bb.fetch` are answered from the cassette, and
@@ -26,5 +47,7 @@ something that cannot be replayed.
   your prompt and re-record.
 - **It is not observability.** There is no server, dashboard or hosted storage, and Blackbox does not find bugs for
   you. It makes a run reproducible and shows exactly what changes when one fact changes.
+- **The hash chain covers the steps, not the cassette's top-level fields.** A step's index, type, timestamp and
+  payload are hash-chained; the trace `id`, `parentId`, `forkedFromStepId`, `createdAt` and the step ids are not.
 - **Cassettes are as sensitive as logs.** They contain your prompts, tool arguments and tool results. Blackbox
   refuses to write the API key it sees, but other secrets in your data are yours to keep out.

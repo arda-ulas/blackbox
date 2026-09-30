@@ -14,6 +14,10 @@ change behavior).
 - A GitHub Action that runs `blackbox assert` on committed cassettes.
 - A static HTML diff viewer.
 - Read-only import of OpenTelemetry GenAI spans.
+- Cassette format v3: hash-chain the trace's identity and provenance fields (`id`, `parentId`,
+  `forkedFromStepId`, `createdAt`) and the step ids.
+- Record the fields refused in 0.2.2 (message names, strict tools, stop sequences, text block boundaries)
+  instead of refusing them.
 - Vercel AI SDK and OpenAI Agents SDK integrations.
 
 ## [0.2.1] - 2026-09-29

@@ -1,7 +1,7 @@
 # Blackbox
 
 **Time-travel debugger for AI agents.** Record a run of your own agent through the official Anthropic or OpenAI
-Node SDK into a tamper-evident, hash-chained cassette. Replay it through your real code with no network and no key;
+Node SDK into a hash-chained cassette. Replay it through your real code with no network and no key;
 fork at any recorded tool result with a different value; `diff` to the first step where the runs part. Plain local
 JSON: no server, no account. (Unrelated to Blackbox AI, the coding assistant.)
 
@@ -107,8 +107,8 @@ the answer. If the process exits before `finish()`, the cassette is still writte
 
 | Step | What happens |
 |---|---|
-| **record** | `bb.fetch` sits under the SDK client. Each model call is stored as two provider-neutral steps, request and response. Failed calls are not recorded. Wrapped tools store their arguments and results. Every step's SHA-256 covers its content and the previous step's hash: editing a step breaks the chain for `verify` unless every later hash is recomputed too, and comparing the last hash with a copy you trust catches even that. |
-| **replay** | Your agent runs again. Each request it sends is compared with the recorded one. On a match, the recorded response comes back in the SDK's own shape. On a mismatch, replay stops at the first difference and names the path, e.g. `messages[0].content`. Wrapped tools return their recorded results without running. If a prompt changes on every run (a timestamp, say), `--match sequence` serves the responses in order without comparing. |
+| **record** | `bb.fetch` sits under the SDK client. Each model call is stored as two provider-neutral steps, request and response. Failed calls are not recorded. Wrapped tools store their arguments and results. Every step's SHA-256 covers its index, type, timestamp and payload and the previous step's hash: editing any of those breaks the chain for `verify` unless every later hash is recomputed too, and comparing the last hash with a copy you trust catches even that. The cassette's top-level fields (`id`, `parentId`, `forkedFromStepId`, `createdAt`) and the step ids are not hashed, so an edit to them goes unnoticed. |
+| **replay** | Your agent runs again. Each request it sends is compared with the recorded one: the model, system prompt, messages, tool definitions and sampling controls ([exact list](https://arda-ulas.github.io/blackbox/trace-format#what-replay-compares)). On a match, the recorded response comes back in the SDK's own shape. On a mismatch, replay stops at the first difference and names the path, e.g. `messages[0].content`. Wrapped tools return their recorded results without running. If a prompt changes on every run (a timestamp, say), `--match sequence` serves the responses in order without comparing. |
 | **fork** | Replays the recording up to one tool result, returns your value instead, then continues with the live model (`--live`) or scripted replies (`--script`). Steps before the fork are copied verbatim, so their hashes match the parent's. |
 | **diff** | Reports the first divergent step, the value that changed, and whether the outcome changed (status, final answer, tool path). |
 | **verify / assert** | `verify` checks the schema, the hash chain, the absence of API keys and provider request ids, and that the cassette replays. `assert` adds expectations about the outcome, for CI. |
@@ -164,7 +164,8 @@ Checked in September 2026; sources on the [comparison page](https://arda-ulas.gi
   rerun serves earlier LLM responses from a cache in the Laminar backend (Cloud or self-hosted, with a signed-in
   account) up to a chosen step, matching loosely (system messages are left out of the cache key), and calls the model
   live after it. In TypeScript its replay caching works through the Vercel AI SDK. Blackbox keeps the recording in a
-  file in your repository, matches every request field by field, forks by changing one recorded tool result, and
+  file in your repository, compares each request's model, system prompt, messages, tool definitions and sampling
+  controls with the recording, forks by changing one recorded tool result, and
   checks the result in CI with no key or network. Laminar adds what Blackbox lacks: tracing dashboards, evaluations
   and Python support.
 - **[LangGraph time travel](https://docs.langchain.com/oss/javascript/langgraph/use-time-travel)** replays and forks

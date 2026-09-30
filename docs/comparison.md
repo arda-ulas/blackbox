@@ -26,7 +26,7 @@ ClickHouse, Quickwit and Laminar's app server and frontend
 |---|---|---|
 | Where a recording lives | In the Laminar backend (Cloud or self-hosted) ([caching](https://laminar.sh/docs/debugger/caching.md)) | A JSON file you can commit next to your code |
 | Needs an account or a server | A signed-in user, a project and `LMNR_PROJECT_API_KEY` ([setup](https://laminar.sh/docs/debugger/setup.md)) | No |
-| Before the chosen point | Cached LLM responses; the match ignores system messages ([caching](https://laminar.sh/docs/debugger/caching.md)) | Every request compared field by field with the recording; replay stops at the first difference and names the field |
+| Before the chosen point | Cached LLM responses; the match ignores system messages ([caching](https://laminar.sh/docs/debugger/caching.md)) | Each request's model, system prompt, messages, tool definitions and sampling controls compared with the recording ([list](./trace-format#what-replay-compares)); replay stops at the first difference and names the field |
 | Tools during the replayed part | The caching docs describe caching LLM responses ([caching](https://laminar.sh/docs/debugger/caching)) | Wrapped tools return their recorded results without running |
 | After the chosen point | The live model ([process](https://laminar.sh/docs/debugger/process)) | The live model (`--live`) or scripted replies (`--script`, no API call) |
 | What you change | Your agent's code or prompt, then rerun ([process](https://laminar.sh/docs/debugger/process.md)) | One recorded tool result (`fork --at N --set …`) |
@@ -72,7 +72,7 @@ what-if feature changes a recorded LLM answer and replays the rest from the reco
 SHA-256 only for the request fingerprint, with no hash chain over the run file
 ([format spec](https://raw.githubusercontent.com/zaibuchihuoji/backspin/main/docs/format-spec.md)).
 
-**Difference:** Blackbox matches every request field by field, forks at a recorded *tool result* and continues live or
+**Difference:** Blackbox compares each request's content with the recording and names the first difference, forks at a recorded *tool result* and continues live or
 scripted, supports both the Anthropic and OpenAI Node SDKs, and chains step hashes so a fork's shared prefix can be
 checked against its parent. backspin's proxy covers any language, and it ships a Python package with a UI extra.
 

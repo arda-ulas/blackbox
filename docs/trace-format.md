@@ -66,11 +66,35 @@ After a `tool_calls` turn, each call's `tool_call` and `tool_result` steps follo
 |---|---|
 | `systemPrompt` | The system prompt. For OpenAI, the leading `system`/`developer` messages joined in order. |
 | `model` | The model name the request asked for. |
-| `params` | Request controls that change behavior, in neutral names: `maxTokens`, `temperature`, `topP`, `toolChoice`, `responseFormat`, `stop`. Only those present in the request are recorded. |
+| `params` | Request controls that change behavior, in neutral names (the full list is in [what replay compares](#what-replay-compares)). Only those present in the request are recorded. |
 
 A recorded `tool_result` part in `messages` keeps the content exactly as the agent sent it to the provider (a string stays a string).
 
 The `toolCallId` is identical across the `model_output` (tool-call), `tool_call`, and `tool_result` steps of one tool round — that shared id is the whole correlation mechanism; nothing provider-native is stored.
+
+### What replay compares
+
+In strict mode (the default), replay normalizes each request the agent sends the same way the recording did and
+compares the result with the recorded `model_input`. Compared:
+
+- `model`;
+- the system prompt: Anthropic `system`, or OpenAI's leading `system`/`developer` messages, joined;
+- every message: its role, its text, each tool call (tool name and input) and each tool result or error;
+- every tool definition: name, description and input schema;
+- these request controls, when present. Anthropic: `max_tokens`, `temperature`, `top_p`, `top_k`, `tool_choice`,
+  `stop_sequences`, `output_config`, `thinking`. OpenAI: `max_tokens`, `max_completion_tokens`, `temperature`,
+  `top_p`, `tool_choice`, `response_format`, `stop`, `parallel_tool_calls`, `seed`, `reasoning_effort`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`, `logprobs`, `top_logprobs`, `verbosity`, `prediction`,
+  `modalities`.
+
+Not compared: any other request field (for example `metadata`, `user`, `service_tier`, `store`, `cache_control`),
+thinking blocks in the history, provider tool-call ids (they become `call-N`), and how a message's text is split into
+blocks or parts. Wrapped tools' arguments are compared with the recorded arguments.
+
+Fields the cassette cannot carry are refused with a `BlackboxUnsupportedError` when recording and when replaying,
+so they are never replayed changed; the list is on the [limitations](./limitations#refused-request-and-response-fields)
+page. A replayed response carries the recorded text, tool calls and stop (end of turn, tool use, length or refusal),
+with zero usage and Blackbox's own ids.
 
 ## Structured Transcript (`MessagePart`)
 
@@ -143,6 +167,10 @@ The `hash` field of each step is a SHA-256 of the canonical JSON serialization o
 | `prevHash` | Yes |
 | `id` | **No** — excluded so hash is reproducible without knowing the run id |
 | `hash` | **No** — excluded to avoid circularity |
+
+The trace's own fields (`id`, `version`, `parentId`, `forkedFromStepId`, `createdAt`) are not part of any step's
+hash either, so `verify` and `diff` do not detect a change to them or to a step's `id`. Hash-chaining them is planned
+for a future format version (v3).
 
 Canonical serialization: object keys sorted lexicographically, recursively. Array order preserved. No whitespace.
 
