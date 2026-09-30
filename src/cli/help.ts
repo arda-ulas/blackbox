@@ -41,7 +41,8 @@ export const COMMANDS: readonly CommandSpec[] = [
       "With a command: runs your agent again with every model call answered from the",
       "cassette and every wrapped tool returning its recorded result. Nothing reaches the",
       "network and no API key is needed. The run fails at the first request that differs",
-      "from the recording (--match sequence skips that check).",
+      "from the recording (--match sequence skips that check), if the agent skips a",
+      "recorded call or tool, or if it ends with a different result or error.",
       "Without a command: prints the cassette's recorded steps and outcome.",
     ],
     flags: [

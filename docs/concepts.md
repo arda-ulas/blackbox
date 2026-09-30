@@ -50,11 +50,15 @@ In replay mode nothing is forwarded. For each request your agent makes, the sess
 2. compares it with the recorded `model_input`, field by field, and stops at the first difference,
 3. answers with the recorded response, rebuilt in the SDK's own response shape.
 
-Wrapped tools return their recorded results without running, after the same check on their arguments. A replay that
-runs to the end without a difference proves your agent still makes exactly the recorded requests.
+Wrapped tools return their recorded results without running, after the same check on their arguments. At `finish()`
+the agent must have made every recorded call, run every recorded tool, and ended with the recorded outcome (the
+same result or error). A replay that gets there without a difference proves your agent still makes the recorded
+requests, as far as they are compared (see [what replay compares](./trace-format#what-replay-compares)), and still reaches
+the recorded result.
 
-`--match sequence` turns the comparison off and serves the recorded responses in order. Use it when a prompt
-contains something that changes on every run (a timestamp, a random id).
+`--match sequence` turns the request comparison off and serves the recorded responses in order. Use it when a prompt
+contains something that changes on every run (a timestamp, a random id). Every recorded call and tool must still
+run, and the outcome must still match.
 
 ## Fork
 

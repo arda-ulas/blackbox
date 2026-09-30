@@ -68,8 +68,10 @@ await bb.finish({ error });                  // record a failed run
 
 - In record and fork mode, `finish()` writes the cassette. It refuses to, and throws, if the cassette fails `verify`
   or contains the API key from the environment or the request headers.
-- In replay mode, `finish()` checks that the agent made every recorded call, and throws a `ReplayDivergenceError`
-  otherwise.
+- In replay mode, `finish()` checks that the agent made every recorded model call and ran every recorded tool (with
+  `--match sequence` too), and that it ended the run the way the recording did: the result or error passed to
+  `finish()` (without one, the last model reply) must equal the recorded outcome. Otherwise it throws a
+  `ReplayDivergenceError`.
 - If the process exits (or gets Ctrl-C) before `finish()`, a record or fork cassette is still written. A non-zero
   exit is recorded as `run_failed`.
 

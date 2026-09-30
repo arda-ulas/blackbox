@@ -44,10 +44,15 @@ export interface LaunchResult {
 }
 
 export { PLACEHOLDER_KEY } from "../session/options.ts";
-import { PLACEHOLDER_KEY } from "../session/options.ts";
+import { PLACEHOLDER_KEY, SESSION_ENV_VARS } from "../session/options.ts";
 
 export function launchEnv(options: LaunchOptions, reportPath: string, base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...base, BLACKBOX_MODE: options.mode, BLACKBOX_REPORT: reportPath };
+  // Start from a clean slate: a BLACKBOX_* value inherited from the parent
+  // environment (an outer run, a shell export) must not configure this run.
+  const env: NodeJS.ProcessEnv = { ...base };
+  for (const name of SESSION_ENV_VARS) delete env[name];
+  env["BLACKBOX_MODE"] = options.mode;
+  env["BLACKBOX_REPORT"] = reportPath;
   if (options.cassette !== undefined) env["BLACKBOX_CASSETTE"] = resolve(options.cassette);
   if (options.out !== undefined) env["BLACKBOX_OUT"] = resolve(options.out);
   if (options.traceId !== undefined) env["BLACKBOX_TRACE_ID"] = options.traceId;

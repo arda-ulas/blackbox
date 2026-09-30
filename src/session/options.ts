@@ -12,6 +12,24 @@ export type BlackboxMode = "off" | "record" | "replay" | "fork";
 
 /** The key the CLI sets for offline runs so SDK constructors start; never a secret. */
 export const PLACEHOLDER_KEY = "blackbox-offline-placeholder";
+
+/**
+ * Every environment variable the session reads. The CLI launcher owns all of
+ * them: it clears each one before setting the current invocation's, so a value
+ * left in the environment by an outer run never reaches the agent.
+ */
+export const SESSION_ENV_VARS = [
+  "BLACKBOX_MODE",
+  "BLACKBOX_CASSETTE",
+  "BLACKBOX_OUT",
+  "BLACKBOX_TRACE_ID",
+  "BLACKBOX_FORK_AT",
+  "BLACKBOX_FORK_SET",
+  "BLACKBOX_CONTINUE",
+  "BLACKBOX_SCRIPT",
+  "BLACKBOX_MATCH",
+  "BLACKBOX_REPORT",
+] as const;
 export type MatchMode = "strict" | "sequence";
 export type ContinueMode = "live" | "script";
 

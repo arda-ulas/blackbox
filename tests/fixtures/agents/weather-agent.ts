@@ -51,7 +51,8 @@ const tools = bb.tools({
 
 const messages: Anthropic.MessageParam[] = [{ role: "user", content: process.env["AGENT_PROMPT"] ?? "Is Paris or Rome warmer?" }];
 let answer = "";
-for (let turn = 0; turn < 5; turn++) {
+// AGENT_SKIP_MODEL=1: an agent that makes no model call at all.
+for (let turn = 0; turn < 5 && process.env["AGENT_SKIP_MODEL"] !== "1"; turn++) {
   const response = await client.messages.create({
     model: "claude-sonnet-5",
     max_tokens: 256,
@@ -83,4 +84,6 @@ if (process.env["AGENT_SIGINT"] === "1") {
 }
 console.log(`answer: ${answer}`);
 console.log(`upstream calls: ${upstreamCalls}`);
-await bb.finish();
+// AGENT_RESULT: the agent reports its own final answer to finish().
+const result = process.env["AGENT_RESULT"];
+await bb.finish(result !== undefined ? { result } : {});

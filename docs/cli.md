@@ -35,7 +35,7 @@ blackbox replay <cassette.json> [--match strict|sequence] -- <command...>
 blackbox replay <cassette.json>
 ```
 
-With a command: runs your agent again with every model call answered from the cassette and every wrapped tool returning its recorded result. Nothing reaches the network and no API key is needed. The run fails at the first request that differs from the recording (`--match sequence` skips that check). Without a command: prints the cassette's recorded steps and outcome.
+With a command: runs your agent again with every model call answered from the cassette and every wrapped tool returning its recorded result. Nothing reaches the network and no API key is needed. The run fails at the first request that differs from the recording (`--match sequence` skips that check), if the agent skips a recorded call or tool, or if it ends with a different result or error. Without a command: prints the cassette's recorded steps and outcome.
 
 | Flag | Meaning |
 |---|---|

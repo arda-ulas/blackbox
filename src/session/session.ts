@@ -198,7 +198,7 @@ export class BlackboxSession {
 
     try {
       if (this.#failure) throw this.#failure;
-      if (this.mode === "replay") return (this.#finished = this.#finishReplay());
+      if (this.mode === "replay") return (this.#finished = this.#finishReplay(options));
 
       if (this.mode === "fork" && !this.#forked) {
         throw new BlackboxError(
@@ -474,12 +474,14 @@ export class BlackboxSession {
 
   /**
    * Before the next replayed model call (or at finish), every recorded tool step
-   * of the current turn must have been claimed by a wrapped tool invocation.
+   * of the current turn must have been claimed by a wrapped tool invocation, in
+   * both match modes: `sequence` relaxes how requests are compared, not whether
+   * the recorded run was reproduced.
    */
   #settleRecordedRound(): void {
     const parent = this.#parent as Trace;
     const unclaimed = this.#round.calls.filter((call) => call.recorded && !call.claimed);
-    if (unclaimed.length > 0 && this.#options.match === "strict") {
+    if (unclaimed.length > 0) {
       const first = unclaimed[0];
       throw new ReplayDivergenceError({
         stepIndex: (first.recorded as { call: TraceStep }).call.index,
@@ -586,7 +588,7 @@ export class BlackboxSession {
    * fork point; the agent must actually have run each of those calls again.
    */
   #checkPrefixClaimed(): void {
-    if (this.mode !== "fork" || !this.#forked || this.#options.match !== "strict") return;
+    if (this.mode !== "fork" || !this.#forked) return;
     const skipped = this.#round.calls.find(
       (call) => call.recorded && !call.claimed && call.recorded.result.index < (this.#options.forkAt as number),
     );
@@ -697,24 +699,52 @@ export class BlackboxSession {
   // Finish, reporting, errors
   // -------------------------------------------------------------------------
 
-  #finishReplay(): FinishSummary {
+  /**
+   * A replay is reproduced only when the agent consumed every recorded step (in
+   * both match modes) and ended the way the recording did: the terminal step
+   * that finish() would write now must equal the recorded one.
+   */
+  #finishReplay(options: FinishOptions): FinishSummary {
     const parent = this.#parent as Trace;
     this.#settleRecordedRound();
-    const remaining = parent.steps.slice(this.#cursor).filter((step) => step.type !== "metadata");
-    if (remaining.length > 0 && this.#options.match === "strict") {
+    const last = parent.steps.at(-1);
+    const recordedTerminal = last !== undefined && isTerminal(last) ? last : undefined;
+    const body = recordedTerminal ? parent.steps.slice(0, -1) : parent.steps;
+    const remaining = body.slice(this.#cursor).filter((step) => step.type !== "metadata");
+    if (remaining.length > 0) {
+      const modelCalls = remaining.filter((s) => s.type === "model_input").length;
       throw new ReplayDivergenceError({
         stepIndex: remaining[0].index,
         path: "end of run",
-        expected: `${remaining.filter((s) => s.type === "model_input").length} more model call(s)`,
+        expected:
+          modelCalls > 0
+            ? `${modelCalls} more model call(s)`
+            : `the agent runs ${String((remaining[0].payload as { toolName?: unknown }).toolName ?? "the recorded tool")}`,
         actual: "the agent finished",
       });
     }
+
+    const replayed = parent.steps.slice(0, this.#cursor);
+    const now = terminalPayload(options, replayed, (text) => this.#mask(text));
+    const recorded = recordedTerminal?.payload as JsonObject | undefined;
+    if (canonicalize(now ?? null) !== canonicalize(recorded ?? null)) {
+      throw new ReplayDivergenceError({
+        stepIndex: recordedTerminal?.index ?? parent.steps.length,
+        path: "outcome",
+        expected: this.#mask(describeTerminal(recorded)),
+        actual: this.#mask(describeTerminal(now)),
+        hint:
+          "  Every model call matched, but the agent ended the run differently: the result or error it passed " +
+          "to finish() is not the recorded one.",
+      });
+    }
+
     this.#cursor = parent.steps.length;
     const summary: FinishSummary = {
       mode: "replay",
       steps: parent.steps.length,
       status: terminalOutcome(parent).status,
-      replayedSteps: parent.steps.length,
+      replayedSteps: this.#cursor,
     };
     this.#writeReport({ ok: true, ...summary });
     return summary;
@@ -722,25 +752,8 @@ export class BlackboxSession {
 
   #appendTerminal(options: FinishOptions): void {
     const recorder = this.#recorder as TraceRecorder;
-    const trace = recorder.getTrace();
-    if (options.error !== undefined) {
-      recorder.append("metadata", {
-        event: "run_failed",
-        status: "error",
-        reason: "agent_error",
-        message: this.#mask(errorMessage(options.error)),
-      });
-      return;
-    }
-    if (options.result !== undefined) {
-      recorder.append("metadata", { event: "run_completed", status: "success", result: options.result });
-      return;
-    }
-    const lastOutput = [...trace.steps].reverse().find((step) => step.type === "model_output");
-    const payload = lastOutput?.payload as { type?: string; text?: string } | undefined;
-    if (payload?.type === "final_answer" && typeof payload.text === "string") {
-      recorder.append("metadata", { event: "run_completed", status: "success", result: payload.text });
-    }
+    const payload = terminalPayload(options, recorder.getTrace().steps, (text) => this.#mask(text));
+    if (payload) recorder.append("metadata", payload);
   }
 
   /** Refuse to write a cassette that fails verification or carries a known secret. */
@@ -869,6 +882,36 @@ function installExitHook(): void {
     };
     process.once(signal, onSignal);
   }
+}
+
+/**
+ * The terminal metadata step finish() writes for these options after `steps`:
+ * the passed error, else the passed result, else the last model output's final
+ * answer. Undefined when the run ends without an outcome (incomplete).
+ */
+function terminalPayload(options: FinishOptions, steps: readonly TraceStep[], mask: (text: string) => string): JsonObject | undefined {
+  if (options.error !== undefined) {
+    return { event: "run_failed", status: "error", reason: "agent_error", message: mask(errorMessage(options.error)) };
+  }
+  if (options.result !== undefined) return { event: "run_completed", status: "success", result: options.result };
+  const lastOutput = [...steps].reverse().find((step) => step.type === "model_output");
+  const payload = lastOutput?.payload as { type?: string; text?: string } | undefined;
+  if (payload?.type === "final_answer" && typeof payload.text === "string") {
+    return { event: "run_completed", status: "success", result: payload.text };
+  }
+  return undefined;
+}
+
+function isTerminal(step: TraceStep): boolean {
+  const event = (step.payload as { event?: unknown } | null)?.event;
+  return step.type === "metadata" && (event === "run_completed" || event === "run_failed");
+}
+
+function describeTerminal(payload: JsonObject | undefined): string {
+  if (payload === undefined) return "no outcome (the run ended incomplete)";
+  if (payload["event"] === "run_completed") return `success, result ${renderValue(payload["result"])}`;
+  const detail = payload["message"] !== undefined ? `: ${renderValue(payload["message"])}` : "";
+  return `error (${String(payload["reason"] ?? "unknown")})${detail}`;
 }
 
 function isNeutralOutput(value: unknown): value is NeutralOutput {
