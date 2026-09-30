@@ -7,8 +7,10 @@
 // blocks alongside become its `text`), a text-only response a `final_answer`.
 //
 // Thinking blocks are dropped in both directions, so a recording and its replay
-// agree. Images, documents, server tools and streaming are rejected with a
-// BlackboxUnsupportedError naming the feature.
+// agree. Images, documents, server tools, streaming, and what the neutral schema
+// cannot carry faithfully (strict tools, a stop-sequence or context-window stop,
+// a response with several text blocks or text after a tool call) are rejected
+// with a BlackboxUnsupportedError naming the field, never replayed altered.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Message, MessagePart, ToolDefinition } from "../agent/modelClient.ts";
@@ -108,11 +110,16 @@ export function normalizeAnthropicRequest(body: Record<string, unknown>, ids: To
   });
 
   const tools: ToolDefinition[] = [];
-  for (const tool of Array.isArray(body["tools"]) ? body["tools"] : []) {
-    if (!isRecord(tool)) continue;
+  const rawTools = Array.isArray(body["tools"]) ? body["tools"] : [];
+  rawTools.forEach((tool, toolIndex) => {
+    if (!isRecord(tool)) return;
     const type = tool["type"];
     if (type !== undefined && type !== null && type !== "custom") {
       unsupported(`server tool "${String(type)}"`, "only custom (client-executed) tools can be recorded in this version");
+    }
+    // strict: false is the default, so it records the same as leaving it out.
+    if (tool["strict"] !== undefined && tool["strict"] !== null && tool["strict"] !== false) {
+      unsupported(`strict tools (tools[${toolIndex}].strict)`, "leave strict out; it is not recorded in this version");
     }
     const definition: ToolDefinition = {
       name: String(tool["name"]),
@@ -120,7 +127,7 @@ export function normalizeAnthropicRequest(body: Record<string, unknown>, ids: To
     };
     if (isRecord(tool["input_schema"])) definition.inputSchema = json(tool["input_schema"]) as JsonObject;
     tools.push(definition);
-  }
+  });
 
   const payload: JsonObject = {
     messages: messages as unknown as JsonValue,
@@ -145,7 +152,16 @@ export function normalizeAnthropicResponse(response: Record<string, unknown>, id
     const type = block["type"];
     if (typeof type === "string" && DROPPED_BLOCKS.has(type)) continue;
     if (type === "text" && typeof block["text"] === "string") {
-      if (block["text"].length > 0) texts.push(block["text"]);
+      if (block["text"].length === 0) continue;
+      // A replay returns one text block before the tool calls; any other
+      // layout would come back changed, so it is not recorded.
+      if (texts.length > 0) {
+        unsupported("a response with more than one text block", "its block boundaries cannot be replayed faithfully in this version");
+      }
+      if (calls.length > 0) {
+        unsupported("a response with text after a tool call", "its block order cannot be replayed faithfully in this version");
+      }
+      texts.push(block["text"]);
     } else if (type === "tool_use") {
       const toolName = String(block["name"]);
       calls.push({ toolCallId: ids.assign(String(block["id"]), toolName), toolName, toolInput: json(block["input"] ?? {}) });
@@ -156,8 +172,14 @@ export function normalizeAnthropicResponse(response: Record<string, unknown>, id
 
   const stopReason = response["stop_reason"];
   if (stopReason === "pause_turn") unsupported("stop_reason pause_turn (server tools)", "use client-executed tools");
+  if (stopReason === "stop_sequence") {
+    unsupported("a response that ended on a stop sequence (stop_reason stop_sequence)", "the matched stop sequence is not recorded in this version");
+  }
+  if (stopReason === "model_context_window_exceeded") {
+    unsupported("a response that hit the context window (stop_reason model_context_window_exceeded)", "it would replay as max_tokens");
+  }
   const text = texts.join("\n\n");
-  const truncated = stopReason === "max_tokens" || stopReason === "model_context_window_exceeded";
+  const truncated = stopReason === "max_tokens";
 
   if (calls.length > 0) {
     const output: NeutralOutput = { type: "tool_calls", calls };

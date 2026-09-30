@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Anthropic from "@anthropic-ai/sdk";
-import { blackbox, ReplayDivergenceError } from "../src/index.ts";
+import { blackbox, BlackboxUnsupportedError, ReplayDivergenceError } from "../src/index.ts";
 import type { BlackboxSession } from "../src/session/session.ts";
 import { launchEnv } from "../src/cli/launch.ts";
 import { resolveOptions, SESSION_ENV_VARS, type BlackboxOptions } from "../src/session/options.ts";
@@ -617,5 +617,166 @@ describe("#5 a fork refuses to write over the cassette it forks", () => {
     await ask(bb);
     await expect(bb.finish()).resolves.toMatchObject({ mode: "fork", status: "success" });
     expect(readTrace(out).parentId).toBe(readTrace(path).id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #2 / #4 — request and response fields the neutral schema dropped silently
+// ---------------------------------------------------------------------------
+
+describe("#2 / #4 fields the cassette cannot carry are refused, never replayed altered", () => {
+  const openaiCompletion = (message: object, finishReason: string): object => ({
+    id: "chatcmpl-FAKEFAKEFAKE",
+    object: "chat.completion",
+    created: 1_790_000_000,
+    model: "gpt-5",
+    choices: [{ index: 0, message: { role: "assistant", content: null, refusal: null, ...message }, finish_reason: finishReason, logprobs: null }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  });
+
+  async function recordOpenAI(response: object, request: Record<string, unknown> = {}): Promise<{ agentError: unknown; finishError: unknown; path: string }> {
+    const OpenAI = (await import("openai")).default;
+    const path = tmp("openai-refused");
+    const bb = blackbox({ mode: "record", out: path, baseFetch: upstream([response]), logErrors: false });
+    const openai = new OpenAI({ apiKey: API_KEY, fetch: bb.fetch, maxRetries: 0 });
+    const agentError = await openai.chat.completions
+      .create({ model: "gpt-5", messages: [{ role: "user", content: "hi" }], ...request } as never)
+      .then(() => undefined, (e: unknown) => e);
+    const finishError = await bb.finish().then(() => undefined, (e: unknown) => e);
+    return { agentError, finishError, path };
+  }
+
+  async function recordAnthropic(response: object, request: Record<string, unknown> = {}): Promise<{ agentError: unknown; finishError: unknown; path: string }> {
+    const path = tmp("anthropic-refused");
+    const bb = blackbox({ mode: "record", out: path, baseFetch: upstream([response]), logErrors: false });
+    const agentError = await client(bb)
+      .messages.create({ model: "claude-sonnet-5", max_tokens: 64, messages: [{ role: "user", content: "hi" }], ...request } as never)
+      .then(() => undefined, (e: unknown) => e);
+    const finishError = await bb.finish().then(() => undefined, (e: unknown) => e);
+    return { agentError, finishError, path };
+  }
+
+  function expectRefused(result: { agentError: unknown; finishError: unknown; path: string }, what: RegExp): void {
+    expect(String(result.agentError)).toMatch(/\[blackbox\]/);
+    expect(result.finishError).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(String(result.finishError)).toMatch(what);
+    expect(() => readFileSync(result.path)).toThrow();
+  }
+
+  const OK = openaiCompletion({ content: "hi" }, "stop");
+
+  describe("probe #2: request fields that used to normalize identically", () => {
+    it("OpenAI audio output settings", async () => {
+      expectRefused(await recordOpenAI(OK, { modalities: ["text", "audio"], audio: { voice: "alloy", format: "wav" } }), /audio request field/);
+    });
+
+    it("OpenAI strict function tools (strict: false records like no strict)", async () => {
+      const tool = (strict: boolean) => ({ type: "function", function: { name: "f", parameters: { type: "object" }, strict } });
+      expectRefused(await recordOpenAI(OK, { tools: [tool(true)] }), /tools\[0\]\.function\.strict/);
+      const relaxed = await recordOpenAI(OK, { tools: [tool(false)] });
+      expect(relaxed.finishError).toBeUndefined();
+    });
+
+    it("an OpenAI message name", async () => {
+      expectRefused(await recordOpenAI(OK, { messages: [{ role: "user", content: "hi", name: "alice" }] }), /messages\[0\]\.name/);
+    });
+
+    it("Anthropic strict tools", async () => {
+      const final = anthropicMessage([{ type: "text", text: "hi" }], "end_turn");
+      expectRefused(
+        await recordAnthropic(final, { tools: [{ name: "f", description: "", input_schema: { type: "object" }, strict: true }] }),
+        /tools\[0\]\.strict/,
+      );
+    });
+
+    it("a replay whose request adds audio settings is refused, not served", async () => {
+      const OpenAI = (await import("openai")).default;
+      const path = tmp("openai-plain");
+      const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([OK]), logErrors: false });
+      await new OpenAI({ apiKey: API_KEY, fetch: rec.fetch, maxRetries: 0 }).chat.completions.create({ model: "gpt-5", messages: [{ role: "user", content: "hi" }] });
+      await rec.finish();
+
+      const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+      const openai = new OpenAI({ apiKey: API_KEY, fetch: bb.fetch, maxRetries: 0 });
+      await expect(
+        openai.chat.completions.create({ model: "gpt-5", messages: [{ role: "user", content: "hi" }], audio: { voice: "alloy", format: "wav" } } as never),
+      ).rejects.toThrow(/audio request field/);
+      await expect(bb.finish()).rejects.toBeInstanceOf(BlackboxUnsupportedError);
+    });
+  });
+
+  describe("probe #4: response fields that used to replay changed", () => {
+    it("OpenAI audio in the response", async () => {
+      const audio = openaiCompletion({ content: null, audio: { id: "audio_1", data: "AAAA", expires_at: 1, transcript: "hi" } }, "stop");
+      expectRefused(await recordOpenAI(audio), /audio in a response/);
+    });
+
+    it("an OpenAI legacy function_call response", async () => {
+      const legacy = openaiCompletion({ function_call: { name: "f", arguments: "{}" } }, "function_call");
+      expectRefused(await recordOpenAI(legacy), /legacy function_call/);
+    });
+
+    it("an OpenAI content_filter finish reason (it used to become stop)", async () => {
+      expectRefused(await recordOpenAI(openaiCompletion({ content: "partial" }, "content_filter")), /content_filter/);
+    });
+
+    it("an Anthropic stop_sequence stop (it used to become end_turn with no sequence)", async () => {
+      const stopped = anthropicMessage([{ type: "text", text: "A" }], "stop_sequence", { stop_sequence: "END" });
+      expectRefused(await recordAnthropic(stopped), /stop_sequence/);
+    });
+
+    it("an Anthropic response with text blocks A and B (it used to become one block 'A\\n\\nB')", async () => {
+      const split = anthropicMessage([{ type: "text", text: "A" }, { type: "text", text: "B" }], "end_turn");
+      expectRefused(await recordAnthropic(split), /more than one text block/);
+    });
+
+    it("an Anthropic model_context_window_exceeded stop (it used to become max_tokens)", async () => {
+      const full = anthropicMessage([{ type: "text", text: "A" }], "model_context_window_exceeded");
+      expectRefused(await recordAnthropic(full), /model_context_window_exceeded/);
+    });
+
+    it("one text block, then tool calls, still records and replays unchanged", async () => {
+      const path = await recordAnswerA();
+      const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+      const response = await ask(bb);
+      expect(response.content).toEqual([{ type: "text", text: "A", citations: null }]);
+      expect(response.stop_reason).toBe("end_turn");
+      await expect(bb.finish()).resolves.toMatchObject({ status: "success" });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #11 — the live proof failed inside the SDK when the key was missing
+// ---------------------------------------------------------------------------
+
+describe("#11 the live proof checks the provider's key before it starts", () => {
+  async function proof(args: string[], env: Record<string, string> = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+    const childEnv: NodeJS.ProcessEnv = { ...process.env, ...env };
+    for (const name of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]) if (env[name] === undefined) delete childEnv[name];
+    try {
+      const { stdout, stderr } = await execFileAsync("bash", [join(ROOT, "scripts", "live-proof.sh"), ...args], { cwd: ROOT, env: childEnv });
+      return { code: 0, stdout, stderr };
+    } catch (error) {
+      const e = error as { code?: number; stdout?: string; stderr?: string };
+      return { code: typeof e.code === "number" ? e.code : 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+    }
+  }
+
+  for (const [provider, key] of [["anthropic", "ANTHROPIC_API_KEY"], ["openai", "OPENAI_API_KEY"]] as const) {
+    it(`probe: ${provider} without ${key} exits 1 with a one-line instruction and no stack`, async () => {
+      const result = await proof([provider]);
+      expect(result.code).toBe(1);
+      expect(result.stderr.trim().split("\n")).toHaveLength(1);
+      expect(result.stderr).toContain(`export ${key}=`);
+      expect(result.stderr).not.toMatch(/\bat \S+:\d+:\d+/);
+      expect(result.stdout).toBe("");
+    });
+  }
+
+  it("an unknown provider prints the usage", async () => {
+    const result = await proof(["gemini"]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("usage: scripts/live-proof.sh anthropic|openai");
   });
 });

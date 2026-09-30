@@ -9,8 +9,10 @@
 // `arguments` JSON-parsed, falling back to the raw string), otherwise the
 // message content is a `final_answer`.
 //
-// The Responses API, streaming, `n > 1`, and non-text content parts are
-// rejected with a BlackboxUnsupportedError naming the feature.
+// The Responses API, streaming, `n > 1`, non-text content parts, and fields the
+// neutral schema cannot carry faithfully (audio, legacy functions, message
+// names, strict tools, a content-filtered response) are rejected with a
+// BlackboxUnsupportedError naming the field, never recorded or replayed altered.
 
 import type OpenAI from "openai";
 import type { Message, MessagePart, ToolDefinition } from "../agent/modelClient.ts";
@@ -50,9 +52,30 @@ const PARAMS: Record<string, string> = {
   modalities: "modalities",
 };
 
+const LEGACY_FUNCTIONS_ADVICE = "use tools and tool_choice instead of the legacy functions API";
+
 export function checkOpenAIRequest(body: Record<string, unknown>): void {
   if (body["stream"] === true) unsupported("stream: true", STREAMING_ADVICE);
   if (typeof body["n"] === "number" && body["n"] !== 1) unsupported("n > 1", "request one choice per call");
+  if (body["audio"] !== undefined && body["audio"] !== null) {
+    unsupported("the audio request field (audio output)", "request text output; audio cannot be recorded in this version");
+  }
+  for (const field of ["functions", "function_call"]) {
+    if (body[field] !== undefined && body[field] !== null) unsupported(`the legacy ${field} request field`, LEGACY_FUNCTIONS_ADVICE);
+  }
+}
+
+/** Reject message fields the neutral schema does not carry. */
+function checkOpenAIMessage(raw: Record<string, unknown>, where: string): void {
+  if (raw["name"] !== undefined && raw["name"] !== null) {
+    unsupported(`a message name (${where}.name)`, "leave name out; message names are not recorded in this version");
+  }
+  if (raw["function_call"] !== undefined && raw["function_call"] !== null) {
+    unsupported(`a legacy function_call in the history (${where}.function_call)`, LEGACY_FUNCTIONS_ADVICE);
+  }
+  if (raw["audio"] !== undefined && raw["audio"] !== null) {
+    unsupported(`audio in the history (${where}.audio)`, "audio cannot be recorded in this version");
+  }
 }
 
 function contentText(content: unknown, where: string): string {
@@ -86,6 +109,7 @@ export function normalizeOpenAIRequest(body: Record<string, unknown>, ids: ToolC
   const systemParts: string[] = [];
   let index = 0;
   while (index < rawMessages.length && (rawMessages[index]["role"] === "system" || rawMessages[index]["role"] === "developer")) {
+    checkOpenAIMessage(rawMessages[index], `messages[${index}]`);
     systemParts.push(contentText(rawMessages[index]["content"], `messages[${index}]`));
     index++;
   }
@@ -101,6 +125,7 @@ export function normalizeOpenAIRequest(body: Record<string, unknown>, ids: ToolC
     const raw = rawMessages[index];
     const where = `messages[${index}]`;
     const role = raw["role"];
+    checkOpenAIMessage(raw, where);
 
     if (role === "tool") {
       const { toolCallId, toolName } = ids.resolve(String(raw["tool_call_id"]));
@@ -137,19 +162,24 @@ export function normalizeOpenAIRequest(body: Record<string, unknown>, ids: ToolC
   flushResults();
 
   const tools: ToolDefinition[] = [];
-  for (const tool of Array.isArray(body["tools"]) ? body["tools"] : []) {
-    if (!isRecord(tool)) continue;
+  const rawTools = Array.isArray(body["tools"]) ? body["tools"] : [];
+  rawTools.forEach((tool, toolIndex) => {
+    if (!isRecord(tool)) return;
     if (tool["type"] !== "function" || !isRecord(tool["function"])) {
       unsupported(`"${String(tool["type"])}" tools`, "only function tools can be recorded in this version");
     }
     const fn = tool["function"] as Record<string, unknown>;
+    // strict: false is the default, so it records the same as leaving it out.
+    if (fn["strict"] !== undefined && fn["strict"] !== null && fn["strict"] !== false) {
+      unsupported(`strict function tools (tools[${toolIndex}].function.strict)`, "leave strict out; it is not recorded in this version");
+    }
     const definition: ToolDefinition = {
       name: String(fn["name"]),
       description: typeof fn["description"] === "string" ? fn["description"] : "",
     };
     if (isRecord(fn["parameters"])) definition.inputSchema = json(fn["parameters"]) as JsonObject;
     tools.push(definition);
-  }
+  });
 
   const payload: JsonObject = {
     messages: messages as unknown as JsonValue,
@@ -171,6 +201,15 @@ export function normalizeOpenAIResponse(response: Record<string, unknown>, ids: 
   }
   const message = choice["message"] as Record<string, unknown>;
   const finish = choice["finish_reason"];
+  if (finish === "content_filter") {
+    unsupported("a response stopped by the content filter (finish_reason content_filter)", "it cannot be replayed faithfully in this version");
+  }
+  if (finish === "function_call" || (message["function_call"] !== undefined && message["function_call"] !== null)) {
+    unsupported("a legacy function_call response", LEGACY_FUNCTIONS_ADVICE);
+  }
+  if (message["audio"] !== undefined && message["audio"] !== null) {
+    unsupported("audio in a response (message.audio)", "request text output; audio cannot be recorded in this version");
+  }
   const refusal = typeof message["refusal"] === "string" ? message["refusal"] : undefined;
   const text = typeof message["content"] === "string" ? message["content"] : "";
 

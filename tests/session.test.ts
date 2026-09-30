@@ -631,7 +631,7 @@ describe("audit regressions", () => {
     expect(final).toContain("[redacted]");
   });
 
-  it("replays an unchanged agent whose response interleaves text and tool calls", async () => {
+  it("refuses to record a response that interleaves text and tool calls (it would replay reordered)", async () => {
     const interleaved = anthropicMessage(
       [
         { type: "text", text: "First Paris." },
@@ -643,11 +643,12 @@ describe("audit regressions", () => {
     );
     const path = tmp("interleaved");
     const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([interleaved, FINAL]).fetch, logErrors: false });
-    await weatherAgent(anthropicClient(rec), rec.tools({ weather: weatherTool({ Paris: 1, Rome: 2 }).fn }));
-    await rec.finish();
-    const replay = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
-    expect(await weatherAgent(anthropicClient(replay), replay.tools({ weather: weatherTool({}).fn }))).toBe("Rome is warmer.");
-    await expect(replay.finish()).resolves.toMatchObject({ status: "success" });
+    await expect(weatherAgent(anthropicClient(rec), rec.tools({ weather: weatherTool({ Paris: 1, Rome: 2 }).fn }))).rejects.toThrow(
+      /more than one text block/,
+    );
+    const failure = await rec.finish().then(() => undefined, (e: unknown) => e);
+    expect(failure).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(() => readFileSync(path)).toThrow();
   });
 
   it("refuses fork --live for a thinking-enabled request, before any network call", async () => {
