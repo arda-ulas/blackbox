@@ -752,7 +752,7 @@ describe("#2 / #4 fields the cassette cannot carry are refused, never replayed a
         await recordOpenAI(openaiCompletion({ content: "hi", annotations: [{ type: "url_citation", url_citation: { url: "https://example.com", title: "t", start_index: 0, end_index: 2 } }] }, "stop")),
         /annotations/,
       );
-      expectRefused(await recordOpenAI(openaiCompletion({ content: "partial", refusal: "no" }, "stop")), /both content and a refusal/);
+      expectRefused(await recordOpenAI(openaiCompletion({ content: "partial", refusal: "no" }, "stop")), /a refusal together with content/);
       expectRefused(await recordOpenAI(OK, { web_search_options: {} }), /web_search_options/);
       expectRefused(
         await recordAnthropic(anthropicMessage([{ type: "text", text: "A", citations: [{ type: "char_location", cited_text: "A", document_index: 0, start_char_index: 0, end_char_index: 1 }] }], "end_turn")),

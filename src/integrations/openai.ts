@@ -86,6 +86,9 @@ function checkOpenAIMessage(raw: Record<string, unknown>, where: string): void {
   if (raw["audio"] !== undefined && raw["audio"] !== null) {
     unsupported(`audio in the history (${where}.audio)`, "audio cannot be recorded in this version");
   }
+  if (raw["refusal"] !== undefined && raw["refusal"] !== null) {
+    unsupported(`an assistant refusal in the history (${where}.refusal)`, "a refusal would be recorded as ordinary text");
+  }
 }
 
 function contentText(content: unknown, where: string): string {
@@ -94,7 +97,9 @@ function contentText(content: unknown, where: string): string {
   if (Array.isArray(content)) {
     return content
       .map((part) => {
-        if (isRecord(part) && part["type"] === "refusal" && typeof part["refusal"] === "string") return part["refusal"];
+        if (isRecord(part) && part["type"] === "refusal") {
+          unsupported(`a refusal part in the history (${where})`, "a refusal would be recorded as ordinary text");
+        }
         return joinTextBlocks([part], where);
       })
       .join("\n\n");
@@ -151,7 +156,7 @@ export function normalizeOpenAIRequest(body: Record<string, unknown>, ids: ToolC
       const content = raw["content"];
       messages.push({ role: "user", content: typeof content === "string" ? content : contentText(content, where) });
     } else if (role === "assistant") {
-      const text = contentText(raw["content"] ?? raw["refusal"], where);
+      const text = contentText(raw["content"], where);
       const toolCalls = Array.isArray(raw["tool_calls"]) ? raw["tool_calls"].filter(isRecord) : [];
       if (toolCalls.length === 0) {
         messages.push({ role: "assistant", content: text });
@@ -225,8 +230,12 @@ export function normalizeOpenAIResponse(response: Record<string, unknown>, ids: 
   // A replay returns none of these, so a response carrying them is not recorded.
   if (present(choice["logprobs"])) unsupported("logprobs in a response (choices[0].logprobs)", "leave logprobs off; they are not recorded in this version");
   if (present(message["annotations"])) unsupported("annotations in a response (message.annotations)", "they are not recorded in this version");
-  if (typeof message["refusal"] === "string" && typeof message["content"] === "string" && message["content"].length > 0) {
-    unsupported("a response with both content and a refusal", "only one of them can be recorded in this version");
+  const hasToolCalls = Array.isArray(message["tool_calls"]) && message["tool_calls"].length > 0;
+  if (typeof message["refusal"] === "string" && (typeof message["content"] === "string" || hasToolCalls || finish !== "stop")) {
+    unsupported(
+      "a refusal together with content, tool calls or a finish_reason other than stop",
+      "a replay returns a refusal alone, with finish_reason stop",
+    );
   }
   const refusal = typeof message["refusal"] === "string" ? message["refusal"] : undefined;
   const text = typeof message["content"] === "string" ? message["content"] : "";

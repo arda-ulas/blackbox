@@ -101,6 +101,10 @@ const KEY_FORM_MARKERS: readonly string[] = [
 // reads source code mentioning `toolu_` or `ANTHROPIC_API_KEY` has not leaked
 // anything. Everywhere else — ids, types, keys — the full rule set applies.
 const USER_DATA_KEYS: ReadonlySet<string> = new Set([
+  // Request controls that hold the user's own schemas and text.
+  "responseFormat",
+  "outputConfig",
+  "prediction",
   "toolInput",
   "result",
   "error",

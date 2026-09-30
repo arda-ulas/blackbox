@@ -35,9 +35,13 @@ export function firstDifference(expected: JsonValue | undefined, actual: JsonVal
   return { path: path.length > 0 ? path : "(root)", expected, actual };
 }
 
-/** Compact single-line rendering of a value for a report, elided past `budget`. */
-export function renderValue(value: JsonValue | undefined, budget = 200): string {
+/**
+ * Compact single-line rendering of a value for a report, elided past `budget`.
+ * `mask` runs on the whole text before it is cut, so a secret that straddles
+ * the cut is never printed in part.
+ */
+export function renderValue(value: JsonValue | undefined, budget = 200, mask: (text: string) => string = (text) => text): string {
   if (value === undefined) return "(absent)";
-  const raw = JSON.stringify(value);
+  const raw = mask(JSON.stringify(value));
   return raw.length > budget ? `${raw.slice(0, budget - 1)}…` : raw;
 }

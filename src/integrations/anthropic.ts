@@ -192,6 +192,9 @@ export function normalizeAnthropicResponse(response: Record<string, unknown>, id
   const text = texts.join("\n\n");
   const truncated = stopReason === "max_tokens";
 
+  if (calls.length > 0 && stopReason === "refusal") {
+    unsupported("a refusal together with tool calls", "a replay would return the tool calls with stop_reason tool_use");
+  }
   if (calls.length > 0) {
     const output: NeutralOutput = { type: "tool_calls", calls };
     if (text.length > 0) output.text = text;

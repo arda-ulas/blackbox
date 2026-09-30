@@ -66,15 +66,33 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Copy a parsed JSON value, dropping `undefined` members. */
-export function json(value: unknown): JsonValue {
+/**
+ * Copy a value as JSON.stringify would write it (toJSON honored, `undefined`
+ * and function members dropped), refusing what JSON would silently lose: a
+ * bigint or symbol, and an object with no toJSON and nothing to copy (a Map, a
+ * Set, a RegExp, …), which would be stored as `{}`. `where` names the value in
+ * the error, never its content.
+ */
+export function json(value: unknown, where = "a request"): JsonValue {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (Array.isArray(value)) return value.map(json);
-  if (isRecord(value)) {
+  if (typeof value === "bigint" || typeof value === "symbol") {
+    return unsupported(`a ${typeof value} in ${where}`, "pass JSON values (strings, numbers, booleans, arrays, plain objects)");
+  }
+  if (Array.isArray(value)) return value.map((item) => json(item, where));
+  if (typeof value === "object") {
+    const toJSON = (value as { toJSON?: unknown }).toJSON;
+    if (typeof toJSON === "function") return json(toJSON.call(value), where);
+    const proto: unknown = Object.getPrototypeOf(value);
+    const record = value as Record<string, unknown>;
+    if (proto !== Object.prototype && proto !== null && Object.keys(record).length === 0) {
+      const kind = (value as { constructor?: { name?: string } }).constructor?.name ?? "object";
+      return unsupported(`a ${kind} in ${where}`, "it would be stored as {}; pass JSON values or convert it first");
+    }
     const copy: JsonObject = {};
-    for (const key of Object.keys(value)) {
-      if (value[key] !== undefined) copy[key] = json(value[key]);
+    for (const key of Object.keys(record)) {
+      const member = record[key];
+      if (member !== undefined && typeof member !== "function" && typeof member !== "symbol") copy[key] = json(member, where);
     }
     return copy;
   }

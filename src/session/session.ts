@@ -36,7 +36,7 @@ import {
   synthesizeOpenAIResponse,
 } from "../integrations/openai.ts";
 import { validateTrace } from "../replay/CassetteReplay.ts";
-import { canonicalize } from "../trace/hash.ts";
+import { canonicalize, hashCanonical } from "../trace/hash.ts";
 import { parseJson } from "../trace/parseJson.ts";
 import { auditTraceNeutrality } from "../trace/neutrality.ts";
 import { toolCallsOf, type ToolCallRef } from "../trace/payloads.ts";
@@ -87,9 +87,9 @@ interface Round {
   extra: Array<NonNullable<RoundCall["pending"]> & { toolCallId: string; toolName: string }>;
 }
 
-function toolInputOf(args: unknown[]): JsonValue {
+function toolInputOf(name: string, args: unknown[]): JsonValue {
   if (args.length === 0) return {};
-  return json(args.length === 1 ? args[0] : args);
+  return json(args.length === 1 ? args[0] : args, `the arguments of tool ${name}`);
 }
 
 function errorMessage(error: unknown): string {
@@ -149,6 +149,8 @@ export class BlackboxSession {
     if (this.#options.out !== undefined) this.#options.out = resolve(this.#options.out);
     if (this.#options.cassette !== undefined) this.#options.cassette = resolve(this.#options.cassette);
     for (const { value } of envApiKeys(env)) this.#secrets.add(value);
+
+    this.#claimLauncherReport(options);
 
     if (this.mode === "record") {
       if (this.#options.out === undefined) throw new BlackboxError("record mode needs an output path (out / BLACKBOX_OUT)");
@@ -443,8 +445,8 @@ export class BlackboxSession {
         throw new ReplayDivergenceError({
           stepIndex: inputStep.index,
           path: this.#mask(difference.path),
-          expected: this.#mask(renderValue(difference.expected)),
-          actual: this.#mask(renderValue(difference.actual)),
+          expected: renderValue(difference.expected, 200, this.#masker),
+          actual: renderValue(difference.actual, 200, this.#masker),
           hint:
             "  The agent sent a different request than the one recorded. If the difference comes from " +
             "something nondeterministic (a timestamp, a random id), rerun with --match sequence.",
@@ -541,7 +543,13 @@ export class BlackboxSession {
       throw error;
     }
     if (this.#failure) throw this.#failure;
-    const input = toolInputOf(args);
+    let input: JsonValue;
+    try {
+      input = toolInputOf(name, args);
+    } catch (error) {
+      if (error instanceof BlackboxError) throw this.#failTool(error);
+      throw error;
+    }
     const call = this.#claimCall(name, input);
 
     // In a fork, a call the recording completed before the fork point is part of
@@ -595,8 +603,8 @@ export class BlackboxSession {
           new ReplayDivergenceError({
             stepIndex: first.recorded.call.index,
             path: `tool ${name} input`,
-            expected: this.#mask(renderValue(expectedInput(first))),
-            actual: this.#mask(renderValue(input)),
+            expected: renderValue(expectedInput(first), 200, this.#masker),
+            actual: renderValue(input, 200, this.#masker),
             hint: "  The agent called the tool with different arguments than it did when recording.",
           }),
         );
@@ -644,7 +652,15 @@ export class BlackboxSession {
     this.#toolsInFlight++;
     try {
       const value: unknown = await fn(...args);
-      const done = { payload: { toolCallId, toolName: name, result: json(value === undefined ? null : value) }, at: Date.now() };
+      let result: JsonValue;
+      try {
+        result = json(value === undefined ? null : value, `the result of tool ${name}`);
+      } catch (error) {
+        // The tool ran, but its result cannot be recorded: the run fails.
+        if (error instanceof BlackboxError) throw this.#failTool(error);
+        throw error;
+      }
+      const done = { payload: { toolCallId, toolName: name, result }, at: Date.now() };
       pending.done = done;
       if (extra) extra.done = done;
       return value;
@@ -770,8 +786,8 @@ export class BlackboxSession {
       throw new ReplayDivergenceError({
         stepIndex: recordedTerminal?.index ?? parent.steps.length,
         path: "outcome",
-        expected: this.#mask(describeTerminal(recorded)),
-        actual: this.#mask(describeTerminal(now)),
+        expected: describeTerminal(recorded, this.#masker),
+        actual: describeTerminal(now, this.#masker),
         hint:
           "  Every model call matched, but the agent ended the run differently: the result or error it passed " +
           "to finish() is not the recorded one.",
@@ -793,6 +809,27 @@ export class BlackboxSession {
     const recorder = this.#recorder as TraceRecorder;
     const payload = terminalPayload(options, recorder.getTrace().steps, (text) => this.#mask(text));
     if (payload) recorder.append("metadata", payload);
+  }
+
+  /**
+   * Under the CLI launcher (the report path comes from the environment), the
+   * process runs one session: a second would share the cassette and the report
+   * and overwrite the first, so it is refused, and the report says so.
+   */
+  #claimLauncherReport(options: BlackboxOptions): void {
+    const report = this.#options.reportPath;
+    if (this.mode === "off" || options.reportPath !== undefined || report === undefined) return;
+    if (!launcherReports.has(report)) {
+      launcherReports.add(report);
+      return;
+    }
+    const message =
+      "a second blackbox() session in a process started by the blackbox CLI; the CLI records, replays or forks " +
+      "one session per run. Run each conversation as its own command, or give each session its own options " +
+      "(mode, cassette, out) and run the agent without the CLI.";
+    launcherConflicts.add(report);
+    this.#writeReport({ ok: false, mode: this.mode, error: message });
+    throw new BlackboxError(message);
   }
 
   /** A fork never writes over the cassette it forks, however the two paths are spelled. */
@@ -847,6 +884,8 @@ export class BlackboxSession {
   #mask(text: string): string {
     return maskSecrets(text, [...this.#secrets]);
   }
+
+  readonly #masker = (text: string): string => this.#mask(text);
 
   #collectSecrets(input: string | URL | Request, init?: RequestInit): void {
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
@@ -922,11 +961,20 @@ export class BlackboxSession {
     const path = this.#options.reportPath;
     if (path === undefined) return;
     // The launcher checks the mode and files the session actually used.
-    const files: Record<string, string> = {};
-    if (this.#options.cassette !== undefined) files["cassette"] = this.#options.cassette;
-    if (this.#options.out !== undefined) files["out"] = this.#options.out;
+    const used: Record<string, JsonValue> = {};
+    const { cassette, out, forkAt, forkSet, continueWith, scriptPath, match } = this.#options;
+    if (cassette !== undefined) used["cassette"] = cassette;
+    if (out !== undefined) used["out"] = out;
+    if (this.mode === "replay" || this.mode === "fork") used["match"] = match;
+    if (forkAt !== undefined) used["forkAt"] = forkAt;
+    if (forkSet !== undefined) used["forkSet"] = hashCanonical(forkSet);
+    if (continueWith !== undefined) used["continueWith"] = continueWith;
+    if (scriptPath !== undefined) used["script"] = resolve(scriptPath);
+    // Once a second session was refused, no session of this run may report success.
+    const conflict = launcherConflicts.has(path) && report["ok"] === true;
+    const final = conflict ? { ...report, ok: false, error: "a second blackbox() session in this run was refused; nothing reported is reliable" } : report;
     try {
-      writeFileSync(path, JSON.stringify({ ...report, ...files }));
+      writeFileSync(path, JSON.stringify({ ...final, ...used }));
     } catch {
       // The report is advisory; the cassette and the exit code carry the result.
     }
@@ -935,6 +983,10 @@ export class BlackboxSession {
 
 // One process exit hook for every record/fork session that has not finished.
 const openSessions = new Set<BlackboxSession>();
+// Report paths claimed by a launcher-configured session in this process, and
+// those a second session tried to claim.
+const launcherReports = new Set<string>();
+const launcherConflicts = new Set<string>();
 let exitHookInstalled = false;
 function installExitHook(): void {
   if (exitHookInstalled) return;
@@ -947,8 +999,11 @@ function installExitHook(): void {
   // otherwise re-raise the signal so the process ends the way it would have.
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     const onSignal = (): void => {
+      // The agent handles the signal itself: leave its sessions open, so its own
+      // finish() (or the real exit) ends them.
+      if (process.listenerCount(signal) > 0) return;
       for (const session of [...openSessions]) session.writeOnExit(signal === "SIGINT" ? 130 : 143);
-      if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
+      process.kill(process.pid, signal);
     };
     process.once(signal, onSignal);
   }
@@ -994,11 +1049,11 @@ function isTerminal(step: TraceStep): boolean {
   return step.type === "metadata" && (event === "run_completed" || event === "run_failed");
 }
 
-function describeTerminal(payload: JsonObject | undefined): string {
+function describeTerminal(payload: JsonObject | undefined, mask: (text: string) => string): string {
   if (payload === undefined) return "no outcome (the run ended incomplete)";
-  if (payload["event"] === "run_completed") return `success, result ${renderValue(payload["result"])}`;
-  const detail = payload["message"] !== undefined ? `: ${renderValue(payload["message"])}` : "";
-  return `error (${String(payload["reason"] ?? "unknown")})${detail}`;
+  if (payload["event"] === "run_completed") return `success, result ${renderValue(payload["result"], 200, mask)}`;
+  const detail = payload["message"] !== undefined ? `: ${renderValue(payload["message"], 200, mask)}` : "";
+  return mask(`error (${String(payload["reason"] ?? "unknown")})${detail}`);
 }
 
 function isNeutralOutput(value: unknown): value is NeutralOutput {
