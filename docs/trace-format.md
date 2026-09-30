@@ -97,6 +97,17 @@ A tool round from the built-in loop appears in the following `model_input`'s `me
 }
 ```
 
+**Recorded agent: the agent passed an error to `finish()`, or the process ended early**
+
+```json
+{ "event": "run_failed", "status": "error", "reason": "agent_error", "message": "<error message>" }
+{ "event": "run_failed", "status": "error", "reason": "process_exit", "exitCode": <number> }
+{ "event": "run_failed", "status": "error", "reason": "calls_in_flight", "exitCode": <number>, "inFlight": <number> }
+```
+
+`calls_in_flight` means the process exited while wrapped model or tool calls were still running; their effects are
+not in the cassette.
+
 **Max steps exceeded**
 
 ```json

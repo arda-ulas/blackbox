@@ -255,3 +255,90 @@ describe("#10 the launcher owns every BLACKBOX_* variable the session reads", ()
     expect(replayed.stderr).toContain("messages[0].content");
   }, 60_000);
 });
+
+// ---------------------------------------------------------------------------
+// #6 — finish() ignored calls still running, and calls after it still ran
+// ---------------------------------------------------------------------------
+
+describe("#6 finish() and calls still running or started after it", () => {
+  function gate(): { wait: Promise<void>; open: () => void } {
+    let open!: () => void;
+    const wait = new Promise<void>((resolve) => (open = resolve));
+    return { wait, open };
+  }
+
+  async function answered(): Promise<{ bb: BlackboxSession; path: string; effects: string[]; calls: () => number; tools: { act: (input: { id: string }) => Promise<string> }; gates: ReturnType<typeof gate>[] }> {
+    const path = tmp("lifecycle");
+    let calls = 0;
+    const counting: typeof fetch = async (input, init) => {
+      calls++;
+      return upstream([anthropicMessage([{ type: "text", text: "A" }], "end_turn")])(input, init);
+    };
+    const bb = blackbox({ mode: "record", out: path, baseFetch: counting, logErrors: false });
+    const effects: string[] = [];
+    const gates: ReturnType<typeof gate>[] = [];
+    const tools = bb.tools({
+      act: async ({ id }: { id: string }) => {
+        effects.push(id);
+        const g = gate();
+        gates.push(g);
+        await g.wait;
+        return id;
+      },
+    });
+    await ask(bb);
+    return { bb, path, effects, calls: () => calls, tools, gates };
+  }
+
+  it("probe: finish() while a gated tool runs refuses to write a success cassette", async () => {
+    const { bb, path, effects, tools, gates } = await answered();
+    const running = tools.act({ id: "first" });
+    const failure = await bb.finish().then(() => undefined, (e: unknown) => e);
+    expect(String(failure)).toContain("still running");
+    expect(() => readFileSync(path)).toThrow();
+
+    // Releasing the gate lets the call that started before finish() return, but
+    // a new call is refused and never runs.
+    gates[0].open();
+    await expect(running).resolves.toBe("first");
+    await expect(tools.act({ id: "second" })).rejects.toThrow(/session has finished/);
+    expect(effects).toEqual(["first"]);
+
+    // Repeated finish() reports the same failure and still writes nothing.
+    await expect(bb.finish()).rejects.toThrow(/still running/);
+    expect(() => readFileSync(path)).toThrow();
+  });
+
+  it("a model call after finish() is refused and not sent", async () => {
+    const { bb, calls } = await answered();
+    await bb.finish();
+    expect(calls()).toBe(1);
+    await expect(ask(bb)).rejects.toThrow(/session has finished/);
+    expect(calls()).toBe(1);
+  });
+
+  it("a tool call after a successful finish() does not run", async () => {
+    const { bb, effects, tools } = await answered();
+    await expect(bb.finish()).resolves.toMatchObject({ status: "success" });
+    await expect(tools.act({ id: "late" })).rejects.toThrow(/session has finished/);
+    expect(effects).toEqual([]);
+  });
+
+  it("a replayed tool call after finish() is refused too", async () => {
+    const path = await recordAnswerA();
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const tools = bb.tools({ act: async () => "ran" });
+    await ask(bb);
+    await bb.finish();
+    await expect(tools.act()).rejects.toThrow(/session has finished/);
+  });
+
+  it("an exit while a tool is still running is recorded as run_failed, not success", async () => {
+    const { bb, path, tools, gates } = await answered();
+    void tools.act({ id: "never-finishes" });
+    bb.writeOnExit(0);
+    const trace = readTrace(path);
+    expect(trace.steps.at(-1)?.payload).toMatchObject({ event: "run_failed", reason: "calls_in_flight", exitCode: 0, inFlight: 1 });
+    gates[0].open();
+  });
+});

@@ -72,8 +72,11 @@ await bb.finish({ error });                  // record a failed run
   `--match sequence` too), and that it ended the run the way the recording did: the result or error passed to
   `finish()` (without one, the last model reply) must equal the recorded outcome. Otherwise it throws a
   `ReplayDivergenceError`.
+- Await every model and tool call before `finish()`. If one is still running, `finish()` throws and writes nothing.
+- Once `finish()` has been called, the session refuses further calls: a model request gets a `[blackbox]` error and
+  is not sent, and a wrapped tool throws without running.
 - If the process exits (or gets Ctrl-C) before `finish()`, a record or fork cassette is still written. A non-zero
-  exit is recorded as `run_failed`.
+  exit is recorded as `run_failed`, and so is an exit while a wrapped call was still running.
 
 ## Servers and other long-running processes
 

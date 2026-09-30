@@ -130,6 +130,9 @@ export class BlackboxSession {
   #finishError: unknown;
   #nextExtraId = 0;
   #modelCallsInFlight = 0;
+  #toolsInFlight = 0;
+  /** Set when finish() begins: from then on, no call is forwarded or run. */
+  #finalizing = false;
 
   // Replay / fork state.
   readonly #parent: Trace | undefined;
@@ -195,9 +198,17 @@ export class BlackboxSession {
       throw new BlackboxError("finish() takes a result or an error, not both");
     }
     if (this.mode === "off") return (this.#finished = { mode: "off", steps: 0, status: "incomplete" });
+    this.#finalizing = true;
 
     try {
       if (this.#failure) throw this.#failure;
+      const inFlight = this.#inFlight();
+      if (inFlight > 0) {
+        throw new BlackboxError(
+          `finish() was called while ${inFlight} wrapped call(s) were still running; await every model call and ` +
+            "tool call before finish(). Nothing was written, and later calls on this session are refused.",
+        );
+      }
       if (this.mode === "replay") return (this.#finished = this.#finishReplay(options));
 
       if (this.mode === "fork" && !this.#forked) {
@@ -237,6 +248,11 @@ export class BlackboxSession {
     this.#collectSecrets(input, init);
 
     if (this.mode === "off") return this.#options.baseFetch(input, init);
+    if (this.#finalizing) {
+      const message = "[blackbox] the session has finished (finish() was called); this request was not sent";
+      if (this.#options.logErrors) console.error(message);
+      return jsonResponse(400, errorBody(provider === "responses" ? "openai" : provider, message));
+    }
     if (this.#failure) {
       return jsonResponse(400, errorBody(provider === "responses" ? "openai" : provider, `[blackbox] ${this.#failure.message}`));
     }
@@ -510,6 +526,11 @@ export class BlackboxSession {
   // -------------------------------------------------------------------------
 
   async #invokeTool(name: string, fn: AnyFunction, args: unknown[]): Promise<unknown> {
+    if (this.#finalizing) {
+      const error = new BlackboxError(`the session has finished (finish() was called); ${name} was not run`);
+      if (this.#options.logErrors) console.error(`[blackbox] ${error.message}`);
+      throw error;
+    }
     if (this.#failure) throw this.#failure;
     const input = toolInputOf(args);
     const call = this.#claimCall(name, input);
@@ -611,6 +632,7 @@ export class BlackboxSession {
     }
     const extra = call ? undefined : this.#round.extra[this.#round.extra.length - 1];
     const toolCallId = call?.toolCallId ?? (extra as { toolCallId: string }).toolCallId;
+    this.#toolsInFlight++;
     try {
       const value: unknown = await fn(...args);
       const done = { payload: { toolCallId, toolName: name, result: json(value === undefined ? null : value) }, at: Date.now() };
@@ -622,7 +644,14 @@ export class BlackboxSession {
       pending.done = done;
       if (extra) extra.done = done;
       throw error;
+    } finally {
+      this.#toolsInFlight--;
     }
+  }
+
+  /** Model calls and live wrapped tool calls that have started and not returned. */
+  #inFlight(): number {
+    return this.#modelCallsInFlight + this.#toolsInFlight;
   }
 
   /** Write the current turn's finished tool steps in the order the model requested them. */
@@ -834,10 +863,15 @@ export class BlackboxSession {
     if (this.#finished || this.#finishError !== undefined || !this.#recorder || this.#failure) return;
     if (this.mode === "fork" && !this.#forked) return;
     try {
-      this.#checkPrefixClaimed();
+      const inFlight = this.#inFlight();
+      if (inFlight === 0) this.#checkPrefixClaimed();
       this.#flushRound();
       if (this.#recorder.size() === 0) return;
-      if (exitCode === 0) this.#appendTerminal({});
+      if (inFlight > 0) {
+        // The process ended while calls were still running: whatever they did
+        // is not in the cassette, so the run cannot count as a success.
+        this.#recorder.append("metadata", { event: "run_failed", status: "error", reason: "calls_in_flight", exitCode, inFlight });
+      } else if (exitCode === 0) this.#appendTerminal({});
       else {
         this.#recorder.append("metadata", { event: "run_failed", status: "error", reason: "process_exit", exitCode });
       }
