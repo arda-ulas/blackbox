@@ -7,7 +7,21 @@
 #   npm run build && scripts/live-proof.sh openai      # needs OPENAI_API_KEY
 
 set -euo pipefail
-provider="${1:?usage: scripts/live-proof.sh anthropic|openai}"
+provider="${1:-}"
+case "$provider" in
+  anthropic) key_var=ANTHROPIC_API_KEY ;;
+  openai) key_var=OPENAI_API_KEY ;;
+  *) echo "usage: scripts/live-proof.sh anthropic|openai" >&2; exit 2 ;;
+esac
+# Check the key before anything runs, instead of failing inside the SDK.
+if [ -z "${!key_var:-}" ]; then
+  echo "live proof needs $key_var: export $key_var=<your key> and run it again (it spends a few cents of your API credit)" >&2
+  exit 1
+fi
+if [ ! -f dist/cli.js ]; then
+  echo "live proof runs the built CLI: run npm run build first" >&2
+  exit 1
+fi
 agent="examples/${provider}-agent.mjs"
 out="traces/live-${provider}"
 mkdir -p traces
