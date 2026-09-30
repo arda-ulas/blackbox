@@ -132,6 +132,7 @@ interface ModelTurn {
 interface HumanTurn {
   kind: "human";
   text: string;
+  timestamp: number;
 }
 
 interface ResultEntry {
@@ -275,7 +276,7 @@ export function adaptClaudeCodeTranscript(
       results.set(callId, { block, where: `${where}.tool_result`, timestamp: timestampOf(line.event, where) });
     }
     const text = humanText(line.message);
-    if (text.length > 0) turns.push({ kind: "human", text });
+    if (text.length > 0) turns.push({ kind: "human", text, timestamp: timestampOf(line.event, where) });
   }
 
   const firstModel = turns.find((turn): turn is ModelTurn => turn.kind === "model");
@@ -309,12 +310,15 @@ export function adaptClaudeCodeTranscript(
   const consumedResults = new Set<string>();
   let nextCallIndex = 0;
   let lastFinal: { text: string; timestamp: number } | undefined;
+  // Human messages added to the history since the last recorded model call.
+  let unanswered: HumanTurn | undefined;
 
   const lastModelTurn = turns.findLast((turn): turn is ModelTurn => turn.kind === "model");
 
   for (const turn of turns) {
     if (turn.kind === "human") {
       history.push({ role: "user", content: turn.text });
+      unanswered = turn;
       continue;
     }
 
@@ -329,6 +333,7 @@ export function adaptClaudeCodeTranscript(
     if (toolUses.length === 0) {
       // Thinking-only turns carry nothing representable; skip them.
       if (text.length === 0) continue;
+      unanswered = undefined;
       recorder.append("model_input", { messages: history, tools: toolDefs } as unknown as JsonValue, turn.timestamp);
       recorder.append("model_output", { type: "final_answer", text }, turn.timestamp);
       history.push({ role: "assistant", content: text });
@@ -361,6 +366,7 @@ export function adaptClaudeCodeTranscript(
     const neutralCalls = calls.map(({ toolCallId, toolName, toolInput }) => ({ toolCallId, toolName, toolInput }));
     const output: JsonObject = { type: "tool_calls", calls: neutralCalls as unknown as JsonValue };
     if (text.length > 0) output["text"] = text;
+    unanswered = undefined;
     recorder.append("model_input", { messages: history, tools: toolDefs } as unknown as JsonValue, turn.timestamp);
     recorder.append("model_output", output, turn.timestamp);
 
@@ -396,13 +402,13 @@ export function adaptClaudeCodeTranscript(
       }
     }
 
-    if (missing.length > 0) return recorder.getTrace();
-
     const assistant: MessagePart[] = [];
     if (text.length > 0) assistant.push({ type: "text", text });
     for (const call of neutralCalls) assistant.push({ type: "tool_use", ...call });
     history.push({ role: "assistant", content: assistant });
-    history.push({ role: "user", content: resultParts });
+    if (resultParts.length > 0) history.push({ role: "user", content: resultParts });
+    // Only human messages can follow a round cut off mid-tool (it is the last
+    // model turn); they are kept below as an unanswered request.
     lastFinal = undefined;
   }
 
@@ -412,6 +418,12 @@ export function adaptClaudeCodeTranscript(
     }
   }
 
+  if (unanswered !== undefined) {
+    // The session ends with a user message nobody answered: keep it as the
+    // request that was never answered, and leave the run incomplete.
+    recorder.append("model_input", { messages: history, tools: toolDefs } as unknown as JsonValue, unanswered.timestamp);
+    return recorder.getTrace();
+  }
   if (lastFinal !== undefined) {
     recorder.append(
       "metadata",

@@ -342,3 +342,82 @@ describe("#6 finish() and calls still running or started after it", () => {
     gates[0].open();
   });
 });
+
+// ---------------------------------------------------------------------------
+// #7 — importing a session dropped a trailing unanswered user message
+// ---------------------------------------------------------------------------
+
+describe("#7 import keeps a trailing unanswered user message", () => {
+  const line = (type: "user" | "assistant", minute: number, message: object): object => ({
+    type,
+    uuid: `u-${minute}`,
+    timestamp: `2026-09-29T10:0${minute}:00.000Z`,
+    message,
+  });
+
+  async function importLines(events: object[]): Promise<Trace> {
+    const { adaptClaudeCodeTranscript, parseClaudeCodeJsonl } = await import("../src/ingest/claudeCodeTranscript.ts");
+    return adaptClaudeCodeTranscript(parseClaudeCodeJsonl(events.map((e) => JSON.stringify(e)).join("\n")), { traceId: "probe" });
+  }
+
+  it("probe: user → assistant 'old answer' → user 'UNANSWERED' imports as incomplete, message kept", async () => {
+    const { replayTrace } = await import("../src/replay/CassetteReplay.ts");
+    const { verifyTrace } = await import("../src/trace/verifyTrace.ts");
+    const trace = await importLines([
+      line("user", 1, { role: "user", content: "first" }),
+      line("assistant", 2, { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "old answer" }] }),
+      line("user", 3, { role: "user", content: "UNANSWERED" }),
+    ]);
+    const last = trace.steps.at(-1);
+    expect(last?.type).toBe("model_input");
+    expect(JSON.stringify(last?.payload)).toContain("UNANSWERED");
+    expect(replayTrace(trace).status).toBe("incomplete");
+    expect(replayTrace(trace).result).toBeUndefined();
+    expect(verifyTrace(trace).pass).toBe(true);
+  });
+
+  it("a session answered to the end still imports as success", async () => {
+    const { replayTrace } = await import("../src/replay/CassetteReplay.ts");
+    const trace = await importLines([
+      line("user", 1, { role: "user", content: "first" }),
+      line("assistant", 2, { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "old answer" }] }),
+      line("user", 3, { role: "user", content: "second" }),
+      line("assistant", 4, { role: "assistant", id: "msg_example_02", content: [{ type: "text", text: "new answer" }] }),
+    ]);
+    expect(replayTrace(trace)).toMatchObject({ status: "success", result: "new answer" });
+  });
+
+  it("a message typed after a tool was cut off is kept too", async () => {
+    const { replayTrace } = await import("../src/replay/CassetteReplay.ts");
+    const trace = await importLines([
+      line("user", 1, { role: "user", content: "first" }),
+      line("assistant", 2, {
+        role: "assistant",
+        id: "msg_example_01",
+        content: [{ type: "tool_use", id: "toolu_example_01", name: "Bash", input: { command: "sleep 100" } }],
+      }),
+      line("user", 3, { role: "user", content: "stop that" }),
+    ]);
+    expect(trace.steps.at(-1)?.type).toBe("model_input");
+    expect(JSON.stringify(trace.steps.at(-1)?.payload)).toContain("stop that");
+    expect(replayTrace(trace).status).toBe("incomplete");
+  });
+
+  it("the CLI import reports the session as incomplete", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const source = join(DIR, "unanswered.jsonl");
+    writeFileSync(
+      source,
+      [
+        line("user", 1, { role: "user", content: "first" }),
+        line("assistant", 2, { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "old answer" }] }),
+        line("user", 3, { role: "user", content: "UNANSWERED" }),
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n"),
+    );
+    const result = await cli(["import", "--from", "claude-code", "--in", source, "--out", join(DIR, "unanswered.json")]);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/Status:\s+incomplete/);
+  }, 60_000);
+});

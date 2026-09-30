@@ -21,6 +21,8 @@ npx blackbox inspect runs/session.json
   result in the main session. A subagent's own transcript (`<session>/subagents/agent-*.jsonl`, where every line is a
   sidechain) imports as a session of its own.
 - A session that stopped while a tool was running is imported as `incomplete`.
+- A session that ends with a user message nobody answered keeps that message: the cassette ends with the unanswered
+  request (a `model_input` step) and is `incomplete`.
 - Tool definitions are not in the transcript, so the cassette lists the tool names it observed.
 
 The cassette is written only if it passes `verify`. A session in which a real API key appears (pasted into the chat,
