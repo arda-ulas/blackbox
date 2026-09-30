@@ -1,7 +1,8 @@
 # Integrations
 
-Blackbox plugs in through the official SDKs' `fetch` option. It does not patch or wrap the client object, so every
-SDK method that goes through `fetch` keeps working.
+Blackbox plugs in through the official SDKs' `fetch` option. It does not patch or wrap the client object. Only
+`messages.create` and `chat.completions.create` are recorded and replayed; other SDK calls through `bb.fetch` pass
+through unrecorded when recording (and in a live fork), and are refused in replay and in `fork --script`.
 
 ## Anthropic
 

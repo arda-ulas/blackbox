@@ -1033,3 +1033,181 @@ describe("variants: diagnostics and keys (#8)", () => {
     expect(JSON.stringify(report)).not.toContain("SYNTHETIC_SECRET_TYPE");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Variants found in the second verification round and the pre-release audit
+// ---------------------------------------------------------------------------
+
+describe("variants: tool values JSON would lose (#6 class)", () => {
+  async function recordToolArg(arg: unknown, result: unknown = "ok"): Promise<{ path: string; finish: unknown; call: unknown; runs: number }> {
+    const path = tmp("tool-values");
+    const toolTurn = anthropicMessage([{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "fetch_page", input: { url: "x" } }], "tool_use");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn]), logErrors: false });
+    let runs = 0;
+    const tools = rec.tools({ fetch_page: async (_input: unknown) => (runs++, result) });
+    await ask(rec);
+    const call = await tools.fetch_page(arg).then(() => undefined, (e: unknown) => e);
+    const finish = await rec.finish().then(() => undefined, (e: unknown) => e);
+    return { path, finish, call, runs };
+  }
+
+  it("a Date or URL argument is recorded as its JSON form, so a changed one diverges on strict replay", async () => {
+    const { path, finish } = await recordToolArg(new URL("https://example.com/a"));
+    expect(finish).toBeUndefined();
+    expect(JSON.stringify(readTrace(path).steps)).toContain("https://example.com/a");
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const tools = bb.tools({ fetch_page: async (_input: unknown) => "ok" });
+    await ask(bb);
+    await expect(tools.fetch_page(new URL("https://example.com/b"))).rejects.toBeInstanceOf(ReplayDivergenceError);
+  });
+
+  it("a Map argument is refused before the tool runs, and the run fails", async () => {
+    const { call, finish, runs, path } = await recordToolArg(new Map([["a", 1]]));
+    expect(call).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(String(call)).toContain("Map");
+    expect(runs).toBe(0);
+    expect(finish).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(() => readFileSync(path)).toThrow();
+  });
+
+  it("a result that would be stored as {} (a Set) fails the run", async () => {
+    const { call, finish } = await recordToolArg("x", new Set([1]));
+    expect(call).toBeInstanceOf(BlackboxUnsupportedError);
+    expect(finish).toBeInstanceOf(BlackboxUnsupportedError);
+  });
+});
+
+describe("variants: one session per CLI run, reports and masking (#5, #8, #10)", () => {
+  it("a second session under the launcher is refused, and no session of that run reports success", async () => {
+    const { BlackboxSession } = await import("../src/session/session.ts");
+    const report = join(DIR, "shared-report.json");
+    const env = { BLACKBOX_MODE: "record", BLACKBOX_OUT: tmp("shared-out"), BLACKBOX_REPORT: report };
+    const final = anthropicMessage([{ type: "text", text: "A" }], "end_turn");
+    const first = new BlackboxSession({ baseFetch: upstream([final]), logErrors: false }, env);
+    expect(() => new BlackboxSession({ baseFetch: upstream([final]), logErrors: false }, env)).toThrow(/second blackbox\(\) session/);
+    await ask(first);
+    await first.finish();
+    expect(JSON.parse(readFileSync(report, "utf8"))).toMatchObject({ ok: false });
+  });
+
+  it("a report path that is the cassette is refused", async () => {
+    const path = await recordAnswerA();
+    const before = readFileSync(path, "utf8");
+    expect(() => blackbox({ mode: "replay", cassette: path, reportPath: path, logErrors: false })).toThrow(/report path/);
+    expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
+  it("the CLI replay fails when the agent sets match: sequence in code", async () => {
+    const cassette = join(DIR, "explicit-match.json");
+    const recorded = await cli(["record", "--out", cassette, "--", ...AGENT], { ANTHROPIC_API_KEY: "sk-test-launcher-000000000" });
+    expect(recorded.code, recorded.stderr).toBe(0);
+    const result = await cli(["replay", cassette, "--match", "strict", "--", ...AGENT], { AGENT_EXPLICIT_MATCH: "sequence", AGENT_PROMPT: "changed" });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("override the CLI");
+    expect(result.stderr).not.toContain("✓");
+  }, 60_000);
+
+  it("a known key straddling the 200-character cut is masked before it is cut", async () => {
+    const { BlackboxSession } = await import("../src/session/session.ts");
+    const key = "opaque-synthetic-key-0123456789-abcdefghij";
+    const path = await recordAnswerA();
+    const bb = new BlackboxSession({ baseFetch: noNetwork, logErrors: false }, { BLACKBOX_MODE: "replay", BLACKBOX_CASSETTE: path, ANTHROPIC_API_KEY: key });
+    await client(bb)
+      .messages.create({ model: "claude-sonnet-5", max_tokens: 64, messages: [{ role: "user", content: `${"a".repeat(180)}${key}` }] })
+      .catch(() => undefined);
+    const failure = await bb.finish().then(() => undefined, (e: unknown) => e);
+    expect(failure).toBeInstanceOf(ReplayDivergenceError);
+    expect(String(failure)).not.toContain(key.slice(0, 12));
+  });
+});
+
+describe("variants: refusals and content forms (#2, #4)", () => {
+  const completion = (message: object, finishReason: string): object => ({
+    id: "chatcmpl-FAKEFAKEFAKE",
+    object: "chat.completion",
+    created: 1_790_000_000,
+    model: "gpt-5",
+    choices: [{ index: 0, logprobs: null, message: { role: "assistant", refusal: null, ...message }, finish_reason: finishReason }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  });
+
+  async function recordOpenAIResponse(response: object, messages: object[] = [{ role: "user", content: "hi" }]): Promise<unknown> {
+    const OpenAI = (await import("openai")).default;
+    const bb = blackbox({ mode: "record", out: tmp("openai-forms"), baseFetch: upstream([response]), logErrors: false });
+    await new OpenAI({ apiKey: API_KEY, fetch: bb.fetch, maxRetries: 0 }).chat.completions.create({ model: "gpt-5", messages } as never).catch(() => undefined);
+    return bb.finish().then(() => undefined, (e: unknown) => e);
+  }
+
+  it("a final answer with null content is refused (a replay would return an empty string)", async () => {
+    for (const finish of ["stop", "length"]) {
+      expect(await recordOpenAIResponse(completion({ content: null }, finish))).toBeInstanceOf(BlackboxUnsupportedError);
+    }
+  });
+
+  it("tool calls with empty-string content are refused (a replay would return null)", async () => {
+    const calls = [{ id: "call_abc", type: "function", function: { name: "f", arguments: "{}" } }];
+    expect(await recordOpenAIResponse(completion({ content: "", tool_calls: calls }, "tool_calls"))).toBeInstanceOf(BlackboxUnsupportedError);
+  });
+
+  it("refusals with content, tool calls or another finish reason are refused", async () => {
+    const calls = [{ id: "call_abc", type: "function", function: { name: "f", arguments: "{}" } }];
+    for (const response of [
+      completion({ content: "", refusal: "no" }, "stop"),
+      completion({ content: null, refusal: "no", tool_calls: calls }, "tool_calls"),
+      completion({ content: null, refusal: "no" }, "length"),
+    ]) {
+      expect(String(await recordOpenAIResponse(response))).toContain("a refusal together with");
+    }
+  });
+
+  it("a plain refusal still records and replays", async () => {
+    expect(await recordOpenAIResponse(completion({ content: null, refusal: "I can't help with that." }, "stop"))).toBeUndefined();
+  });
+
+  it("an assistant refusal in the history is refused, not recorded as text", async () => {
+    const history = [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: null, refusal: "no" },
+      { role: "user", content: "please" },
+    ];
+    expect(String(await recordOpenAIResponse(completion({ content: "ok" }, "stop"), history))).toContain("refusal in the history");
+  });
+
+  it("an Anthropic refusal together with tool calls is refused", async () => {
+    const bb = blackbox({
+      mode: "record",
+      out: tmp("anthropic-refusal-tools"),
+      baseFetch: upstream([anthropicMessage([{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "f", input: {} }], "refusal")]),
+      logErrors: false,
+    });
+    await ask(bb).catch(() => undefined);
+    await expect(bb.finish()).rejects.toThrow(/refusal together with tool calls/);
+  });
+
+  it("a structured-output schema with a property named usage records", async () => {
+    const OpenAI = (await import("openai")).default;
+    const bb = blackbox({ mode: "record", out: tmp("schema-usage"), baseFetch: upstream([completion({ content: "{}" }, "stop")]), logErrors: false });
+    await new OpenAI({ apiKey: API_KEY, fetch: bb.fetch, maxRetries: 0 }).chat.completions.create({
+      model: "gpt-5",
+      messages: [{ role: "user", content: "hi" }],
+      response_format: { type: "json_schema", json_schema: { name: "s", schema: { type: "object", properties: { usage: { type: "number" } } } } },
+    });
+    await expect(bb.finish()).resolves.toMatchObject({ status: "success" });
+  });
+});
+
+describe("variants: import of an empty trailing user message (#7)", () => {
+  it("an empty trailing user message still leaves the session incomplete", async () => {
+    const { adaptClaudeCodeTranscript, parseClaudeCodeJsonl } = await import("../src/ingest/claudeCodeTranscript.ts");
+    const { replayTrace } = await import("../src/replay/CassetteReplay.ts");
+    for (const empty of ["", [{ type: "text", text: "" }]]) {
+      const events = [
+        { type: "user", timestamp: "2026-09-29T10:01:00.000Z", message: { role: "user", content: "first" } },
+        { type: "assistant", timestamp: "2026-09-29T10:02:00.000Z", message: { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "old answer" }] } },
+        { type: "user", timestamp: "2026-09-29T10:03:00.000Z", message: { role: "user", content: empty } },
+      ];
+      const trace = adaptClaudeCodeTranscript(parseClaudeCodeJsonl(events.map((e) => JSON.stringify(e)).join("\n")), { traceId: "t" });
+      expect(replayTrace(trace).status).toBe("incomplete");
+    }
+  });
+});

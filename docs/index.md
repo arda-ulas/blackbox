@@ -20,7 +20,7 @@ hero:
 features:
   - title: Record your own agent
     details: "Pass bb.fetch to the official SDK client and wrap your tools. Model calls and tool results go into a hash-chained JSON cassette."
-  - title: Replay with no network
+  - title: Replay with no model calls
     details: "Your real code runs again against the cassette. Each request is compared with the recorded one, and the first difference is named. No API key needed."
   - title: Fork and diff
     details: "Hand the agent a different tool result at any recorded step, continue live or from scripted replies, and see the first divergence and the new answer."

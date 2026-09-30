@@ -16,7 +16,7 @@ and pin the fix.
 | Step | Command | What you see |
 |---|---|---|
 | Symptom | — | A routine work order for a van with an overtemperature code |
-| Reproduce | `replay` | The same routine answer, offline, no network |
+| Reproduce | `replay` | The same routine answer, offline, no model call sent |
 | Isolate | `inspect` | Step 5: a telemetry reading captured before the fault was set |
 | Test the hypothesis | `fork --at 5 --set …` | The fresh reading injected at step 5; the run continues with the live model (with a key) or scripted replies (without) |
 | Confirm the cause | `diff` | First divergence at step 5; the priority, the answer and the tool path change |
@@ -66,7 +66,7 @@ npx blackbox replay cassettes/triage-incident.json -- node agent.mjs
 
 ```text
 Routine: I opened work order WO-9610DE for VAN-14's next scheduled service. Coolant is normal at 91 °C, so P0217 most likely comes from the temperature sensor or its wiring, and the van can stay in service.
-◼ blackbox · replay  ✓ PASS  replayed 17 steps from cassettes/triage-incident.json with no network calls (success)
+◼ blackbox · replay  ✓ PASS  replayed 17 steps from cassettes/triage-incident.json with no model calls sent (success)
 ```
 
 ### 3. Isolate
@@ -221,7 +221,7 @@ npx blackbox inspect cassettes/triage-fixed.json --step 5
 
 ```text
 Urgent: take VAN-14 off the road now. Its coolant is at 124 °C, above the 110 °C threshold for P0217, so I opened urgent work order WO-9E2562 to tow it to the depot for a cooling-system inspection.
-◼ blackbox · replay  ✓ PASS  replayed 13 steps from cassettes/triage-fixed.json with no network calls (success)
+◼ blackbox · replay  ✓ PASS  replayed 13 steps from cassettes/triage-fixed.json with no model calls sent (success)
 ...
     "stale": false,
     "cache_rejected": "snapshot captured 2026-09-28T17:05:00Z, before P0217 was set at 2026-09-29T07:58:00Z"

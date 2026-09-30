@@ -1,6 +1,6 @@
 # Use a cassette in CI
 
-A committed cassette is a regression test that needs no API key and makes no network call.
+A committed cassette is a regression test that needs no API key and sends no model call.
 
 ## Check the recorded outcome: `assert`
 

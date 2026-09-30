@@ -88,13 +88,15 @@ compares the result with the recorded `model_input`. Compared:
   `modalities`.
 
 Not compared: any other request field (for example `metadata`, `user`, `service_tier`, `store`, `cache_control`),
-thinking blocks in the history, provider tool-call ids (they become `call-N`), how an assistant turn's text is split
-into blocks, and how OpenAI message text is split into content parts. Wrapped tools' arguments are compared with the
-recorded arguments.
+thinking blocks in the history, provider tool-call ids (they become `call-N`), how text is split into blocks or parts
+(an assistant turn's text blocks, Anthropic `system` and `tool_result` blocks, OpenAI content parts), whether the
+leading OpenAI instructions were `system` or `developer` messages, and which of `max_tokens` /
+`max_completion_tokens` carried the limit. Wrapped tools' arguments are compared with the recorded arguments, in
+their JSON form.
 
 The fields listed on the [limitations](./limitations#refused-request-and-response-fields) page are refused with a
 `BlackboxUnsupportedError` rather than recorded, because a replay could not give them back. A replayed response
-carries the recorded text, tool calls and stop (end of turn, tool use, length or refusal), with zero usage and
+carries the recorded text, tool calls and stop (end of turn, tool use, length, or an OpenAI refusal), with zero usage and
 Blackbox's own ids; the limitations page lists what else a replayed response does not reproduce.
 
 ## Structured Transcript (`MessagePart`)
@@ -191,7 +193,8 @@ Timestamps are **included in the hash**. This means:
 The fork point `N` must be a `tool_result` step. The child cassette holds:
 
 1. steps `0 … N-1` copied verbatim from the parent (same timestamps, same hashes), after your agent has
-   re-run them and every request matched the recording;
+   re-run them and every request matched the recording (with `--match sequence`, the requests are not compared:
+   the prefix is copied as recorded);
 2. at `N`, a `tool_result` with the same `toolCallId` and `toolName`, your replacement `result`, and the
    parent's timestamp;
 3. after that, whatever the run did next: newly recorded model calls (live or scripted) and tool steps.

@@ -30,7 +30,7 @@ npx blackbox replay runs/trip.json -- node examples/anthropic-agent.mjs
 
 ```text
 Lisbon: 24°C and sunny beats Oslo's rain.
-◼ blackbox · replay  ✓ PASS  replayed 9 steps from runs/trip.json with no network calls (success)
+◼ blackbox · replay  ✓ PASS  replayed 9 steps from runs/trip.json with no model calls sent (success)
 ```
 
 The same answer, from the same code, with no API call. From here on, the recorded run is the fixed point you

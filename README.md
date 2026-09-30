@@ -1,7 +1,7 @@
 # Blackbox
 
 **Time-travel debugger for AI agents.** Record a run of your own agent through the official Anthropic or OpenAI
-Node SDK into a hash-chained cassette. Replay it through your real code with no network and no key;
+Node SDK into a hash-chained cassette. Replay it through your real code with no model calls sent and no key;
 fork at any recorded tool result with a different value; `diff` to the first step where the runs part. Plain local
 JSON: no server, no account. (Unrelated to Blackbox AI, the coding assistant.)
 
@@ -111,7 +111,7 @@ the answer. If the process exits before `finish()`, the cassette is still writte
 | **replay** | Your agent runs again. Each request it sends is compared with the recorded one: the model, system prompt, messages, tool definitions and sampling controls ([exact list](https://arda-ulas.github.io/blackbox/trace-format#what-replay-compares)). On a match, the recorded response comes back in the SDK's own shape. On a mismatch, replay stops at the first difference and names the path, e.g. `messages[0].content`. Wrapped tools return their recorded results without running. If a prompt changes on every run (a timestamp, say), `--match sequence` serves the responses in order without comparing. |
 | **fork** | Replays the recording up to one tool result, returns your value instead, then continues with the live model (`--live`) or scripted replies (`--script`). Steps before the fork are copied verbatim, so their hashes match the parent's. |
 | **diff** | Reports the first divergent step, the value that changed, and whether the outcome changed (status, final answer, tool path). |
-| **verify / assert** | `verify` checks the schema, the hash chain, the absence of API keys and provider request ids, and that the cassette replays. `assert` adds expectations about the outcome, for CI. |
+| **verify / assert** | `verify` checks the schema version, the hash chain and step types, the absence of API keys and provider ids, and that a recorded success is the run's last step. `assert` adds expectations about the outcome, for CI. |
 
 The format is plain JSON: see [trace format](https://arda-ulas.github.io/blackbox/trace-format).
 

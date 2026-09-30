@@ -77,6 +77,19 @@ Each fix has a regression test that reproduces its probe
   fields; Anthropic `citations`, `stop_details` and a `container`. An empty
   OpenAI final answer now replays as `""`, and a JSON-encoded string argument
   keeps its encoding. The list is on the limitations page.
+- **Tool values JSON would lose are refused.** Wrapped tools' arguments and
+  results are stored as `JSON.stringify` writes them (a `Date` or `URL` as its
+  string, so a changed one diverges on replay); a `Map`, `Set`, `RegExp`,
+  `bigint` or other object that would be stored as `{}` is refused.
+- **One session per CLI run.** A second `blackbox()` session in a process the
+  CLI started is refused, and the CLI also fails when options in code change
+  the match mode or the fork settings. A report path that is the cassette is
+  refused. Divergence details are masked before they are shortened.
+- More response forms a replay could not give back are refused: an OpenAI
+  final answer with `null` content, tool calls with `""` content, a refusal
+  together with content, tool calls or another finish reason, a refusal in the
+  history, and an Anthropic refusal with tool calls. An empty trailing user
+  message in a Claude Code import also leaves the session incomplete.
 - `scripts/live-proof.sh` checks the provider's key before it starts and exits
   with a one-line instruction.
 
@@ -84,7 +97,9 @@ Each fix has a regression test that reproduces its probe
 
 - The docs name exactly what replay compares, and what the hash chain covers:
   each step's index, type, timestamp and payload, but not the trace's top-level
-  fields or the step ids.
+  fields or the step ids. Replay is described as sending no model call (the
+  agent's unwrapped tools still run), not as touching no network.
+- A signal the agent handles itself no longer ends its sessions.
 
 ## [0.2.1] - 2026-09-29
 
