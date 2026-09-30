@@ -8,7 +8,7 @@ It records multi-step model/tool runs, replays them offline from cassette, forks
 
 ## Current State
 
-**0.2.1 adds worked examples to 0.2.0, the first release you can point at your own agent.** The engine milestones
+**0.2.2 hardens 0.2.1 (worked examples) and 0.2.0, the first release you can point at your own agent.** The engine milestones
 before it are closed and tagged (`week-one-cli-proof` … `week-fourteen-package-readiness`), with their plans in
 `docs/history/`.
 
@@ -16,8 +16,8 @@ before it are closed and tagged (`week-one-cli-proof` … `week-fourteen-package
   `import` for Claude Code sessions / chat JSON.
 - **Your own agent:** `blackbox()` session (`src/session/`) plugged into the official Anthropic / OpenAI Node SDK
   through its `fetch` option; wrapped tools via `bb.tools({...})`; CLI launcher `blackbox record|replay|fork ... -- <command>`.
-- **Tests:** 717 passing, fully offline, zero live calls, no API key.
-- **Packaging:** `@ardaulas/blackbox` 0.2.1, compiled to `dist/`, no runtime dependencies, Node 22+. `npm publish`
+- **Tests:** 764 passing, fully offline, zero live calls, no API key.
+- **Packaging:** `@ardaulas/blackbox` 0.2.2, compiled to `dist/`, no runtime dependencies, Node 22+. `npm publish`
   is run by the owner (credentials never handled by an agent).
 - **Docs:** VitePress site from `docs/` (history excluded), deployed to GitHub Pages by `.github/workflows/docs.yml`.
 

@@ -20,6 +20,57 @@ change behavior).
   instead of refusing them.
 - Vercel AI SDK and OpenAI Agents SDK integrations.
 
+## [0.2.2] - 2026-09-29
+
+Hardening: fixes for eleven problems found by probing 0.2.1 adversarially.
+Each fix has a regression test that reproduces its probe
+(`tests/auditProbes.test.ts`).
+
+### Fixed
+
+- **Replay checks how the run ended.** `finish()` in replay compares the
+  outcome it would record now (the result or error passed to it, else the last
+  model reply) with the recorded one. A different answer, or an agent error
+  after a recorded success, is a `ReplayDivergenceError` at path `outcome`
+  instead of a success.
+- **Both match modes require the whole recording to be consumed.** With
+  `--match sequence` too, a run that skips a recorded model call or tool fails,
+  and `replayedSteps` counts only the steps actually replayed.
+- **The CLI launcher owns every `BLACKBOX_*` variable.** It clears them before
+  setting the current run's, so an exported `BLACKBOX_MATCH=sequence` (or a
+  stale output or script path) no longer changes a run.
+- **`finish()` with calls still running refuses to write**, instead of saving a
+  success cassette without them, and every call after `finish()` is refused:
+  requests are not sent and wrapped tools do not run. A process that exits with
+  calls in flight is recorded as `run_failed` (`calls_in_flight`).
+- **A Claude Code import keeps a trailing unanswered user message**, as the
+  last request, and the session imports as `incomplete` instead of reporting
+  the earlier answer as its success.
+- **Diagnostics never quote raw input.** JSON parse errors (`--set @file`,
+  `--payload-json`, cassettes, fork scripts, chat JSON) give a line and column,
+  not the content; hash-chain errors no longer quote a stored hash, prevHash or
+  index; `verify` masks the supplied key in every detail; importer errors no
+  longer quote ids or roles.
+- **`import` refuses a transcript containing your API key** (the value of
+  `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`), the same refusal `record` makes.
+- **A fork never writes over its parent.** The session API, not only the CLI,
+  refuses an output that is the same file as the cassette: the same path, a
+  symlink or a hard link to it.
+- **Fields a cassette cannot carry are refused, not replayed altered**, with a
+  `BlackboxUnsupportedError` naming the field: OpenAI audio, the legacy
+  `functions` API, message `name`, `strict` function tools and a
+  `content_filter` finish; Anthropic `strict` tools, a `stop_sequence` or
+  `model_context_window_exceeded` stop, and a response with several text blocks
+  or text after a tool call. The list is on the limitations page.
+- `scripts/live-proof.sh` checks the provider's key before it starts and exits
+  with a one-line instruction.
+
+### Changed
+
+- The docs name exactly what replay compares, and what the hash chain covers:
+  each step's index, type, timestamp and payload, but not the trace's top-level
+  fields or the step ids.
+
 ## [0.2.1] - 2026-09-29
 
 Worked examples, and the small features they needed.
