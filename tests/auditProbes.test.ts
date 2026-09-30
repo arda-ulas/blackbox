@@ -1211,3 +1211,51 @@ describe("variants: import of an empty trailing user message (#7)", () => {
     }
   });
 });
+
+describe("variants: the second pre-release audit", () => {
+  it("a __proto__ key survives recording, so a changed value diverges on strict replay", async () => {
+    const path = tmp("proto-key");
+    const toolTurn = anthropicMessage([{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "lookup", input: { q: "x" } }], "tool_use");
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn]), logErrors: false });
+    const tools = rec.tools({ lookup: async (_input: unknown) => JSON.parse('{"__proto__":{"value":1},"visible":"same"}') as unknown });
+    await ask(rec);
+    await tools.lookup(JSON.parse('{"__proto__":{"value":1}}'));
+    await rec.finish();
+    expect(readFileSync(path, "utf8")).toContain('"__proto__"');
+
+    const bb = blackbox({ mode: "replay", cassette: path, baseFetch: noNetwork, logErrors: false });
+    const replayTools = bb.tools({ lookup: async (_input: unknown) => "never runs" });
+    await ask(bb);
+    await expect(replayTools.lookup(JSON.parse('{"__proto__":{"value":2}}'))).rejects.toBeInstanceOf(ReplayDivergenceError);
+  });
+
+  it("a relative report path is fixed when the session starts, so a later chdir cannot aim it at the cassette", async () => {
+    const { copyFileSync } = await import("node:fs");
+    const { dirname, basename } = await import("node:path");
+    const cassette = await recordAnswerA();
+    const before = readFileSync(cassette, "utf8");
+    const reportDir = mkdtempSync(join(DIR, "report-"));
+    copyFileSync(cassette, join(reportDir, "unused.json"));
+    const script = `
+      import { blackbox } from ${JSON.stringify(join(ROOT, "src", "index.ts"))};
+      process.chdir(${JSON.stringify(reportDir)});
+      const bb = blackbox({ mode: "replay", cassette: ${JSON.stringify(cassette)}, reportPath: ${JSON.stringify(basename(cassette))}, logErrors: false });
+      process.chdir(${JSON.stringify(dirname(cassette))});
+      await bb.finish().catch(() => {});
+    `;
+    await execFileAsync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { cwd: ROOT }).catch(() => undefined);
+    expect(readFileSync(cassette, "utf8")).toBe(before);
+  }, 60_000);
+
+  it("a trailing user message with empty content leaves the import incomplete", async () => {
+    const { adaptClaudeCodeTranscript, parseClaudeCodeJsonl } = await import("../src/ingest/claudeCodeTranscript.ts");
+    const { replayTrace } = await import("../src/replay/CassetteReplay.ts");
+    const events = [
+      { type: "user", timestamp: "2026-09-29T10:01:00.000Z", message: { role: "user", content: "first" } },
+      { type: "assistant", timestamp: "2026-09-29T10:02:00.000Z", message: { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "old answer" }] } },
+      { type: "user", timestamp: "2026-09-29T10:03:00.000Z", message: { role: "user", content: [] } },
+    ];
+    const trace = adaptClaudeCodeTranscript(parseClaudeCodeJsonl(events.map((e) => JSON.stringify(e)).join("\n")), { traceId: "t" });
+    expect(replayTrace(trace).status).toBe("incomplete");
+  });
+});

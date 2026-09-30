@@ -148,6 +148,7 @@ export class BlackboxSession {
     // Absolute from the start, so a later process.chdir() cannot move them.
     if (this.#options.out !== undefined) this.#options.out = resolve(this.#options.out);
     if (this.#options.cassette !== undefined) this.#options.cassette = resolve(this.#options.cassette);
+    if (this.#options.reportPath !== undefined) this.#options.reportPath = resolve(this.#options.reportPath);
     for (const { value } of envApiKeys(env)) this.#secrets.add(value);
 
     this.#checkReportPath();
@@ -972,6 +973,12 @@ export class BlackboxSession {
   #writeReport(report: Record<string, unknown>): void {
     const path = this.#options.reportPath;
     if (path === undefined) return;
+    // Checked again at every write, in case a cassette appeared at the path since.
+    try {
+      this.#checkReportPath();
+    } catch {
+      return;
+    }
     // The launcher checks the mode and files the session actually used.
     const used: Record<string, JsonValue> = {};
     const { cassette, out, forkAt, forkSet, continueWith, scriptPath, match } = this.#options;

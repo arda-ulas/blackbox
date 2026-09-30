@@ -71,8 +71,8 @@ Each fix has a regression test that reproduces its probe
   `functions` API, message `name`, `strict` function tools and a
   `content_filter` finish; Anthropic `strict` tools, a `stop_sequence` or
   `model_context_window_exceeded` stop, and a response with several text blocks
-  or text after a tool call. Also refused: OpenAI tool calls that did not end
-  with `finish_reason: "tool_calls"`, `logprobs`, `annotations`,
+  or text after a tool call. Also refused: OpenAI tool calls with a
+  `finish_reason` other than `tool_calls` or `length`, `logprobs`, `annotations`,
   `web_search_options`, content together with a refusal, and both max-token
   fields; Anthropic `citations`, `stop_details` and a `container`. An empty
   OpenAI final answer now replays as `""`, and a JSON-encoded string argument

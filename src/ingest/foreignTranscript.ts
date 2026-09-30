@@ -81,7 +81,9 @@ function toJsonValue(value: unknown, where: string): JsonValue {
     const out: JsonObject = {};
     for (const key of Object.keys(value)) {
       // Name the key by position: a key from the source may hold anything.
-      out[key] = toJsonValue(value[key], `${where}.<key ${Object.keys(value).indexOf(key)}>`);
+      // defineProperty, not assignment: a "__proto__" key stays an own property.
+      const copied = toJsonValue(value[key], `${where}.<key ${Object.keys(value).indexOf(key)}>`);
+      Object.defineProperty(out, key, { value: copied, enumerable: true, writable: true, configurable: true });
     }
     return out;
   }

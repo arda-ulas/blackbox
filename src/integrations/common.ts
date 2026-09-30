@@ -92,7 +92,10 @@ export function json(value: unknown, where = "a request"): JsonValue {
     const copy: JsonObject = {};
     for (const key of Object.keys(record)) {
       const member = record[key];
-      if (member !== undefined && typeof member !== "function" && typeof member !== "symbol") copy[key] = json(member, where);
+      // defineProperty, not assignment: a "__proto__" key stays an own property.
+      if (member !== undefined && typeof member !== "function" && typeof member !== "symbol") {
+        Object.defineProperty(copy, key, { value: json(member, where), enumerable: true, writable: true, configurable: true });
+      }
     }
     return copy;
   }

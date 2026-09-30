@@ -65,7 +65,9 @@ function toJsonValue(value: unknown, where: string): JsonValue {
     const copy: JsonObject = {};
     for (const key of Object.keys(value)) {
       // Name the key by position: a key from the source may hold anything.
-      copy[key] = toJsonValue(value[key], `${where}.<key ${Object.keys(value).indexOf(key)}>`);
+      // defineProperty, not assignment: a "__proto__" key stays an own property.
+      const copied = toJsonValue(value[key], `${where}.<key ${Object.keys(value).indexOf(key)}>`);
+      Object.defineProperty(copy, key, { value: copied, enumerable: true, writable: true, configurable: true });
     }
     return copy;
   }
@@ -278,7 +280,8 @@ export function adaptClaudeCodeTranscript(
     }
     // A user message the person typed is a human turn even when it is empty; a
     // line that only carries tool results is not.
-    const typed = typeof line.message["content"] === "string" || contentBlocks(line.message).some((block) => block["type"] !== "tool_result");
+    const blocks = contentBlocks(line.message);
+    const typed = !(blocks.length > 0 && blocks.every((block) => block["type"] === "tool_result"));
     if (typed) turns.push({ kind: "human", text: humanText(line.message), timestamp: timestampOf(line.event, where) });
   }
 
