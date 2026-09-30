@@ -13,7 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { blackbox, ReplayDivergenceError } from "../src/index.ts";
 import type { BlackboxSession } from "../src/session/session.ts";
 import { launchEnv } from "../src/cli/launch.ts";
-import { resolveOptions, SESSION_ENV_VARS } from "../src/session/options.ts";
+import { resolveOptions, SESSION_ENV_VARS, type BlackboxOptions } from "../src/session/options.ts";
 import type { Trace } from "../src/trace/TraceTypes.ts";
 
 const execFileAsync = promisify(execFile);
@@ -508,7 +508,7 @@ describe("#8 diagnostics never quote raw input, and import refuses your API key"
       "tool_use",
     );
     const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn]), logErrors: false });
-    const tools = rec.tools({ lookup: async () => ({ found: 1 }) });
+    const tools = rec.tools({ lookup: async (_input: { q: string }) => ({ found: 1 }) });
     await ask(rec);
     await tools.lookup({ q: "x" });
     await rec.finish();
@@ -518,7 +518,7 @@ describe("#8 diagnostics never quote raw input, and import refuses your API key"
       { baseFetch: noNetwork, logErrors: false },
       { BLACKBOX_MODE: "fork", BLACKBOX_CASSETTE: path, BLACKBOX_OUT: tmp("fork-out"), BLACKBOX_FORK_AT: "3", BLACKBOX_FORK_SET: "2", BLACKBOX_CONTINUE: "script", BLACKBOX_SCRIPT: script },
     );
-    const forkTools = bb.tools({ lookup: async () => ({ found: 1 }) });
+    const forkTools = bb.tools({ lookup: async (_input: { q: string }) => ({ found: 1 }) });
     await ask(bb);
     await forkTools.lookup({ q: "x" });
     await expect(
@@ -553,4 +553,69 @@ describe("#8 diagnostics never quote raw input, and import refuses your API key"
     const clean = await cli(["import", "--from", "claude-code", "--in", source, "--out", out]);
     expect(clean.code, clean.stdout).toBe(0);
   }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// #5 — the session API let a fork write over its own parent cassette
+// ---------------------------------------------------------------------------
+
+describe("#5 a fork refuses to write over the cassette it forks", () => {
+  async function toolCassette(): Promise<string> {
+    const path = tmp("fork-parent");
+    const toolTurn = anthropicMessage(
+      [{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "lookup", input: { q: "x" } }],
+      "tool_use",
+    );
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn]), logErrors: false });
+    const tools = rec.tools({ lookup: async (_input: { q: string }) => 1 });
+    await ask(rec);
+    await tools.lookup({ q: "x" });
+    await rec.finish();
+    return path;
+  }
+
+  const forkOptions = (cassette: string, out: string): BlackboxOptions => ({
+    mode: "fork",
+    cassette,
+    out,
+    forkAt: 3,
+    forkSet: 2,
+    continueWith: "script",
+    script: [{ type: "final_answer", text: "done" }],
+    baseFetch: noNetwork,
+    logErrors: false,
+  });
+
+  it("probe: out === cassette is refused before anything runs, and the parent is unchanged", async () => {
+    const path = await toolCassette();
+    const before = readFileSync(path, "utf8");
+    expect(() => blackbox(forkOptions(path, path))).toThrow(/same file/);
+    expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
+  it("another spelling, a symlink and a hard link to the parent are refused too", async () => {
+    const { symlinkSync, linkSync } = await import("node:fs");
+    const { dirname, basename } = await import("node:path");
+    const path = await toolCassette();
+    const symlink = join(DIR, "link-to-parent.json");
+    symlinkSync(path, symlink);
+    const hardlink = join(DIR, "hardlink-to-parent.json");
+    linkSync(path, hardlink);
+    const spelled = join(dirname(path), ".", "..", basename(dirname(path)), basename(path));
+    for (const out of [spelled, symlink, hardlink]) {
+      expect(() => blackbox(forkOptions(path, out)), out).toThrow(/same file/);
+    }
+  });
+
+  it("a different out path still forks", async () => {
+    const path = await toolCassette();
+    const out = tmp("fork-child");
+    const bb = blackbox(forkOptions(path, out));
+    const tools = bb.tools({ lookup: async (_input: { q: string }) => 1 });
+    await ask(bb);
+    await expect(tools.lookup({ q: "x" })).resolves.toBe(2);
+    await ask(bb);
+    await expect(bb.finish()).resolves.toMatchObject({ mode: "fork", status: "success" });
+    expect(readTrace(out).parentId).toBe(readTrace(path).id);
+  });
 });

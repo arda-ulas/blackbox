@@ -47,6 +47,7 @@ import { CURRENT_TRACE_VERSION, type JsonObject, type JsonValue, type Trace, typ
 import { verifyTrace } from "../trace/verifyTrace.ts";
 import { firstDifference, renderValue } from "./firstDifference.ts";
 import { envApiKeys, PLACEHOLDER_KEY, resolveOptions, type BlackboxOptions, type ResolvedOptions } from "./options.ts";
+import { sameFile } from "./sameFile.ts";
 
 type Provider = "anthropic" | "openai";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -220,9 +221,7 @@ export class BlackboxSession {
       this.#appendTerminal(options);
       const trace = (this.#recorder as TraceRecorder).getTrace();
       this.#checkWritable(trace);
-      const path = resolve(this.#options.out as string);
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, JSON.stringify(trace, null, 2));
+      const path = this.#writeCassette(trace);
       const summary: FinishSummary = { mode: this.mode, path, steps: trace.steps.length, status: terminalOutcome(trace).status };
       if (this.mode === "fork") summary.replayedSteps = this.#options.forkAt as number;
       this.#finished = summary;
@@ -673,6 +672,7 @@ export class BlackboxSession {
     if (at === undefined) throw new BlackboxError("fork mode needs a fork step (forkAt / BLACKBOX_FORK_AT)");
     if (this.#options.forkSet === undefined) throw new BlackboxError("fork mode needs a replacement result (forkSet / BLACKBOX_FORK_SET)");
     if (this.#options.out === undefined) throw new BlackboxError("fork mode needs an output path (out / BLACKBOX_OUT)");
+    this.#checkOutIsNotParent();
     if (this.#options.continueWith === undefined) {
       throw new BlackboxError(
         'fork mode needs to know how to continue after the fork point: "live" (your real API client) or "script" (recorded replies from a file)',
@@ -778,6 +778,25 @@ export class BlackboxSession {
     if (payload) recorder.append("metadata", payload);
   }
 
+  /** A fork never writes over the cassette it forks, however the two paths are spelled. */
+  #checkOutIsNotParent(): void {
+    const { cassette, out } = this.#options;
+    if (cassette !== undefined && out !== undefined && sameFile(out, cassette)) {
+      throw new BlackboxError(
+        `fork refuses to write its output over the cassette it forks: ${out} is the same file as ${cassette}; choose another out path`,
+      );
+    }
+  }
+
+  /** Write the cassette to `out`, checking again that it is not the parent. */
+  #writeCassette(trace: Trace): string {
+    if (this.mode === "fork") this.#checkOutIsNotParent();
+    const path = resolve(this.#options.out as string);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(trace, null, 2));
+    return path;
+  }
+
   /** Refuse to write a cassette that fails verification or carries a known secret. */
   #checkWritable(trace: Trace): void {
     for (const secret of this.#secrets) {
@@ -865,9 +884,7 @@ export class BlackboxSession {
       }
       const trace = this.#recorder.getTrace();
       this.#checkWritable(trace);
-      const path = resolve(this.#options.out as string);
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, JSON.stringify(trace, null, 2));
+      const path = this.#writeCassette(trace);
       this.#writeReport({ ok: true, mode: this.mode, path, steps: trace.steps.length, status: terminalOutcome(trace).status, finished: false });
     } catch (error) {
       this.#writeReport({ ok: false, mode: this.mode, error: this.#mask(errorMessage(error)) });

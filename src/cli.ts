@@ -46,6 +46,7 @@ import { parseArgs, type ParsedArgs } from "./cli/args.ts";
 import { commandHelp, findCommand, mainHelp } from "./cli/help.ts";
 import { launch, type LaunchOptions, type LaunchResult } from "./cli/launch.ts";
 import { envApiKeys } from "./session/options.ts";
+import { sameFile } from "./session/sameFile.ts";
 import { auditTraceNeutrality } from "./trace/neutrality.ts";
 import { parseJson } from "./trace/parseJson.ts";
 
@@ -317,8 +318,8 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
   // Guardrail: never write the child over its own parent. This catches both an
   // explicit --out equal to --trace and the footgun where --trace lacks a
   // ".json" suffix (so the derived default output collides with the input).
-  // Compare normalized absolute paths so "./a.json" and "a.json" resolve alike.
-  if (resolve(outPath) === resolve(tracePath)) {
+  // Compare file identity so "./a.json", "a.json", a symlink or a hard link to it match.
+  if (sameFile(outPath, tracePath)) {
     die(`Refusing to overwrite the parent trace at ${resolve(tracePath)}. Pass an explicit --out.`);
   }
 
@@ -522,7 +523,7 @@ async function runImport(flags: Record<string, string | boolean>): Promise<void>
   if (typeof inPath !== "string") die("Missing required flag: --in");
   const outPath = flags["out"];
   if (typeof outPath !== "string") die("Missing required flag: --out");
-  if (resolve(inPath) === resolve(outPath)) die("--out must differ from --in");
+  if (sameFile(inPath, outPath)) die("--out must differ from --in");
   const traceId = str(flags["id"], basename(outPath).replace(/\.json$/, "") || "imported");
 
   const raw = await readFile(inPath, "utf8");
@@ -985,7 +986,7 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
   }
   const at = parseIntFlag(flags, "at", -1);
   if (at < 0) die("Missing required flag: --at (the tool_result step to replace; see `blackbox inspect`)");
-  if (resolve(out) === resolve(cassette)) die("--out must differ from the cassette you fork");
+  if (sameFile(out, cassette)) die("--out must differ from the cassette you fork");
   const live = flags["live"] === true;
   const script = typeof flags["script"] === "string" ? flags["script"] : undefined;
   if (live === (script !== undefined)) {
