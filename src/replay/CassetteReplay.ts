@@ -10,6 +10,7 @@ import {
   type TraceStepType,
 } from "../trace/TraceTypes.ts";
 import { hashTraceStepInput } from "../trace/hash.ts";
+import { parseJson } from "../trace/parseJson.ts";
 import { describeStep } from "../trace/stepLabels.ts";
 import { terminalOutcome } from "../trace/traceOutcome.ts";
 
@@ -32,7 +33,11 @@ export async function saveTrace(trace: Trace, filePath: string): Promise<void> {
  */
 export async function loadTrace(filePath: string): Promise<Trace> {
   const raw = await readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const value = parseJson(raw, `loadTrace: cassette at "${filePath}"`);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`loadTrace: cassette at "${filePath}" is not a JSON object`);
+  }
+  const parsed = value as Record<string, unknown>;
 
   if (typeof parsed["version"] !== "number") {
     throw new Error(
@@ -60,6 +65,10 @@ export async function loadTrace(filePath: string): Promise<Trace> {
 /**
  * Validate the structural and cryptographic integrity of a trace.
  *
+ * Error messages never quote a stored value (an index, prevHash or hash read
+ * from the file): a tampered field could hold anything, including a secret.
+ * They show only positions and hashes recomputed from the step content.
+ *
  * Checks (in order):
  * 1. Step indexes are sequential, starting at 0.
  * 2. The first step's prevHash is null.
@@ -75,21 +84,22 @@ export function validateTrace(trace: Trace): void {
     const step = steps[i];
 
     if (step.index !== i) {
+      const stored = typeof step.index === "number" && Number.isSafeInteger(step.index) ? String(step.index) : "a non-integer value";
       throw new Error(
-        `validateTrace: step at position ${i} has index ${step.index}; expected ${i}`,
+        `validateTrace: step at position ${i} has index ${stored}; expected ${i}`,
       );
     }
 
     if (i === 0 && step.prevHash !== null) {
       throw new Error(
-        `validateTrace: first step must have prevHash null; got "${step.prevHash}"`,
+        `validateTrace: first step must have prevHash null`,
       );
     }
 
     if (i > 0 && step.prevHash !== steps[i - 1].hash) {
       throw new Error(
-        `validateTrace: step ${i} prevHash "${step.prevHash}" does not match ` +
-          `previous step hash "${steps[i - 1].hash}"`,
+        `validateTrace: step ${i} prevHash does not match the previous step's hash ` +
+          `"${steps[i - 1].hash}"`,
       );
     }
 
@@ -103,8 +113,8 @@ export function validateTrace(trace: Trace): void {
 
     if (step.hash !== expected) {
       throw new Error(
-        `validateTrace: step ${i} hash mismatch — ` +
-          `stored "${step.hash}", recomputed "${expected}"`,
+        `validateTrace: step ${i} hash mismatch — the stored hash is not the hash of ` +
+          `the step's content (recomputed "${expected}")`,
       );
     }
   }

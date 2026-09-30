@@ -421,3 +421,136 @@ describe("#7 import keeps a trailing unanswered user message", () => {
     expect(result.stdout).toMatch(/Status:\s+incomplete/);
   }, 60_000);
 });
+
+// ---------------------------------------------------------------------------
+// #8 — raw input values in diagnostics, and imports that kept the API key
+// ---------------------------------------------------------------------------
+
+describe("#8 diagnostics never quote raw input, and import refuses your API key", () => {
+  const SECRET = "SYNTHETIC_SECRET";
+
+  async function recordedCassette(): Promise<string> {
+    const path = await recordAnswerA();
+    return path;
+  }
+
+  it("probe: a malformed --set @file is reported without its content", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const cassette = join(DIR, "set-parent.json");
+    const recorded = await cli(["record", "--out", cassette, "--", ...AGENT], { ANTHROPIC_API_KEY: "sk-test-launcher-000000000" });
+    expect(recorded.code, recorded.stderr).toBe(0);
+    const bad = join(DIR, "bad-set.json");
+    writeFileSync(bad, `${SECRET}_NOT_JSON`);
+    const script = join(DIR, "replies.json");
+    writeFileSync(script, "[]");
+    const result = await cli(["fork", cassette, "--at", "3", "--set", `@${bad}`, "--out", join(DIR, "never.json"), "--script", script, "--", ...AGENT]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("is not valid JSON");
+    expect(result.stderr + result.stdout).not.toContain(SECRET);
+  }, 60_000);
+
+  it("probe: a corrupted hash is reported without the stored value, even when it is the supplied key", async () => {
+    const { verifyTrace } = await import("../src/trace/verifyTrace.ts");
+    const trace = readTrace(await recordedCassette());
+    trace.steps[1].hash = SECRET;
+    for (const report of [verifyTrace(trace), verifyTrace(trace, { apiKey: SECRET })]) {
+      expect(report.pass).toBe(false);
+      expect(report.firstFailure?.name).toBe("hash_chain");
+      expect(JSON.stringify(report)).not.toContain(SECRET);
+    }
+  });
+
+  it("corrupted prevHash and index values are not quoted either", async () => {
+    const { verifyTrace } = await import("../src/trace/verifyTrace.ts");
+    const base = readTrace(await recordedCassette());
+    const first = structuredClone(base);
+    (first.steps[0] as { prevHash: unknown }).prevHash = SECRET;
+    const later = structuredClone(base);
+    later.steps[2].prevHash = SECRET;
+    const index = structuredClone(base);
+    (index.steps[1] as { index: unknown }).index = SECRET;
+    for (const trace of [first, later, index]) {
+      const report = verifyTrace(trace);
+      expect(report.firstFailure?.name).toBe("hash_chain");
+      expect(JSON.stringify(report)).not.toContain(SECRET);
+    }
+  });
+
+  it("the CLI verify and the session report a malformed cassette without its content", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const bad = join(DIR, "not-json-cassette.json");
+    // Short enough that a raw JSON.parse message would quote all of it.
+    writeFileSync(bad, SECRET);
+    const verified = await cli(["verify", bad]);
+    expect(verified.code).not.toBe(0);
+    expect(verified.stdout + verified.stderr).toContain("not valid JSON");
+    expect(verified.stdout + verified.stderr).not.toContain(SECRET);
+
+    const failure = (() => {
+      try {
+        blackbox({ mode: "replay", cassette: bad, logErrors: false });
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    })();
+    expect(String(failure)).toContain("not valid JSON");
+    expect(String(failure)).not.toContain(SECRET);
+  }, 60_000);
+
+  it("a malformed fork script is reported without its content", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const script = join(DIR, "bad-script.json");
+    writeFileSync(script, `[${SECRET}]`);
+    const path = tmp("fork-parent");
+    const toolTurn = anthropicMessage(
+      [{ type: "tool_use", id: "toolu_01AAAAAAAAAAAAAAAAAAAAAA", name: "lookup", input: { q: "x" } }],
+      "tool_use",
+    );
+    const rec = blackbox({ mode: "record", out: path, baseFetch: upstream([toolTurn]), logErrors: false });
+    const tools = rec.tools({ lookup: async () => ({ found: 1 }) });
+    await ask(rec);
+    await tools.lookup({ q: "x" });
+    await rec.finish();
+
+    const { BlackboxSession } = await import("../src/session/session.ts");
+    const bb = new BlackboxSession(
+      { baseFetch: noNetwork, logErrors: false },
+      { BLACKBOX_MODE: "fork", BLACKBOX_CASSETTE: path, BLACKBOX_OUT: tmp("fork-out"), BLACKBOX_FORK_AT: "3", BLACKBOX_FORK_SET: "2", BLACKBOX_CONTINUE: "script", BLACKBOX_SCRIPT: script },
+    );
+    const forkTools = bb.tools({ lookup: async () => ({ found: 1 }) });
+    await ask(bb);
+    await forkTools.lookup({ q: "x" });
+    await expect(
+      client(bb).messages.create({ model: "claude-sonnet-5", max_tokens: 64, messages: [{ role: "user", content: "Say A." }] }),
+    ).rejects.toThrow(/\[blackbox\]/);
+    const failure = await bb.finish().then(() => undefined, (e: unknown) => e);
+    expect(String(failure)).toContain("not valid JSON");
+    expect(String(failure)).not.toContain(SECRET);
+  });
+
+  it("probe: import refuses a transcript that contains the environment's API key, as record does", async () => {
+    const { writeFileSync, existsSync } = await import("node:fs");
+    const key = "opaque-synthetic-key-without-a-known-shape";
+    const source = join(DIR, "leaky.jsonl");
+    writeFileSync(
+      source,
+      [
+        { type: "user", timestamp: "2026-09-29T10:01:00.000Z", message: { role: "user", content: `my key is ${key}` } },
+        { type: "assistant", timestamp: "2026-09-29T10:02:00.000Z", message: { role: "assistant", id: "msg_example_01", content: [{ type: "text", text: "noted" }] } },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n"),
+    );
+    const out = join(DIR, "leaky.json");
+    const result = await cli(["import", "--from", "claude-code", "--in", source, "--out", out], { ANTHROPIC_API_KEY: key });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("contains your API key (the value of ANTHROPIC_API_KEY)");
+    expect(result.stdout + result.stderr).not.toContain(key);
+    expect(existsSync(out)).toBe(false);
+
+    // Without the key in the environment the same transcript imports.
+    const clean = await cli(["import", "--from", "claude-code", "--in", source, "--out", out]);
+    expect(clean.code, clean.stdout).toBe(0);
+  }, 60_000);
+});

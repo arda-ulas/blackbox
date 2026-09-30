@@ -13,6 +13,19 @@ export type BlackboxMode = "off" | "record" | "replay" | "fork";
 /** The key the CLI sets for offline runs so SDK constructors start; never a secret. */
 export const PLACEHOLDER_KEY = "blackbox-offline-placeholder";
 
+/** The environment variables that may hold a provider API key. */
+export const API_KEY_ENV_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"] as const;
+
+/** The API keys set in `env`, by variable name (the offline placeholder excluded). */
+export function envApiKeys(env: NodeJS.ProcessEnv): Array<{ name: string; value: string }> {
+  const keys: Array<{ name: string; value: string }> = [];
+  for (const name of API_KEY_ENV_VARS) {
+    const value = env[name];
+    if (value !== undefined && value.length > 0 && value !== PLACEHOLDER_KEY) keys.push({ name, value });
+  }
+  return keys;
+}
+
 /**
  * Every environment variable the session reads. The CLI launcher owns all of
  * them: it clears each one before setting the current invocation's, so a value
@@ -86,14 +99,14 @@ function envValue(env: NodeJS.ProcessEnv, name: string): string | undefined {
 export function resolveOptions(options: BlackboxOptions, env: NodeJS.ProcessEnv): ResolvedOptions {
   const mode = options.mode ?? (envValue(env, "BLACKBOX_MODE") as BlackboxMode | undefined) ?? "off";
   if (!MODES.includes(mode)) {
-    throw new BlackboxError(`BLACKBOX_MODE must be one of ${MODES.join(", ")}; got "${mode}"`);
+    throw new BlackboxError(`BLACKBOX_MODE must be one of ${MODES.join(", ")}`);
   }
 
   let forkAt = options.forkAt;
   const envForkAt = envValue(env, "BLACKBOX_FORK_AT");
   if (forkAt === undefined && envForkAt !== undefined) {
     if (!/^(0|[1-9]\d*)$/.test(envForkAt)) {
-      throw new BlackboxError(`BLACKBOX_FORK_AT must be a step index; got "${envForkAt}"`);
+      throw new BlackboxError("BLACKBOX_FORK_AT must be a step index (a non-negative integer)");
     }
     forkAt = Number(envForkAt);
   }
@@ -110,11 +123,11 @@ export function resolveOptions(options: BlackboxOptions, env: NodeJS.ProcessEnv)
 
   const continueWith = options.continueWith ?? (envValue(env, "BLACKBOX_CONTINUE") as ContinueMode | undefined);
   if (continueWith !== undefined && continueWith !== "live" && continueWith !== "script") {
-    throw new BlackboxError(`BLACKBOX_CONTINUE must be "live" or "script"; got "${String(continueWith)}"`);
+    throw new BlackboxError('BLACKBOX_CONTINUE must be "live" or "script"');
   }
   const match = options.match ?? (envValue(env, "BLACKBOX_MATCH") as MatchMode | undefined) ?? "strict";
   if (match !== "strict" && match !== "sequence") {
-    throw new BlackboxError(`BLACKBOX_MATCH must be "strict" or "sequence"; got "${String(match)}"`);
+    throw new BlackboxError('BLACKBOX_MATCH must be "strict" or "sequence"');
   }
 
   const resolved: ResolvedOptions = {

@@ -229,7 +229,7 @@ describe("adaptClaudeCodeTranscript", () => {
   it("rejects a tool call whose result never arrives before a later turn", () => {
     const source = oneToolTranscript();
     source.splice(4, 1);
-    expect(() => adaptClaudeCodeTranscript(source, { traceId: "missing" })).toThrow(/no result for "Read"/);
+    expect(() => adaptClaudeCodeTranscript(source, { traceId: "missing" })).toThrow(/no result for a tool called at/);
   });
 
   it("ends incomplete when the session stops while its last tool is running", () => {

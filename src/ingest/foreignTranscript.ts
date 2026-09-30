@@ -94,7 +94,8 @@ function readTimestamp(message: Record<string, unknown>, where: string): number 
   }
   if (typeof ts !== "number" || !Number.isInteger(ts) || ts < 0) {
     throw new ForeignTranscriptError(
-      `${where}: timestamp must be a non-negative integer epoch-millisecond value; got ${JSON.stringify(ts)}`,
+      `${where}: timestamp must be a non-negative integer epoch-millisecond value; got ` +
+        (typeof ts === "number" ? String(ts) : `a ${Array.isArray(ts) ? "array" : typeof ts}`),
     );
   }
   return ts;
@@ -206,7 +207,7 @@ export function adaptForeignTranscript(
     const role = messages[i]["role"];
     if (role !== "user" && role !== "assistant" && role !== "tool") {
       throw new ForeignTranscriptError(
-        `messages[${i}] has unsupported role ${JSON.stringify(role)}`,
+        `messages[${i}] has an unsupported role (expected user, assistant or tool)`,
       );
     }
     const ts = readTimestamp(messages[i], `messages[${i}]`);
@@ -278,7 +279,7 @@ export function adaptForeignTranscript(
     }
     if (seenForeignCallIds.has(foreignCallId)) {
       throw new ForeignTranscriptError(
-        `messages[${pos}].tool_calls[0].id duplicates an earlier tool call id ${JSON.stringify(foreignCallId)}`,
+        `messages[${pos}].tool_calls[0].id duplicates an earlier tool call id`,
       );
     }
     seenForeignCallIds.add(foreignCallId);
@@ -311,8 +312,7 @@ export function adaptForeignTranscript(
     const resultRefId = resultMessage["tool_call_id"];
     if (typeof resultRefId !== "string" || resultRefId !== foreignCallId) {
       throw new ForeignTranscriptError(
-        `messages[${resultPos}]: tool result references unknown tool_call_id ${JSON.stringify(resultRefId)} ` +
-          `(expected ${JSON.stringify(foreignCallId)})`,
+        `messages[${resultPos}]: tool result's tool_call_id does not match the tool call at messages[${pos}]`,
       );
     }
     const resultValue = parseToolResultContent(resultMessage["content"], `messages[${resultPos}]`);

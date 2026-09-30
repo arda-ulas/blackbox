@@ -355,7 +355,7 @@ describe("cli flag validation", () => {
     expect(result.stderr).toContain("Missing value for --trace");
   }, 15_000);
 
-  it("fork --payload-json with bad JSON exits 1 and prints Invalid JSON", async () => {
+  it("fork --payload-json with bad JSON exits 1 and names --payload-json without echoing the value", async () => {
     // Use an explicit --trace so we exercise JSON parsing, not file-not-found.
     const result = await runCli([
       "fork",
@@ -363,7 +363,7 @@ describe("cli flag validation", () => {
       "--payload-json", "{bad",
     ]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Invalid JSON");
+    expect(result.stderr).toContain("--payload-json is not valid JSON");
   }, 15_000);
 
   it("fork --fork-index nope exits 1 and prints a clear error", async () => {

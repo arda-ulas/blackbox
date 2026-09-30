@@ -426,7 +426,7 @@ describe("adaptForeignTranscript — validation", () => {
   it("rejects a tool result referencing an unknown tool_call_id", () => {
     const t = validTranscript();
     (t.messages as Record<string, unknown>[])[2].tool_call_id = "call_other";
-    expect(run(t)).toThrow(/unknown tool_call_id/);
+    expect(run(t)).toThrow(/does not match the tool call/);
   });
 
   it("rejects a dangling unresolved tool call at the end", () => {

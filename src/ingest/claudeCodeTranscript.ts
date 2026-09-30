@@ -377,7 +377,7 @@ export function adaptClaudeCodeTranscript(
     const missing = calls.filter((call) => !results.has(call.providerCallId));
     if (missing.length > 0 && turn !== lastModelTurn) {
       throw new ClaudeCodeTranscriptError(
-        `transcript has no result for ${JSON.stringify(missing[0].toolName)} (called at ${where})`,
+        `transcript has no result for a tool called at ${where}`,
       );
     }
 

@@ -45,6 +45,9 @@ import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 import { parseArgs, type ParsedArgs } from "./cli/args.ts";
 import { commandHelp, findCommand, mainHelp } from "./cli/help.ts";
 import { launch, type LaunchOptions, type LaunchResult } from "./cli/launch.ts";
+import { envApiKeys } from "./session/options.ts";
+import { auditTraceNeutrality } from "./trace/neutrality.ts";
+import { parseJson } from "./trace/parseJson.ts";
 
 // ---------------------------------------------------------------------------
 // Color decisions — computed at the CLI boundary and threaded into every render
@@ -330,9 +333,9 @@ async function runFork(flags: Record<string, string | boolean>): Promise<void> {
     let payload: JsonValue;
     if (typeof flags["payload-json"] === "string") {
       try {
-        payload = JSON.parse(flags["payload-json"]) as JsonValue;
+        payload = parseJson(flags["payload-json"], "--payload-json") as JsonValue;
       } catch (e) {
-        die(`Invalid JSON for --payload-json: ${String(e)}`);
+        die(e instanceof Error ? e.message : String(e));
       }
     } else {
       payload = DEMO_SEARCH_MUTATION;
@@ -526,13 +529,23 @@ async function runImport(flags: Record<string, string | boolean>): Promise<void>
   const trace =
     format === "claude-code"
       ? adaptClaudeCodeTranscript(parseClaudeCodeJsonl(raw), { traceId })
-      : adaptForeignTranscript(JSON.parse(raw) as unknown, { traceId });
+      : adaptForeignTranscript(parseJson(raw, inPath), { traceId });
 
-  // Refuse to write a cassette that would not verify (for example one that
-  // carries a credential copied out of the source transcript).
+  // Refuse to write a cassette that carries your API key (the same check
+  // record makes) or that would not verify (for example one that carries a
+  // credential copied out of the source transcript).
   const report = verifyTrace(trace);
+  const leaked = envApiKeys(process.env).filter(({ value }) => auditTraceNeutrality(trace, value).found.includes("<api-key-value>"));
   console.log(header("import", colorOn));
   console.log(kv("From:",   `${inPath} (${format})`, colorOn));
+  if (leaked.length > 0) {
+    console.log(kv("Result:", verdict(false, colorOn), colorOn));
+    console.log();
+    console.log(`  The transcript contains your API key (the value of ${leaked.map((key) => key.name).join(" and ")}).`);
+    console.log();
+    console.log("Nothing was written.");
+    process.exit(1);
+  }
   if (!report.pass) {
     console.log(kv("Result:", verdict(false, colorOn), colorOn));
     console.log();
@@ -965,9 +978,10 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
     }
   }
   try {
-    JSON.parse(set);
-  } catch {
-    die(`--set must be JSON; got ${set}. Quote strings: --set '"text"', or read a file: --set @result.json`);
+    parseJson(set, flags["set"] !== set ? `--set ${String(flags["set"])}` : "--set");
+  } catch (e) {
+    // The message names a position, never the value: it may come from a file.
+    die(`${e instanceof Error ? e.message : String(e)}. Quote strings: --set '"text"', or read a file: --set @result.json`);
   }
   const at = parseIntFlag(flags, "at", -1);
   if (at < 0) die("Missing required flag: --at (the tool_result step to replace; see `blackbox inspect`)");

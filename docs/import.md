@@ -26,7 +26,8 @@ npx blackbox inspect runs/session.json
 - Tool definitions are not in the transcript, so the cassette lists the tool names it observed.
 
 The cassette is written only if it passes `verify`. A session in which a real API key appears (pasted into the chat,
-or printed by a command) is refused, and nothing is written.
+or printed by a command) is refused, and so is one containing the value of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`
+from your environment, the same check `record` makes. Nothing is written, and the key is not printed.
 
 ## Chat JSON
 

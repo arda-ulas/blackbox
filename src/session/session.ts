@@ -37,6 +37,7 @@ import {
 } from "../integrations/openai.ts";
 import { validateTrace } from "../replay/CassetteReplay.ts";
 import { canonicalize } from "../trace/hash.ts";
+import { parseJson } from "../trace/parseJson.ts";
 import { auditTraceNeutrality } from "../trace/neutrality.ts";
 import { toolCallsOf, type ToolCallRef } from "../trace/payloads.ts";
 import { maskSecrets } from "../trace/secrets.ts";
@@ -45,7 +46,7 @@ import { terminalOutcome } from "../trace/traceOutcome.ts";
 import { CURRENT_TRACE_VERSION, type JsonObject, type JsonValue, type Trace, type TraceStep } from "../trace/TraceTypes.ts";
 import { verifyTrace } from "../trace/verifyTrace.ts";
 import { firstDifference, renderValue } from "./firstDifference.ts";
-import { PLACEHOLDER_KEY, resolveOptions, type BlackboxOptions, type ResolvedOptions } from "./options.ts";
+import { envApiKeys, PLACEHOLDER_KEY, resolveOptions, type BlackboxOptions, type ResolvedOptions } from "./options.ts";
 
 type Provider = "anthropic" | "openai";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -143,10 +144,7 @@ export class BlackboxSession {
   constructor(options: BlackboxOptions = {}, env: NodeJS.ProcessEnv = process.env) {
     this.#options = resolveOptions(options, env);
     this.mode = this.#options.mode;
-    for (const name of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]) {
-      const value = env[name];
-      if (value !== undefined && value.length > 0 && value !== PLACEHOLDER_KEY) this.#secrets.add(value);
-    }
+    for (const { value } of envApiKeys(env)) this.#secrets.add(value);
 
     if (this.mode === "record") {
       if (this.#options.out === undefined) throw new BlackboxError("record mode needs an output path (out / BLACKBOX_OUT)");
@@ -300,7 +298,7 @@ export class BlackboxSession {
     if (typeof init?.body === "string") text = init.body;
     else if (input instanceof Request) text = await input.clone().text();
     if (text === undefined) throw new BlackboxError("could not read the request body (expected a JSON string)");
-    const parsed: unknown = JSON.parse(text);
+    const parsed = readJson(text, "the request body");
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       throw new BlackboxError("the request body is not a JSON object");
     }
@@ -396,12 +394,7 @@ export class BlackboxSession {
     if (this.#options.script) return this.#options.script;
     const path = this.#options.scriptPath;
     if (path === undefined) throw new BlackboxError("fork with script continuation needs a script (BLACKBOX_SCRIPT)");
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(readFileSync(path, "utf8"));
-    } catch (error) {
-      throw new BlackboxError(`could not read the fork script ${path}: ${errorMessage(error)}`);
-    }
+    const parsed = readJson(readText(path, "the fork script"), `the fork script ${path}`);
     if (!Array.isArray(parsed) || parsed.some((entry) => !isNeutralOutput(entry))) {
       throw new BlackboxError(
         `the fork script must be a JSON array of model outputs, e.g. [{"type":"final_answer","text":"…"}] or ` +
@@ -837,13 +830,8 @@ export class BlackboxSession {
   #loadParent(): Trace {
     const path = this.#options.cassette;
     if (path === undefined) throw new BlackboxError(`${this.mode} mode needs a cassette (cassette / BLACKBOX_CASSETTE)`);
-    let trace: Trace;
-    try {
-      trace = JSON.parse(readFileSync(path, "utf8")) as Trace;
-    } catch (error) {
-      throw new BlackboxError(`could not read cassette ${path}: ${errorMessage(error)}`);
-    }
-    if (trace.version !== CURRENT_TRACE_VERSION) {
+    const trace = readJson(readText(path, "cassette"), `cassette ${path}`) as Trace;
+    if (typeof trace !== "object" || trace === null || trace.version !== CURRENT_TRACE_VERSION) {
       throw new BlackboxError(`${path} is not a v${CURRENT_TRACE_VERSION} cassette`);
     }
     try {
@@ -915,6 +903,23 @@ function installExitHook(): void {
       if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
     };
     process.once(signal, onSignal);
+  }
+}
+
+function readText(path: string, what: string): string {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    throw new BlackboxError(`could not read ${what} ${path}: ${errorMessage(error)}`);
+  }
+}
+
+/** Parse JSON; the error names a position, never the content. */
+function readJson(text: string, what: string): unknown {
+  try {
+    return parseJson(text, what);
+  } catch (error) {
+    throw new BlackboxError(errorMessage(error));
   }
 }
 

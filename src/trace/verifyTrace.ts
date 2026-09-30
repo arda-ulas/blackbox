@@ -152,11 +152,13 @@ export function verifyTrace(trace: Trace, opts: VerifyOptions = {}): VerifyRepor
       return;
     }
     const result = check();
+    // Details never carry the supplied key, whatever check produced them.
+    const detail = opts.apiKey ? result.detail.split(opts.apiKey).join("[redacted]") : result.detail;
     if (result.ok) {
-      invariants.push({ name, status: "pass", detail: result.detail });
+      invariants.push({ name, status: "pass", detail });
     } else {
       failed = true;
-      const inv: VerifyInvariant = { name, status: "fail", detail: result.detail };
+      const inv: VerifyInvariant = { name, status: "fail", detail };
       if (result.stepIndex !== undefined) inv.stepIndex = result.stepIndex;
       invariants.push(inv);
     }
