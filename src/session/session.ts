@@ -145,6 +145,9 @@ export class BlackboxSession {
   constructor(options: BlackboxOptions = {}, env: NodeJS.ProcessEnv = process.env) {
     this.#options = resolveOptions(options, env);
     this.mode = this.#options.mode;
+    // Absolute from the start, so a later process.chdir() cannot move them.
+    if (this.#options.out !== undefined) this.#options.out = resolve(this.#options.out);
+    if (this.#options.cassette !== undefined) this.#options.cassette = resolve(this.#options.cassette);
     for (const { value } of envApiKeys(env)) this.#secrets.add(value);
 
     if (this.mode === "record") {
@@ -156,7 +159,7 @@ export class BlackboxSession {
     }
     if (this.mode === "fork") this.#checkForkPlan();
     if (this.#parent) this.#round = this.#recordedRound(0, []);
-    if (this.mode === "record" || this.mode === "fork") {
+    if (this.mode !== "off") {
       openSessions.add(this);
       installExitHook();
     }
@@ -315,6 +318,7 @@ export class BlackboxSession {
     input: string | URL | Request,
     init: RequestInit | undefined,
   ): Promise<Response> {
+    this.#checkNoToolRunning();
     this.#checkPrefixClaimed();
     const startedAt = Date.now();
     const modelInput = this.#normalizeRequest(provider, body);
@@ -355,7 +359,20 @@ export class BlackboxSession {
     return response;
   }
 
+  /**
+   * A wrapped tool still running across a model call would finish after its
+   * turn was written and be lost from the cassette, so it is refused.
+   */
+  #checkNoToolRunning(): void {
+    if (this.#toolsInFlight === 0) return;
+    throw new BlackboxUnsupportedError(
+      "a wrapped tool call was still running when the agent made or got a model call; await every tool call " +
+        "before the next model call (a tool running alongside a model call is not supported yet)",
+    );
+  }
+
   #appendModelTurn(modelInput: JsonObject, startedAt: number, output: NeutralOutput, at: number): void {
+    this.#checkNoToolRunning();
     this.#checkPrefixClaimed();
     this.#flushRound();
     const recorder = this.#recorder as TraceRecorder;
@@ -867,11 +884,21 @@ export class BlackboxSession {
    */
   writeOnExit(exitCode: number): void {
     openSessions.delete(this);
-    if (this.#finished || this.#finishError !== undefined || !this.#recorder || this.#failure) return;
+    if (this.#finished || this.#finishError !== undefined) return;
+    // Whatever happens below, the run has ended: a finish() from the agent's
+    // own signal handler must not write it a second time.
+    this.#finalizing = true;
+    this.#finishError = new BlackboxError("the run already ended when the process exited; finish() came too late");
+    if (this.#failure) {
+      // Report why the run failed (a replay divergence, say), so the CLI can say so.
+      this.#writeReport({ ok: false, mode: this.mode, error: this.#mask(this.#failure.message) });
+      return;
+    }
+    if (!this.#recorder) return;
     if (this.mode === "fork" && !this.#forked) return;
     try {
       const inFlight = this.#inFlight();
-      if (inFlight === 0) this.#checkPrefixClaimed();
+      this.#checkPrefixClaimed();
       this.#flushRound();
       if (this.#recorder.size() === 0) return;
       if (inFlight > 0) {
@@ -894,8 +921,12 @@ export class BlackboxSession {
   #writeReport(report: Record<string, unknown>): void {
     const path = this.#options.reportPath;
     if (path === undefined) return;
+    // The launcher checks the mode and files the session actually used.
+    const files: Record<string, string> = {};
+    if (this.#options.cassette !== undefined) files["cassette"] = this.#options.cassette;
+    if (this.#options.out !== undefined) files["out"] = this.#options.out;
     try {
-      writeFileSync(path, JSON.stringify(report));
+      writeFileSync(path, JSON.stringify({ ...report, ...files }));
     } catch {
       // The report is advisory; the cassette and the exit code carry the result.
     }

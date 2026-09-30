@@ -43,7 +43,12 @@ const cannedUpstream: typeof fetch = async () => {
 
 const TEMPS: Record<string, number> = { Paris: 18, Rome: 24 };
 
-const bb = blackbox({ baseFetch: cannedUpstream });
+// AGENT_EXPLICIT_MODE / AGENT_EXPLICIT_OUT: options set in code, which take
+// precedence over the launcher's environment.
+const explicit: { mode?: "record"; out?: string } = {};
+if (process.env["AGENT_EXPLICIT_MODE"] === "record") explicit.mode = "record";
+if (process.env["AGENT_EXPLICIT_OUT"] !== undefined) explicit.out = process.env["AGENT_EXPLICIT_OUT"];
+const bb = blackbox({ baseFetch: cannedUpstream, ...explicit });
 const client = new Anthropic({ fetch: bb.fetch, maxRetries: 0 });
 const tools = bb.tools({
   weather: async ({ city }: { city: string }) => ({ city, temp: TEMPS[city] }),

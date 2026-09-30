@@ -35,6 +35,9 @@ export interface SessionReport {
   replayedSteps?: number;
   finished?: boolean;
   error?: string;
+  /** The files the session actually used (absolute). */
+  cassette?: string;
+  out?: string;
 }
 
 export interface LaunchResult {

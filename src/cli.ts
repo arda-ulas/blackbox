@@ -44,7 +44,7 @@ import {
 import type { JsonValue, Trace } from "./trace/TraceTypes.ts";
 import { parseArgs, type ParsedArgs } from "./cli/args.ts";
 import { commandHelp, findCommand, mainHelp } from "./cli/help.ts";
-import { launch, type LaunchOptions, type LaunchResult } from "./cli/launch.ts";
+import { launch, type LaunchOptions, type LaunchResult, type SessionReport } from "./cli/launch.ts";
 import { envApiKeys } from "./session/options.ts";
 import { sameFile } from "./session/sameFile.ts";
 import { auditTraceNeutrality } from "./trace/neutrality.ts";
@@ -921,9 +921,37 @@ function reportFailure(result: LaunchResult, what: string): never {
 
 function noSessionHint(mode: string): string {
   return (
-    `the command finished without a Blackbox ${mode} session. In your agent, create one with ` +
-    "blackbox() from @ardaulas/blackbox, pass bb.fetch to your Anthropic or OpenAI client, and await bb.finish() at the end."
+    `the command finished without a Blackbox ${mode} session report: the agent exited before bb.finish(), or never ` +
+    "created a session. In your agent, create one with blackbox() from @ardaulas/blackbox, pass bb.fetch to your " +
+    "Anthropic or OpenAI client, and await bb.finish() at the end."
   );
+}
+
+/**
+ * The session's report, checked against what was launched. Options passed to
+ * blackbox() in code take precedence over the launcher's environment, so an
+ * agent can run in another mode or with other files than the CLI asked for;
+ * that must fail loudly, not be reported as the requested run.
+ */
+function checkedReport(result: LaunchResult, options: LaunchOptions): SessionReport {
+  const { mode } = options;
+  if (!result.report) reportFailure(result, noSessionHint(mode));
+  const report = result.report;
+  const override = (what: string): never =>
+    reportFailure(
+      { ...result, report: undefined },
+      `the agent's session ${what}: blackbox() options set in code (mode, cassette, out) override the CLI. ` +
+        `Leave them out when you run the agent under blackbox ${mode}.`,
+    );
+  if (report.mode !== mode) override(`ran in ${JSON.stringify(report.mode ?? "unknown")} mode, not ${mode}`);
+  if (options.cassette !== undefined && (report.cassette === undefined || !sameFile(report.cassette, options.cassette))) {
+    override(`used ${report.cassette ?? "no cassette"}, not ${options.cassette}`);
+  }
+  if (options.out !== undefined && (report.out === undefined || !sameFile(report.out, options.out))) {
+    override(`wrote ${report.out ?? "nothing"}, not ${options.out}`);
+  }
+  if (!report.ok) reportFailure(result, `${mode} failed`);
+  return report;
 }
 
 async function runRecordAgent(parsed: ParsedArgs): Promise<void> {
@@ -935,12 +963,11 @@ async function runRecordAgent(parsed: ParsedArgs): Promise<void> {
   if (typeof flags["id"] === "string") options.traceId = flags["id"];
 
   const result = await launch(options);
-  if (!result.report) reportFailure(result, noSessionHint("record"));
-  if (!result.report.ok) reportFailure(result, "recording failed");
+  const report = checkedReport(result, options);
   note(
     `${header("record", stderrColorOn)}  wrote ${out} ` +
-      `(${result.report.steps} steps, ${result.report.status})` +
-      (result.report.finished === false ? " — bb.finish() was not called; the status was inferred at exit" : ""),
+      `(${report.steps} steps, ${report.status})` +
+      (report.finished === false ? " — bb.finish() was not called; the status was inferred at exit" : ""),
   );
   process.exit(result.exitCode);
 }
@@ -955,11 +982,10 @@ async function runReplayAgent(parsed: ParsedArgs): Promise<void> {
   if (match) options.match = match;
 
   const result = await launch(options);
-  if (!result.report) reportFailure(result, noSessionHint("replay"));
-  if (!result.report.ok) reportFailure(result, "replay failed");
+  const report = checkedReport(result, options);
   note(
-    `${header("replay", stderrColorOn)}  ${verdict(true, stderrColorOn)}  replayed ${result.report.replayedSteps} steps from ${cassette} ` +
-      `with no network calls (${result.report.status})`,
+    `${header("replay", stderrColorOn)}  ${verdict(true, stderrColorOn)}  replayed ${report.replayedSteps} steps from ${cassette} ` +
+      `with no network calls (${report.status})`,
   );
   process.exit(result.exitCode);
 }
@@ -992,6 +1018,9 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
   if (live === (script !== undefined)) {
     die("choose how the run continues after the fork point: --live (your real API client) or --script <replies.json>");
   }
+  if (script !== undefined && sameFile(out, script)) die("--out must differ from the --script file");
+  const setFlag = String(flags["set"]);
+  if (setFlag.startsWith("@") && sameFile(out, setFlag.slice(1))) die("--out must differ from the --set file");
 
   // Check the fork step before launching anything.
   const parent = await loadTrace(cassette);
@@ -1020,10 +1049,9 @@ async function runForkAgent(parsed: ParsedArgs): Promise<void> {
   if (match) options.match = match;
 
   const result = await launch(options);
-  if (!result.report) reportFailure(result, noSessionHint("fork"));
-  if (!result.report.ok) reportFailure(result, "fork failed");
+  const report = checkedReport(result, options);
   note(
-    `${header("fork", stderrColorOn)}  wrote ${out} (${result.report.steps} steps, ${result.report.status}); ` +
+    `${header("fork", stderrColorOn)}  wrote ${out} (${report.steps} steps, ${report.status}); ` +
       `steps 0–${at - 1} are copied from ${cassette}, step ${at} is your new result`,
   );
   note(`  next: blackbox diff ${cassette} ${out}`);
