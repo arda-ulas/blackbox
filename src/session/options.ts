@@ -20,7 +20,8 @@ export const API_KEY_ENV_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"] as const
 export function envApiKeys(env: NodeJS.ProcessEnv): Array<{ name: string; value: string }> {
   const keys: Array<{ name: string; value: string }> = [];
   for (const name of API_KEY_ENV_VARS) {
-    const value = env[name];
+    // The SDKs trim the key they read, so compare the trimmed value.
+    const value = env[name]?.trim();
     if (value !== undefined && value.length > 0 && value !== PLACEHOLDER_KEY) keys.push({ name, value });
   }
   return keys;

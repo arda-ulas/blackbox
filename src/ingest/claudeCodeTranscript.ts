@@ -64,7 +64,8 @@ function toJsonValue(value: unknown, where: string): JsonValue {
   if (isRecord(value)) {
     const copy: JsonObject = {};
     for (const key of Object.keys(value)) {
-      copy[key] = toJsonValue(value[key], `${where}.${key}`);
+      // Name the key by position: a key from the source may hold anything.
+      copy[key] = toJsonValue(value[key], `${where}.<key ${Object.keys(value).indexOf(key)}>`);
     }
     return copy;
   }

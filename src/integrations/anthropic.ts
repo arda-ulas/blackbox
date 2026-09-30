@@ -152,6 +152,10 @@ export function normalizeAnthropicResponse(response: Record<string, unknown>, id
     const type = block["type"];
     if (typeof type === "string" && DROPPED_BLOCKS.has(type)) continue;
     if (type === "text" && typeof block["text"] === "string") {
+      const citations = block["citations"];
+      if (citations !== undefined && citations !== null && !(Array.isArray(citations) && citations.length === 0)) {
+        unsupported("text with citations in a response", "citations are not recorded in this version");
+      }
       if (block["text"].length === 0) continue;
       // A replay returns one text block before the tool calls; any other
       // layout would come back changed, so it is not recorded.
@@ -174,6 +178,13 @@ export function normalizeAnthropicResponse(response: Record<string, unknown>, id
   if (stopReason === "pause_turn") unsupported("stop_reason pause_turn (server tools)", "use client-executed tools");
   if (stopReason === "stop_sequence") {
     unsupported("a response that ended on a stop sequence (stop_reason stop_sequence)", "the matched stop sequence is not recorded in this version");
+  }
+  // A replay returns neither, so a response carrying them is not recorded.
+  if (response["stop_details"] !== undefined && response["stop_details"] !== null) {
+    unsupported("stop_details in a response", "they are not recorded in this version");
+  }
+  if (response["container"] !== undefined && response["container"] !== null) {
+    unsupported("a container in a response (server-side code execution)", "use client-executed tools");
   }
   if (stopReason === "model_context_window_exceeded") {
     unsupported("a response that hit the context window (stop_reason model_context_window_exceeded)", "it would replay as max_tokens");

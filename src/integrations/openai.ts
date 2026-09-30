@@ -63,6 +63,16 @@ export function checkOpenAIRequest(body: Record<string, unknown>): void {
   for (const field of ["functions", "function_call"]) {
     if (body[field] !== undefined && body[field] !== null) unsupported(`the legacy ${field} request field`, LEGACY_FUNCTIONS_ADVICE);
   }
+  if (body["max_tokens"] !== undefined && body["max_tokens"] !== null && body["max_completion_tokens"] !== undefined && body["max_completion_tokens"] !== null) {
+    unsupported("both max_tokens and max_completion_tokens", "send one of them; they are recorded as one value");
+  }
+  if (body["web_search_options"] !== undefined && body["web_search_options"] !== null) {
+    unsupported("web_search_options (server-side search)", "search in a wrapped tool instead");
+  }
+}
+
+function present(value: unknown): boolean {
+  return value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0);
 }
 
 /** Reject message fields the neutral schema does not carry. */
@@ -95,7 +105,9 @@ function contentText(content: unknown, where: string): string {
 function parseArguments(raw: unknown): JsonValue {
   if (typeof raw !== "string") return json(raw ?? {});
   try {
-    return json(JSON.parse(raw));
+    const parsed: unknown = JSON.parse(raw);
+    // A JSON-encoded string stays encoded, so a replay hands back the same text.
+    return typeof parsed === "string" ? raw : json(parsed);
   } catch {
     return raw;
   }
@@ -210,6 +222,12 @@ export function normalizeOpenAIResponse(response: Record<string, unknown>, ids: 
   if (message["audio"] !== undefined && message["audio"] !== null) {
     unsupported("audio in a response (message.audio)", "request text output; audio cannot be recorded in this version");
   }
+  // A replay returns none of these, so a response carrying them is not recorded.
+  if (present(choice["logprobs"])) unsupported("logprobs in a response (choices[0].logprobs)", "leave logprobs off; they are not recorded in this version");
+  if (present(message["annotations"])) unsupported("annotations in a response (message.annotations)", "they are not recorded in this version");
+  if (typeof message["refusal"] === "string" && typeof message["content"] === "string" && message["content"].length > 0) {
+    unsupported("a response with both content and a refusal", "only one of them can be recorded in this version");
+  }
   const refusal = typeof message["refusal"] === "string" ? message["refusal"] : undefined;
   const text = typeof message["content"] === "string" ? message["content"] : "";
 
@@ -224,6 +242,13 @@ export function normalizeOpenAIResponse(response: Record<string, unknown>, ids: 
   }
 
   if (calls.length > 0) {
+    // A replay answers tool calls with finish_reason tool_calls (or length).
+    if (finish !== "tool_calls" && finish !== "length") {
+      unsupported(
+        `tool calls with finish_reason ${JSON.stringify(finish)} (the API returns stop when tool_choice names a function)`,
+        "they would replay with finish_reason tool_calls; let the model choose the tool (tool_choice auto or required)",
+      );
+    }
     const output: NeutralOutput = { type: "tool_calls", calls };
     if (text.length > 0) output.text = text;
     if (finish === "length") output.stop = "length";
@@ -246,9 +271,14 @@ export function synthesizeOpenAIResponse(
   createdSeconds: number,
 ): JsonObject {
   const refused = output.type === "final_answer" && output.stop === "refusal";
+  // A final answer's content is a string, even an empty one; tool calls
+  // without text carry null content, as the API sends them.
+  let content: string | null = null;
+  if (!refused && output.type === "final_answer") content = output.text;
+  if (output.type === "tool_calls" && output.text !== undefined && output.text.length > 0) content = output.text;
   const message: OpenAI.ChatCompletionMessage = {
     role: "assistant",
-    content: refused ? null : output.text !== undefined && output.text.length > 0 ? output.text : null,
+    content,
     refusal: refused ? (output.text ?? "") : null,
   };
   if (output.type === "tool_calls") {

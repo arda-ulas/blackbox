@@ -77,6 +77,8 @@ export async function loadTrace(filePath: string): Promise<Trace> {
  *
  * Throws a descriptive Error on the first violation found.
  */
+const STEP_TYPES: readonly TraceStepType[] = ["model_input", "model_output", "tool_call", "tool_result", "metadata"];
+
 export function validateTrace(trace: Trace): void {
   const { steps } = trace;
 
@@ -88,6 +90,10 @@ export function validateTrace(trace: Trace): void {
       throw new Error(
         `validateTrace: step at position ${i} has index ${stored}; expected ${i}`,
       );
+    }
+
+    if (!STEP_TYPES.includes(step.type)) {
+      throw new Error(`validateTrace: step ${i} has an unknown type`);
     }
 
     if (i === 0 && step.prevHash !== null) {
